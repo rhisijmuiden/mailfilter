@@ -140,14 +140,16 @@ def check(ips: list[str], resolver: Resolver, lists: list[Blocklist] | None = No
     return out
 
 
-def load(path: Path = STATUS_FILE) -> dict | None:
+def load(path: Path | None = None) -> dict | None:
+    path = path or STATUS_FILE
     try:
         return json.loads(path.read_text())
     except (FileNotFoundError, ValueError):
         return None
 
 
-def save(data: dict, path: Path = STATUS_FILE) -> None:
+def save(data: dict, path: Path | None = None) -> None:
+    path = path or STATUS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2))
@@ -155,7 +157,8 @@ def save(data: dict, path: Path = STATUS_FILE) -> None:
     tmp.replace(path)
 
 
-def update(ips: list[str], resolver: Resolver, path: Path = STATUS_FILE) -> dict:
+def update(ips: list[str], resolver: Resolver, path: Path | None = None) -> dict:
+    path = path or STATUS_FILE
     data = check(ips, resolver, previous=load(path))
     save(data, path)
     return data
