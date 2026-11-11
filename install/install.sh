@@ -131,7 +131,7 @@ run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
-      nodejs npm git curl dnsutils ca-certificates jq crowdsec)
+      nodejs npm git curl dnsutils ca-certificates jq sudo crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
@@ -334,6 +334,16 @@ for p in "${RELAY_PORTS[@]}"; do SEED_ARGS+=(--relay-port "$p"); done
 [[ -n $FIRST_DOMAIN ]] && SEED_ARGS+=(--domain "$FIRST_DOMAIN" --destination "$FIRST_DEST")
 run "$MF_SRC/backend/bin/mailfilter-config" seed "${SEED_ARGS[@]}"
 ok "$(jq '.relay_networks | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0) relay network(s), $(jq '.domains | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0) domain(s), extra relay ports: $(jq -r '[.relay_ports[].port] | join(", ")' "$MF_ETC/gateway.json" 2>/dev/null || true)"
+# The web app (user mailfilter) applies changes through this one command as root, nothing else.
+# sudo only stays safe if the web app cannot change the code it runs, so keep it root-owned.
+chown -R root:root "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
+chmod -R go-w "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
+SUDOERS_TMP=$(mktemp)
+printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: %s apply --stdin --json\n' \
+  "$(readlink -f "$MF_SRC/backend/bin/mailfilter-config")" >"$SUDOERS_TMP"
+run visudo -cf "$SUDOERS_TMP"
+install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/mailfilter-config
+rm -f "$SUDOERS_TMP"
 
 # ---------------------------------------------------------------------------
 step "Intrusion protection (CrowdSec)"
