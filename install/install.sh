@@ -66,7 +66,12 @@ source /etc/os-release
 ok "Debian 13 ($VERSION_CODENAME)"
 for p in 25 465 587 80 443; do
   if ss -Hltn "sport = :$p" | grep -q . && ! systemctl is-active -q postfix caddy 2>/dev/null; then
-    warn "Port $p is already in use by another program: $(ss -Hltnp "sport = :$p" | awk '{print $NF}' | head -1)"
+    USER_OF_PORT=$(ss -Hltnp "sport = :$p" | awk '{print $NF}' | head -1)
+    if [[ $USER_OF_PORT == *exim* || $USER_OF_PORT == *sendmail* ]]; then
+      info "Port $p is used by the default mail server ($USER_OF_PORT); Postfix replaces it."
+    else
+      warn "Port $p is already in use by another program: $USER_OF_PORT"
+    fi
   fi
 done
 PUBLIC_V4=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src") print $(i+1)}' | head -1 || true)
@@ -125,6 +130,8 @@ PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam do
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv git curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
+# Postfix replaces Debian's default Exim; clean up what is left of it
+if dpkg -l 'exim4*' 2>/dev/null | grep -q '^[ri]i'; then run apt-get purge -y 'exim4*'; fi
 if apt-cache show crowdsec-firewall-bouncer >/dev/null 2>&1; then
   run apt-get install -y --no-install-recommends crowdsec-firewall-bouncer
 else
@@ -170,12 +177,13 @@ if [[ -n $FIRST_DOMAIN ]]; then
   grep -q "^$FIRST_DOMAIN " "$MF_ETC/postfix/relay_domains" || echo "$FIRST_DOMAIN OK" >>"$MF_ETC/postfix/relay_domains"
   grep -q "^$FIRST_DOMAIN " "$MF_ETC/postfix/transport" || echo "$FIRST_DOMAIN relay:[$FIRST_DEST]:25" >>"$MF_ETC/postfix/transport"
 fi
-# Generate the Postfix and Rspamd views of the relay list
-{ echo "# Generated from $NETS_FILE"; grep -v '^\s*\(#\|$\)' "$NETS_FILE" | awk '{print $1" OK"}'; } >"$MF_ETC/postfix/relay_networks.cidr"
-{ echo "# Generated from $NETS_FILE"; echo "127.0.0.0/8"; echo "::1"; grep -v '^\s*\(#\|$\)' "$NETS_FILE"; } >"$MF_ETC/rspamd/local_addrs.map"
+# Generate the Postfix and Rspamd views of the relay list (awk, not grep: an empty list is fine)
+active_nets() { awk '!/^[[:space:]]*(#|$)/ {print $1}' "$NETS_FILE"; }
+{ echo "# Generated from $NETS_FILE"; active_nets | awk '{print $1" OK"}'; } >"$MF_ETC/postfix/relay_networks.cidr"
+{ echo "# Generated from $NETS_FILE"; echo "127.0.0.0/8"; echo "::1"; active_nets; } >"$MF_ETC/rspamd/local_addrs.map"
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
-ok "$(grep -vc '^\s*\(#\|$\)' "$NETS_FILE" || true) relay network(s), $(grep -c . "$MF_ETC/postfix/relay_domains" || true) domain(s)"
+ok "$(active_nets | wc -l) relay network(s), $(grep -c . "$MF_ETC/postfix/relay_domains" || true) domain(s)"
 
 # ---------------------------------------------------------------------------
 step "Firewall (nftables, IPv4 and IPv6)"
@@ -231,7 +239,7 @@ HOSTNAME=$HOSTNAME_FQDN
 EXTRA_RELAY_LISTENERS=""
 for p in "${RELAY_PORTS[@]}"; do
   EXTRA_RELAY_LISTENERS+="$p      inet  n       -       y       -       -       smtpd
-  -o syslog_name=postfix/relay-$p
+  -o syslog_name=postfix/port-$p
   -o smtpd_tls_security_level=may
   -o smtpd_sasl_auth_enable=yes
   -o smtpd_client_restrictions=permit_mynetworks,permit_sasl_authenticated,reject

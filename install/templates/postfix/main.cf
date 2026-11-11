@@ -1,6 +1,8 @@
 # Managed by Mailfilter. Changes here are overwritten; use the web interface.
 compatibility_level = 3.6
 smtputf8_enable = yes
+# Unique queue IDs, so the mail trace never mixes up two messages
+enable_long_queue_ids = yes
 
 myhostname = {{HOSTNAME}}
 myorigin = $myhostname
