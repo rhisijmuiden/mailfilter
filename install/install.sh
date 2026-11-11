@@ -14,6 +14,8 @@ MF_SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TPL=$MF_SRC/install/templates
 # shellcheck source=lib/common.sh
 source "$MF_SRC/install/lib/common.sh"
+# shellcheck source=lib/webapp.sh
+source "$MF_SRC/install/lib/webapp.sh"
 
 trap 'die "Installer stopped at line $LINENO (see $MF_LOG)"' ERR
 
@@ -129,7 +131,7 @@ run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
-      git curl dnsutils ca-certificates jq crowdsec)
+      nodejs npm git curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
@@ -307,6 +309,11 @@ fi
 ok "Database 'mailfilter' ready"
 
 # ---------------------------------------------------------------------------
+step "Web app"
+WEB_ADMIN_PASSWORD=""
+install_webapp
+
+# ---------------------------------------------------------------------------
 step "Mail trace log collector"
 install -m 0600 /dev/null "$MF_ETC/tracer.env"
 printf 'MAILFILTER_DB=host=127.0.0.1 dbname=mailfilter user=mailfilter password=%s\n' "$DB_PASSWORD" >"$MF_ETC/tracer.env"
@@ -376,7 +383,7 @@ ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minu
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
@@ -397,6 +404,11 @@ if [[ -n $FIRST_DOMAIN ]]; then
   echo "  SPF   add to $FIRST_DOMAIN:   ip4:${PUBLIC_V4:-<IPv4>}${PUBLIC_V6:+ ip6:$PUBLIC_V6}"
   echo "  DKIM  $(tr -s ' \n\t' ' ' <"$MF_ETC/dkim-$FIRST_DOMAIN.$SEL.txt" | sed 's/  */ /g')"
   echo "  MX    $FIRST_DOMAIN -> $HOSTNAME_FQDN  (only at go-live)"
+fi
+if [[ -n $WEB_ADMIN_PASSWORD ]]; then
+  printf '\n%sWeb interface login%s  https://%s\n' "$C_BOLD" "$C_RESET" "$HOSTNAME_FQDN"
+  echo "  User:     $ADMIN_EMAIL"
+  echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in)"
 fi
 echo
 echo "Log of this install: $MF_LOG"

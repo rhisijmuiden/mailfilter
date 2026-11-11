@@ -1,0 +1,72 @@
+{
+  "app": { "product": "Mailfilter", "skip": "Skip to content" },
+  "nav": {
+    "group": { "overview": "Overview", "mail": "Mail flow", "config": "Configuration", "system": "System" },
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "account": "My account",
+    "menu": "Menu"
+  },
+  "common": {
+    "save": "Save", "cancel": "Cancel", "delete": "Delete", "edit": "Edit", "close": "Close", "add": "Add",
+    "loading": "Loading…", "saved": "Saved", "error": "Something went wrong. Try again.", "yes": "Yes", "no": "No",
+    "never": "Never", "search": "Search", "copy": "Copy", "copied": "Copied", "theme": "Switch light or dark", "language": "Language",
+    "logout": "Log out", "none": "None", "back": "Back", "refresh": "Refresh"
+  },
+  "errors": {
+    "bad_credentials": "E-mail address or password is not correct.",
+    "too_many_attempts": "Too many attempts. Wait 15 minutes and try again.",
+    "wrong_current_password": "Your current password is not correct.",
+    "email_exists": "A user with this e-mail address already exists.",
+    "cannot_demote_self": "You cannot remove your own admin rights or disable yourself.",
+    "cannot_delete_self": "You cannot delete your own account.",
+    "admin_only": "Only admins can do this.",
+    "invalid_input": "Some fields are not filled in correctly.",
+    "not_found": "Not found.",
+    "unknown_domain": "Unknown domain: {{value}}",
+    "error": "Something went wrong. Try again."
+  },
+  "login": {
+    "title": "Sign in",
+    "sub": "Sign in to manage mail flow, quarantine and settings.",
+    "email": "E-mail address", "password": "Password", "submit": "Sign in", "busy": "Signing in…",
+    "forgot": "Forgot your password? Ask your administrator to set a new one."
+  },
+  "info": {
+    "title": "About Mailfilter", "version": "Version", "branch": "Channel", "host": "Server", "app": "Web app",
+    "production": "Production", "test": "Test",
+    "updates_soon": "Checking for and installing updates from here is coming in the next release."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {{name}}",
+    "sub_admin": "Everything that went through the gateway. Mail trace and quarantine are filled as soon as mail flows.",
+    "sub_customer": "Mail for your domains: {{domains}}.",
+    "next": "Get started",
+    "next_users": "Add users and link customers to their domains",
+    "next_trace": "Search any message in Mail trace",
+    "next_quarantine": "Release or block messages in Quarantine"
+  },
+  "account": {
+    "title": "My account", "sub": "Your name, language and password.",
+    "profile": "Profile", "name": "Name", "email": "E-mail address", "language": "Language",
+    "password": "Change password", "current": "Current password", "new": "New password", "repeat": "Repeat new password",
+    "mismatch": "The new passwords are not the same.", "min": "At least 10 characters.", "changed": "Password changed. Other sessions were logged out.",
+    "domains": "Your domains", "role": "Role"
+  },
+  "users": {
+    "title": "Users", "sub": "Admins manage everything. Customers only see mail for the domains linked to them.",
+    "add": "Add user", "edit": "Edit user", "email": "E-mail address", "name": "Name", "role": "Role",
+    "admin": "Admin", "customer": "Customer", "domains": "Domains", "all_domains": "All domains", "last_login": "Last login",
+    "active": "Active", "inactive": "Disabled", "language": "Language",
+    "password": "Password", "password_hint": "Leave empty to generate one. At least 10 characters.",
+    "password_keep": "Leave empty to keep the current password.",
+    "generated": "User created. Give them this password; it is shown only once:",
+    "delete_confirm": "Delete {{email}}? They can no longer sign in.",
+    "domains_hint": "Customers only see mail from and to these domains.",
+    "no_domains": "No domains yet. Add domains under Domains first.",
+    "empty": "No users yet."
+  },
+  "lang": { "en": "English", "nl": "Nederlands" },
+  "notfound": { "title": "Page not found", "home": "Go to dashboard" }
+}
