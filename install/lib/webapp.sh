@@ -12,7 +12,9 @@ install_webapp() {
   install -d -o mailfilter -g mailfilter -m 0750 "$MF_VAR"
   # The app reads its settings and secrets from /etc/mailfilter.
   chgrp mailfilter "$MF_ETC" "$MF_ETC/mailfilter.env" "$MF_ETC/secrets.env"
-  chmod 0750 "$MF_ETC"; chmod 0640 "$MF_ETC/mailfilter.env" "$MF_ETC/secrets.env"
+  # 0751: services such as Rspamd (user _rspamd) must reach their maps in here; the
+  # secrets themselves stay 0640, and the directory cannot be listed by others.
+  chmod 0751 "$MF_ETC"; chmod 0640 "$MF_ETC/mailfilter.env" "$MF_ETC/secrets.env"
   if ! grep -q '^APP_SECRET=' "$MF_ETC/secrets.env"; then echo "APP_SECRET=$(gen_secret 48)" >>"$MF_ETC/secrets.env"; fi
 
   info "Python packages for the web app"
