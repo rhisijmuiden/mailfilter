@@ -38,6 +38,7 @@ render "$TPL/postfix/main.cf" /etc/postfix/main.cf
 render "$TPL/postfix/master.cf" /etc/postfix/master.cf
 for f in relay_domains transport sender_block tls_policy; do postmap hash:/etc/mailfilter/postfix/$f; done
 postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
+[[ -f /etc/aliases ]] || printf 'postmaster: root\nroot: admin@example.nl\n' >/etc/aliases
 newaliases
 check "postfix check" postfix check
 check "postconf warnings" bash -c '! postconf -n 2>&1 >/dev/null | grep -i warning'

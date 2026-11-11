@@ -245,6 +245,8 @@ if [[ $HAVE_CERT == 0 ]]; then
   warn "Postfix uses a temporary self-signed certificate until Let's Encrypt succeeds."
 fi
 for f in relay_domains transport sender_block tls_policy; do run postmap "hash:$MF_ETC/postfix/$f"; done
+# A bare install with "No configuration" has no /etc/aliases; route system mail to the admin.
+[[ -f /etc/aliases ]] || printf 'postmaster: root\nabuse: root\nroot: %s\n' "$ADMIN_EMAIL" >/etc/aliases
 run newaliases
 run postfix check
 run systemctl enable postfix
