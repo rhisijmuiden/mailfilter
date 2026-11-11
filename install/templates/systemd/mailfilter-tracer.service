@@ -1,0 +1,30 @@
+# Managed by Mailfilter. Reads the mail log from the journal and fills the mail trace.
+[Unit]
+Description=Mailfilter mail trace log collector
+After=postgresql.service systemd-journald.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/mailfilter/tracer.env
+Environment=PYTHONPATH={{MF_SRC}}/backend PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m mailfilter_tracer
+Restart=always
+RestartSec=5
+DynamicUser=yes
+SupplementaryGroups=systemd-journal
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
