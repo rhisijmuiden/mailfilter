@@ -14,7 +14,7 @@ MF_LOG=/tmp/validate.log
 export DEBIAN_FRONTEND=noninteractive
 echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends postfix postfix-lmdb rspamd dovecot-core unbound caddy nftables ssl-cert ca-certificates >/dev/null
+apt-get install -y -qq --no-install-recommends postfix postfix-lmdb rspamd dovecot-core unbound dns-root-data caddy nftables ssl-cert ca-certificates >/dev/null
 echo "Versions: $(dpkg-query -W -f='${Package} ${Version}, ' postfix rspamd dovecot-core caddy unbound nftables)"
 
 fail=0
@@ -54,7 +54,8 @@ render "$TPL/dovecot/dovecot.conf" /etc/dovecot/dovecot.conf
 check "doveconf -n" doveconf -n
 
 render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.conf
-unbound-anchor -a /var/lib/unbound/root.key >/dev/null 2>&1 || true
+install -d /var/lib/unbound
+[[ -s /var/lib/unbound/root.key ]] || cp /usr/share/dns/root.key /var/lib/unbound/root.key
 check "unbound-checkconf" unbound-checkconf
 
 MGMT_V4_ELEMENTS="elements = { 198.51.100.7 }"; MGMT_V6_ELEMENTS=""

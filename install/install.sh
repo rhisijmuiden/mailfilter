@@ -122,7 +122,7 @@ echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-se
 echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
-      unbound caddy certbot nftables unattended-upgrades postgresql
+      unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv git curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 if apt-cache show crowdsec-firewall-bouncer >/dev/null 2>&1; then
@@ -136,6 +136,8 @@ ok "Packages installed"
 step "Local DNS resolver (needed for blocklists)"
 render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.conf
 # DNSSEC trust anchor; unbound-anchor exits 1 when it (re)wrote the file, which is fine
+install -d -o unbound -g unbound /var/lib/unbound
+[[ -s /var/lib/unbound/root.key ]] || cp /usr/share/dns/root.key /var/lib/unbound/root.key
 unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
 chown unbound:unbound /var/lib/unbound/root.key 2>/dev/null || true
 run unbound-checkconf
