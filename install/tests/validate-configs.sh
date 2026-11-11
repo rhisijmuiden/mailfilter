@@ -56,7 +56,7 @@ check "doveconf -n" doveconf -n
 install -d /etc/mailfilter /var/spool/postfix/private
 printf 'web01@example.nl:%s\n' "$(doveadm pw -s SHA512-CRYPT -p secret)" >/etc/mailfilter/smtp-users
 chown root:dovecot /etc/mailfilter/smtp-users; chmod 0640 /etc/mailfilter/smtp-users
-# shellcheck disable=SC2329  # called through check()
+# shellcheck disable=SC2317,SC2329  # called through check()
 dovecot_runs() {
   dovecot -F -o log_path=/dev/stderr >/tmp/dovecot.log 2>&1 &
   local pid=$! ok=1
