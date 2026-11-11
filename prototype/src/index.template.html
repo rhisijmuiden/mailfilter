@@ -1,0 +1,845 @@
+<title>Mailfilter prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: fixed admin sidebar on the left (RHIS app rule), scrolling work area on the right. */
+@font-face{font-family:"Archivo";font-style:normal;font-weight:100 900;font-stretch:62% 125%;font-display:swap;src:url(__ARCHIVO_WOFF2__) format("woff2")}
+:root{
+  --nacht:#14213D; --koraal:#FF6B57; --lucht:#9CC3FF; --wolk:#F6F7FB;
+  --surface:#F6F7FB; --surface-raised:#FFFFFF; --surface-sunk:#EDF0F6; --ink:#14213D; --ink-muted:#4F5B73; --line:#DCE1EB;
+  --accent:#FF6B57; --on-accent:#14213D; --accent-text:#B8392A; --accent-soft:#FFE7E3;
+  --ok:#1C8A57; --ok-soft:#E3F4EB; --warn:#A86B00; --warn-soft:#FBF0DA; --bad:#C23434; --bad-soft:#FBE5E5; --info:#2E5FB8; --info-soft:#E4EDFC;
+  --code-bg:#0E1626; --code-ink:#DCE4F2;
+  --font:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:ui-monospace,"SFMono-Regular","Cascadia Mono",Menlo,Consolas,monospace;
+  --r-sm:6px; --r-md:10px; --r-lg:16px; --sidebar:248px;
+  --shadow:0 1px 2px rgba(20,33,61,.06),0 8px 24px rgba(20,33,61,.06);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --surface:#0E1626; --surface-raised:#16213A; --surface-sunk:#111B30; --ink:#EEF1F7; --ink-muted:#A3AEC4; --line:#26324D;
+  --accent-text:#FF8A78; --accent-soft:#3A2230;
+  --ok:#4ACB8C; --ok-soft:#16352B; --warn:#F2B640; --warn-soft:#3A2F17; --bad:#FF7A7A; --bad-soft:#3D1F27; --info:#9CC3FF; --info-soft:#1C2C4D;
+  --code-bg:#0A101C; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --surface:#0E1626; --surface-raised:#16213A; --surface-sunk:#111B30; --ink:#EEF1F7; --ink-muted:#A3AEC4; --line:#26324D;
+  --accent-text:#FF8A78; --accent-soft:#3A2230;
+  --ok:#4ACB8C; --ok-soft:#16352B; --warn:#F2B640; --warn-soft:#3A2F17; --bad:#FF7A7A; --bad-soft:#3D1F27; --info:#9CC3FF; --info-soft:#1C2C4D;
+  --code-bg:#0A101C; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25); color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--surface);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.display{font-stretch:125%;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.muted{color:var(--ink-muted)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+
+/* App shell */
+.app{display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr);min-height:100%}
+.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;background:var(--surface-raised);border-right:1px solid var(--line);padding:20px 12px 12px max(12px,env(safe-area-inset-left,0px))}
+.brand{display:flex;flex-direction:column;gap:6px;padding:4px 10px 18px}
+.brand svg{width:112px;height:auto;display:block}
+.brand .product{font-stretch:125%;font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-muted)}
+.nav{display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1;min-height:0}
+.nav .group{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);padding:14px 10px 6px}
+.nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);color:var(--ink);text-decoration:none;font-weight:500;position:relative}
+.nav a svg{width:18px;height:18px;flex:none;stroke:currentColor;color:var(--ink-muted)}
+.nav a:hover{background:var(--surface-sunk)}
+.nav a.active{background:var(--surface-sunk);font-weight:650}
+.nav a.active::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.nav a.active svg{color:var(--accent-text)}
+.nav .count{margin-left:auto;font-size:11.5px;font-weight:650;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text)}
+.side-foot{border-top:1px solid var(--line);padding-top:10px;margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.info-btn{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:transparent;cursor:pointer;text-align:left}
+.info-btn:hover{background:var(--surface-sunk)}
+.info-btn svg{width:18px;height:18px;stroke:currentColor;color:var(--ink-muted)}
+.info-btn .v{margin-left:auto;font-size:12px;color:var(--ink-muted)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px max(24px,env(safe-area-inset-right,0px)) 12px 24px;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.icon-btn.menu-toggle{display:none}
+.search{flex:1;max-width:520px;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface-raised)}
+.search svg{width:16px;height:16px;stroke:var(--ink-muted);flex:none}
+.search input{border:0;outline:0;background:transparent;width:100%;min-width:0}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.chip-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface-raised);cursor:pointer;font-size:12.5px;font-weight:600}
+.chip-btn:hover{border-color:var(--ink-muted)}
+.chip-btn svg{width:15px;height:15px;stroke:currentColor}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--surface-raised)}
+.seg button{border:0;background:transparent;padding:6px 10px;font-size:12px;font-weight:650;cursor:pointer;color:var(--ink-muted)}
+.seg button[aria-pressed="true"]{background:var(--nacht);color:#fff}
+:root[data-theme="dark"] .seg button[aria-pressed="true"]{background:var(--lucht);color:var(--nacht)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{background:var(--lucht);color:var(--nacht)}}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--nacht);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+
+.content{padding:28px max(24px,env(safe-area-inset-right,0px)) 48px 24px;display:flex;flex-direction:column;gap:20px;max-width:1360px;width:100%}
+.page-head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.page-head h1{margin:0;font-size:28px;line-height:1.15}
+.page-head p{margin:4px 0 0;color:var(--ink-muted);max-width:68ch}
+.page-head .actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.sample{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink-muted);border:1px dashed var(--line);border-radius:999px;padding:2px 9px}
+
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--surface-raised);cursor:pointer;font-weight:600;font-size:13.5px;white-space:nowrap}
+.btn:hover{border-color:var(--ink-muted)}
+.btn svg{width:16px;height:16px;stroke:currentColor}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{filter:brightness(1.04)}
+.btn.dark{background:var(--nacht);border-color:var(--nacht);color:#fff}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{background:var(--surface-sunk)}
+.btn.small{padding:5px 10px;font-size:12.5px}
+.btn.danger{color:var(--bad)}
+
+.card{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--r-md)}
+.card-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.card-head h2{margin:0;font-size:15px;font-weight:700}
+.card-head .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.card-body{padding:18px}
+
+.grid{display:grid;gap:16px}
+.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.two{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+.halves{grid-template-columns:repeat(2,minmax(0,1fr))}
+.kpi{padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.kpi .label{font-size:12px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em}
+.kpi .value{font-size:28px;font-stretch:115%;font-weight:750;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .delta{font-size:12.5px;color:var(--ink-muted)}
+.kpi .delta b{font-weight:650}
+.spark{width:100%;height:36px;display:block}
+
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:11.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-raised)}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--surface-sunk)}
+td.nowrap{white-space:nowrap}
+.cell-main{font-weight:600}
+.cell-sub{font-size:12.5px;color:var(--ink-muted)}
+
+.status{display:inline-flex;align-items:center;gap:6px;font-weight:650;font-size:12.5px;padding:3px 9px 3px 6px;border-radius:999px;white-space:nowrap}
+.status svg{width:15px;height:15px;stroke:currentColor;stroke-width:2.4}
+.s-ok{color:var(--ok);background:var(--ok-soft)}
+.s-warn{color:var(--warn);background:var(--warn-soft)}
+.s-bad{color:var(--bad);background:var(--bad-soft)}
+.s-info{color:var(--info);background:var(--info-soft)}
+.s-mute{color:var(--ink-muted);background:var(--surface-sunk)}
+.reason{display:block;margin-top:4px;font-size:12.5px;color:var(--ink-muted);max-width:56ch}
+.reason b{color:var(--ink);font-weight:600}
+.dir{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:650;color:var(--ink-muted)}
+.dir svg{width:14px;height:14px;stroke:currentColor}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-sunk);color:var(--ink-muted);border:1px solid var(--line);white-space:nowrap}
+.tag.lucht{background:var(--info-soft);color:var(--info);border-color:transparent}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:12.5px;font-weight:650}
+.field .hint{font-size:12px;color:var(--ink-muted)}
+.input,.select{padding:8px 11px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);min-width:0;width:100%}
+.input:focus,.select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.input.ok{border-color:var(--ok)} .input.bad{border-color:var(--bad)}
+.select.inline,.input.inline{width:auto}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.form-grid .full{grid-column:1/-1}
+.check{display:flex;gap:10px;align-items:flex-start}
+.check input{margin-top:3px;accent-color:var(--koraal)}
+.switch{position:relative;width:38px;height:22px;flex:none}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch span{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:.15s}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch input:checked+span{background:var(--ok)}
+.switch input:checked+span::after{transform:translateX(16px)}
+.switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.setting{display:flex;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.setting:last-child{border-bottom:0}
+.setting .txt{flex:1;min-width:0}
+.setting .txt b{display:block;font-weight:650}
+.setting .txt span{font-size:12.5px;color:var(--ink-muted)}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);padding:0 14px;overflow-x:auto}
+.tabs button{border:0;background:transparent;padding:12px 10px;font-weight:600;color:var(--ink-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
+.bar{height:6px;border-radius:999px;background:var(--surface-sunk);overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;border-radius:999px;background:var(--ok)}
+.bar i.w{background:var(--warn)} .bar i.b{background:var(--bad)}
+
+.callout{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-md);background:var(--info-soft);color:var(--ink)}
+.callout svg{width:18px;height:18px;stroke:var(--info);flex:none;margin-top:2px}
+.callout.warn{background:var(--warn-soft)} .callout.warn svg{stroke:var(--warn)}
+
+.dns{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 12px;align-items:center;font-size:13px}
+.dns code{font-family:var(--mono);font-size:12px;background:var(--surface-sunk);padding:6px 8px;border-radius:var(--r-sm);overflow-x:auto;white-space:nowrap;display:block}
+
+/* Drawer + modal */
+.scrim{position:fixed;inset:0;background:rgba(14,22,38,.45);z-index:40;display:flex;justify-content:flex-end}
+.drawer{width:min(620px,100%);height:100%;background:var(--surface-raised);border-left:1px solid var(--line);display:flex;flex-direction:column;box-shadow:var(--shadow);animation:slide .18s ease-out}
+@keyframes slide{from{transform:translateX(24px);opacity:.6}to{transform:none;opacity:1}}
+.drawer-head{display:flex;gap:12px;align-items:flex-start;padding:20px max(22px,env(safe-area-inset-right,0px)) 16px 22px;border-bottom:1px solid var(--line)}
+.drawer-head h2{margin:0 0 4px;font-size:18px;line-height:1.3}
+.drawer-body{padding:20px max(22px,env(safe-area-inset-right,0px)) 32px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:20px}
+.icon-btn{border:1px solid var(--line);background:transparent;border-radius:var(--r-sm);width:34px;height:34px;display:grid;place-items:center;cursor:pointer;flex:none;margin-left:auto}
+.icon-btn svg{width:18px;height:18px;stroke:currentColor}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:8px 12px;font-size:13px}
+.kv dt{color:var(--ink-muted)} .kv dd{margin:0;word-break:break-word}
+.verdict{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:var(--r-md)}
+.verdict svg{width:28px;height:28px;flex:none;stroke:currentColor;stroke-width:2.4}
+.verdict b{display:block;font-size:16px;margin-bottom:2px}
+.timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.timeline li{display:grid;grid-template-columns:64px 18px minmax(0,1fr);gap:10px;position:relative;padding-bottom:16px}
+.timeline li:not(:last-child)::after{content:"";position:absolute;left:82px;top:18px;bottom:0;width:2px;background:var(--line)}
+.timeline .t{font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums;padding-top:1px}
+.timeline .m{width:12px;height:12px;border-radius:50%;margin:4px 3px 0;background:var(--ok);box-shadow:0 0 0 3px var(--surface-raised)}
+.timeline .m.w{background:var(--warn)} .timeline .m.b{background:var(--bad)} .timeline .m.n{background:var(--ink-muted)}
+.timeline .d b{display:block;font-weight:650;font-size:13.5px}
+.timeline .d span{font-size:12.5px;color:var(--ink-muted)}
+pre.log{margin:0;background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:11.5px;line-height:1.6;padding:14px;border-radius:var(--r-md);overflow-x:auto;white-space:pre}
+.modal-scrim{position:fixed;inset:0;background:rgba(14,22,38,.5);z-index:50;display:grid;place-items:center;padding:16px}
+.modal{width:min(560px,100%);max-height:calc(100% - 32px);overflow-y:auto;background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);animation:pop .16s ease-out}
+@keyframes pop{from{transform:scale(.98);opacity:.6}to{transform:none;opacity:1}}
+.modal-head{display:flex;align-items:center;gap:12px;padding:20px 22px;border-bottom:1px solid var(--line)}
+.modal-head h2{margin:0;font-size:18px}
+.modal-body{padding:22px;display:flex;flex-direction:column;gap:18px}
+.version-hero{display:flex;gap:16px;align-items:center}
+.version-hero .ic{width:56px;height:56px;flex:none}
+.version-hero .vn{font-size:24px;font-stretch:120%;font-weight:800;font-variant-numeric:tabular-nums}
+.progress{height:8px;border-radius:999px;background:var(--surface-sunk);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+.channel{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.channel label{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer}
+.channel label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.channel input{accent-color:var(--koraal)}
+.channel .nm{display:flex;gap:8px;align-items:center;font-weight:700}
+.channel .ds{font-size:12.5px;color:var(--ink-muted)}
+.toast{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:60;background:var(--nacht);color:#fff;padding:11px 16px;border-radius:var(--r-md);box-shadow:var(--shadow);display:flex;gap:10px;align-items:center;font-weight:600;font-size:13.5px;animation:pop .16s ease-out}
+.toast svg{width:17px;height:17px;stroke:var(--lucht)}
+
+.chart{width:100%;height:220px;display:block}
+.chart text{fill:var(--ink-muted);font-size:11px;font-family:var(--font)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.list-row{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.list-row:last-child{border-bottom:0}
+.list-row .grow{flex:1;min-width:0}
+.empty{padding:28px;text-align:center;color:var(--ink-muted)}
+
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.two{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar{position:fixed;left:0;top:0;z-index:45;width:min(280px,86vw);transform:translateX(-102%);transition:transform .18s;box-shadow:var(--shadow);padding-top:max(20px,env(safe-area-inset-top,0px))}
+  .app.nav-open .sidebar{transform:none}
+  .icon-btn.menu-toggle{display:grid}
+  .icon-btn.menu-toggle{margin-left:0}
+  .topbar{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));top:env(safe-area-inset-top,0px)}
+  .content{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .halves,.form-grid{grid-template-columns:minmax(0,1fr)}
+  .top-actions .hide-sm{display:none}
+}
+@media (max-width:520px){.kpis{grid-template-columns:minmax(0,1fr)}.kv{grid-template-columns:minmax(0,1fr)}.page-head h1{font-size:24px}.search{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Main menu">
+    <div class="brand">
+      <svg viewBox="0 0 3074 1092" role="img" aria-label="RHIS"><path fill="currentColor" style="color:var(--ink)" d="M0 1080V392H572Q647 392 696.0 423.0Q745 454 770.0 504.5Q795 555 795 615Q795 680 764.0 733.5Q733 787 671 818L811 1080H581L467 851H203V1080ZM203 701H505Q542 701 564.0 679.0Q586 657 586 620Q586 596 576.0 578.5Q566 561 548.0 552.0Q530 543 505 543H203ZM942 1080V392H1145V648H1558V392H1761V1080H1558V812H1145V1080ZM2703 1092Q2619 1092 2546.0 1082.0Q2473 1072 2418.0 1047.0Q2363 1022 2332.0 977.0Q2301 932 2301 863Q2301 861 2301.0 858.0Q2301 855 2302 852H2502Q2501 856 2500.5 860.0Q2500 864 2500 869Q2500 900 2523.5 917.5Q2547 935 2589.0 942.0Q2631 949 2688 949Q2711 949 2735.5 947.5Q2760 946 2783.0 942.5Q2806 939 2824.5 932.0Q2843 925 2853.5 914.5Q2864 904 2864 888Q2864 867 2841.5 854.5Q2819 842 2779.5 834.5Q2740 827 2691.5 821.0Q2643 815 2591.0 806.5Q2539 798 2490.0 783.5Q2441 769 2402.0 745.0Q2363 721 2340.0 683.0Q2317 645 2317 591Q2317 536 2344.5 496.5Q2372 457 2422.0 431.0Q2472 405 2540.0 392.5Q2608 380 2688 380Q2770 380 2836.5 393.0Q2903 406 2950.5 431.5Q2998 457 3023.5 495.5Q3049 534 3049 586V600H2852V592Q2852 571 2834.0 554.5Q2816 538 2781.5 528.5Q2747 519 2698 519Q2639 519 2601.0 526.5Q2563 534 2545.0 546.5Q2527 559 2527 575Q2527 595 2550.0 606.5Q2573 618 2612.0 625.0Q2651 632 2699.5 638.0Q2748 644 2800.5 652.0Q2853 660 2901.5 674.0Q2950 688 2989.0 711.5Q3028 735 3051.0 771.5Q3074 808 3074 861Q3074 944 3026.0 995.0Q2978 1046 2894.5 1069.0Q2811 1092 2703 1092Z"/><rect x="1941" y="392" width="215" height="688" rx="40" fill="#FF6B57"/><path d="M1942.4 215.9A150 150 0 0 1 2154.6 215.9 M1850.5 124.0A280 280 0 0 1 2246.5 124.0" fill="none" stroke="#FF6B57" stroke-width="75" stroke-linecap="round"/></svg>
+      <span class="product">Mailfilter</span>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <button class="info-btn" id="infoBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg><span data-t="info">Info</span><span class="v num" id="sideVersion"></span></button>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-toggle" id="menuToggle" type="button" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="globalSearch" type="search" data-tp="searchPh"></label>
+      <div class="top-actions">
+        <button class="chip-btn hide-sm" id="channelChip" type="button"></button>
+        <div class="seg" role="group" aria-label="Language"><button type="button" data-lang="en">EN</button><button type="button" data-lang="nl">NL</button></div>
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Theme" style="margin-left:0"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg></button>
+        <div class="avatar" title="Reinder">R</div>
+      </div>
+    </header>
+    <main class="content" id="view"></main>
+  </div>
+</div>
+<div id="overlay"></div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- i18n ---------- */
+var I18N={
+en:{
+ searchPh:"Search mail by sender, recipient, subject or message ID",info:"Info",
+ g_overview:"Overview",g_mail:"Mail flow",g_config:"Configuration",g_system:"System",
+ n_dashboard:"Dashboard",n_trace:"Mail trace",n_quarantine:"Quarantine",n_queues:"Queues",n_logs:"Live log",
+ n_domains:"Domains",n_relay:"Relay access",n_throttle:"Throttling",n_rules:"Filter rules",n_customers:"Customers",
+ n_security:"Security",n_mailserver:"Mail server",n_backup:"Backup",n_import:"Import from PMG",
+ sample:"Sample data",prod:"Production",test:"Test",
+ dash_title:"Dashboard",dash_sub:"Everything that went through the gateway in the last 24 hours.",
+ k_in:"Inbound",k_out:"Outbound",k_spam:"Spam blocked",k_virus:"Viruses stopped",k_vs:"vs. yesterday",
+ flow:"Mail flow, last 24 hours",l_delivered:"Delivered",l_spam:"Spam",l_deferred:"Deferred",
+ attention:"Needs your attention",health:"System health",
+ att1:"3 messages waiting in the deferred queue for bakkerijdekroon.nl",att2:"webshop-01 is close to its hourly limit (84%)",att3:"6 messages waiting in quarantine",
+ h_postfix:"Mail server (Postfix)",h_rspamd:"Spam filter (Rspamd)",h_clam:"Virus scanner (ClamAV)",h_cert:"Certificate",h_fw:"Firewall",h_disk:"Disk",
+ running:"Running",sigs:"Signatures updated 41 min ago",certok:"Valid until 9 Feb 2027, renews automatically",fwok:"Active, 2 IPs blocked today",disk:"38% used",
+ topsenders:"Top outbound senders",
+ trace_title:"Mail trace",trace_sub:"Find any message and see straight away whether it was delivered, and if not, why.",
+ f_all:"All",f_delivered:"Delivered",f_failed:"Not delivered",f_deferred:"Deferred",f_quar:"Quarantined",f_rejected:"Rejected",
+ any_dir:"Both directions",inbound:"Inbound",outbound:"Outbound",last24:"Last 24 hours",last7:"Last 7 days",
+ c_status:"Status",c_time:"Time",c_from:"From",c_to:"To",c_subject:"Subject",c_dir:"Direction",
+ st_delivered:"Delivered",st_bounced:"Not delivered",st_deferred:"Deferred, retrying",st_quar:"In quarantine",st_rejected:"Rejected",
+ trace_detail:"Message details",showlog:"Show full log lines",hidelog:"Hide log lines",journey:"Journey",checks:"Checks",
+ d_msgid:"Message ID",d_size:"Size",d_client:"Sent from",d_dest:"Delivered to",d_score:"Spam score",d_queue:"Queue ID",
+ resend:"Retry delivery now",release:"Release",copyid:"Copy message ID",
+ q_title:"Quarantine",q_sub:"Messages held back as spam, virus or blocked attachment. Releasing or blocking trains the spam filter.",
+ q_spam:"Spam",q_virus:"Virus",q_attach:"Blocked attachments",c_reason:"Why it was held",c_score:"Score",c_actions:"Actions",
+ a_release:"Release",a_notspam:"Release and mark as not spam",a_block:"Block sender, mark as spam",a_delete:"Delete",
+ queue_title:"Queues",queue_sub:"Each domain has its own queue, so one busy or broken destination never holds up the rest.",
+ c_domain:"Domain",c_active:"Active",c_deferred:"Deferred",c_hold:"On hold",c_oldest:"Oldest",c_next:"Next retry",
+ flush:"Retry now",view:"View",hold:"Hold",
+ logs_title:"Live log",logs_sub:"Raw log lines from the mail server and spam filter, as they come in. Use Mail trace for a readable view per message.",
+ pause:"Pause",resume:"Resume",
+ dom_title:"Domains",dom_sub:"Domains this gateway accepts mail for, where it delivers it, and their DNS status.",
+ add_domain:"Add domain",c_dest:"Delivers to",c_dkim:"DKIM",c_spf:"SPF",c_dmarc:"DMARC",c_customer:"Customer",
+ dns_ok:"OK",dns_missing:"Missing",dns_weak:"Too weak",
+ dns_title:"DNS records to add",dns_help:"Add these records at your DNS provider. Mailfilter checks them every hour and shows a green tick once they are correct.",
+ copy:"Copy",copied:"Copied",
+ relay_title:"Relay access",relay_sub:"Servers that may send mail out through this gateway. Their mail is checked for spam and viruses just like inbound mail.",
+ r_tab_ip:"Allowed IP addresses",r_tab_auth:"SMTP accounts",
+ r_add:"Allow a server to send",r_ip:"IP address or network",r_ip_hint:"For example 203.0.113.25 or 203.0.113.0/28",
+ r_desc:"Description",r_desc_ph:"For example: Webserver customer A",r_customer:"Customer",r_from:"Allowed sender domains",r_from_hint:"Leave empty to allow any domain this customer owns",
+ r_tls:"Require TLS",r_limit:"Rate limit",r_save:"Allow this server",r_valid_ip:"Valid IPv4 address",r_valid_net:"Valid network",r_invalid:"This is not a valid IP address or network",
+ r_hosts:"addresses",c_ipnet:"IP / network",c_desc:"Description",c_lastseen:"Last seen",c_sent24:"Sent (24h)",never:"Never",
+ auth_user:"Username",auth_add:"Add SMTP account",
+ th_title:"Throttling",th_sub:"Limit how much each domain or server may send, so a hacked website cannot burn your reputation.",
+ c_minute:"Per minute",c_hour:"Per hour",c_day:"Per day",c_usage:"Usage this hour",c_when:"When exceeded",
+ w_defer:"Delay (retry later)",w_hold:"Hold for review",w_reject:"Reject",default_limits:"Default limits for new domains",
+ rules_title:"Filter rules",rules_sub:"Spam thresholds, greylisting and allow or block lists.",
+ thr:"Spam thresholds",thr_tag:"Mark as spam (add header)",thr_quar:"Move to quarantine",thr_reject:"Reject at the door",
+ feat:"Checks",ft_grey:"Greylisting",ft_grey_d:"Ask unknown senders to retry after 5 minutes. Spam bots usually never come back.",
+ ft_spf:"SPF check",ft_spf_d:"Check whether the sending server is allowed to send for that domain.",
+ ft_dkim:"DKIM verify and sign",ft_dkim_d:"Verify signatures on inbound mail and sign outbound mail per domain.",
+ ft_dmarc:"DMARC policy",ft_dmarc_d:"Apply the sender's DMARC policy and send aggregate reports.",
+ ft_rbl:"Blocklists (RBL)",ft_rbl_d:"Check senders against Spamhaus and other DNS blocklists.",
+ ft_bayes:"Learning filter (Bayes)",ft_bayes_d:"Learns from what you release or block in quarantine.",
+ ft_attach:"Block risky attachments",ft_attach_d:".exe, .js, .iso, macro-enabled Office files and password-protected archives.",
+ lists:"Allow and block lists",c_entry:"Entry",c_type:"Type",c_scope:"Applies to",allow:"Allow",block:"Block",global:"All domains",add_entry:"Add entry",
+ cust_title:"Customers",cust_sub:"Customers only see their own domains, quarantine and mail trace.",
+ add_customer:"Add customer",c_domains:"Domains",c_users:"Users",c_mail30:"Mail (30 days)",
+ sec_title:"Security",sec_sub:"This server is directly on the internet. These are the protections that keep it safe.",
+ cert:"HTTPS certificate",cert_d:"Let's Encrypt certificate for the web interface and for encrypted SMTP.",renew:"Renew now",
+ fw:"Firewall",fw_d:"Only the ports below are open. Everything else is dropped.",
+ port_smtp:"Inbound mail",port_subm:"Outbound relay (STARTTLS)",port_smtps:"Outbound relay (TLS)",port_https:"Web interface",port_ssh:"Remote management",
+ ssh_from:"Only from your management IPs",open_world:"Open to the internet",
+ cs:"Intrusion protection (CrowdSec)",cs_d:"Blocks IPs that try to guess passwords or abuse the mail server.",blocked_today:"blocked today",
+ twofa:"Two-step login",twofa_d:"Required for all admin accounts.",autoupd:"Automatic security updates",autoupd_d:"Debian security updates are installed every night at 03:00.",
+ ms_title:"Mail server",ms_sub:"The SMTP server Mailfilter uses to send its own messages: alerts, quarantine reports and password resets.",
+ ms_host:"SMTP server",ms_port:"Port",ms_enc:"Encryption",ms_user:"Username",ms_pass:"Password",ms_from:"Sender address",ms_name:"Sender name",
+ ms_auth:"Authentication",ms_test:"Send test email",ms_save:"Save",ms_sent:"Test email sent to reinder@rhis.nl",
+ enc_starttls:"STARTTLS (port 587)",enc_tls:"TLS (port 465)",enc_none:"None (not recommended)",
+ ms_use_local:"Send through this gateway itself",ms_use_local_d:"Use Mailfilter's own mail server instead of an external SMTP server.",
+ bk_title:"Backup",bk_sub:"Local backups of all settings, the database and DKIM keys. Remote locations come in a later version.",
+ bk_now:"Back up now",bk_full:"Full backup",bk_incr:"Incremental backup",bk_sched:"Schedule",
+ bk_full_s:"Every Sunday at 02:00",bk_incr_s:"Every day at 02:00",bk_keep:"Keep",bk_keep_v:"4 full backups, 30 days of incrementals",
+ bk_loc:"Location",bk_list:"Backups",c_kind:"Type",c_created:"Created",c_size:"Size",restore:"Restore",
+ bk_remote:"Remote locations (FTP, FTPS, SCP)",later:"Later version",
+ imp_title:"Import from Proxmox Mail Gateway",imp_sub:"Bring over your domains, relay networks and lists in one go.",
+ imp_s1:"Connect",imp_s2:"Choose what to import",imp_s3:"Review and import",
+ imp_host:"PMG address",imp_user:"Username",imp_pass:"Password",imp_connect:"Connect and read configuration",
+ imp_found:"Found on pmg.rhis.nl",imp_go:"Import selected",imp_dom:"Relay domains",imp_tr:"Transports (destination servers)",imp_net:"Relay networks (mynetworks)",imp_wl:"Whitelist entries",imp_bl:"Blacklist entries",imp_rules:"Rule database (shown for reference, not converted)",
+ info_title:"About Mailfilter",info_ver:"Version",info_built:"Built",info_branch:"Branch",info_channel:"Update channel",
+ ch_prod_d:"Stable releases from the main branch.",ch_test_d:"Newest changes from the test branch. For the test server.",
+ check:"Check for updates",checking:"Checking for updates…",uptodate:"You are on the latest version.",
+ avail:"Update available",update_now:"Update now",updating:"Updating…",updated:"Updated to",restart:"Services restarted. No mail was lost.",
+ switch_to:"Switch channel",switched:"Switched to",changelog:"What's new",
+ close:"Close",save:"Save",cancel:"Cancel",saved:"Saved",added:"Added",
+ rel_ok:"Message released and delivered",trained_ham:"Released. The filter learned this is not spam.",trained_spam:"Sender blocked. The filter learned this is spam.",deleted:"Deleted",
+ retried:"Retry started",
+ min:"min",ago:"ago",today:"Today",
+},
+nl:{
+ searchPh:"Zoek mail op afzender, ontvanger, onderwerp of message-ID",info:"Info",
+ g_overview:"Overzicht",g_mail:"Mailverkeer",g_config:"Configuratie",g_system:"Systeem",
+ n_dashboard:"Dashboard",n_trace:"Mailtrace",n_quarantine:"Quarantaine",n_queues:"Wachtrijen",n_logs:"Live log",
+ n_domains:"Domeinen",n_relay:"Relay-toegang",n_throttle:"Throttling",n_rules:"Filterregels",n_customers:"Klanten",
+ n_security:"Beveiliging",n_mailserver:"Mailserver",n_backup:"Backup",n_import:"Import uit PMG",
+ sample:"Voorbeelddata",prod:"Productie",test:"Test",
+ dash_title:"Dashboard",dash_sub:"Alles wat de afgelopen 24 uur door de gateway is gegaan.",
+ k_in:"Inkomend",k_out:"Uitgaand",k_spam:"Spam tegengehouden",k_virus:"Virussen gestopt",k_vs:"t.o.v. gisteren",
+ flow:"Mailverkeer, afgelopen 24 uur",l_delivered:"Afgeleverd",l_spam:"Spam",l_deferred:"Uitgesteld",
+ attention:"Vraagt je aandacht",health:"Systeemstatus",
+ att1:"3 berichten wachten in de uitgestelde wachtrij voor bakkerijdekroon.nl",att2:"webshop-01 zit bijna aan zijn uurlimiet (84%)",att3:"6 berichten wachten in quarantaine",
+ h_postfix:"Mailserver (Postfix)",h_rspamd:"Spamfilter (Rspamd)",h_clam:"Virusscanner (ClamAV)",h_cert:"Certificaat",h_fw:"Firewall",h_disk:"Schijf",
+ running:"Actief",sigs:"Virusdefinities 41 min geleden bijgewerkt",certok:"Geldig tot 9 feb 2027, wordt automatisch verlengd",fwok:"Actief, vandaag 2 IP's geblokkeerd",disk:"38% in gebruik",
+ topsenders:"Grootste uitgaande verzenders",
+ trace_title:"Mailtrace",trace_sub:"Zoek elk bericht op en zie meteen of het is afgeleverd, en zo niet, waarom.",
+ f_all:"Alles",f_delivered:"Afgeleverd",f_failed:"Niet afgeleverd",f_deferred:"Uitgesteld",f_quar:"In quarantaine",f_rejected:"Geweigerd",
+ any_dir:"Beide richtingen",inbound:"Inkomend",outbound:"Uitgaand",last24:"Afgelopen 24 uur",last7:"Afgelopen 7 dagen",
+ c_status:"Status",c_time:"Tijd",c_from:"Van",c_to:"Aan",c_subject:"Onderwerp",c_dir:"Richting",
+ st_delivered:"Afgeleverd",st_bounced:"Niet afgeleverd",st_deferred:"Uitgesteld, opnieuw proberen",st_quar:"In quarantaine",st_rejected:"Geweigerd",
+ trace_detail:"Berichtdetails",showlog:"Volledige logregels tonen",hidelog:"Logregels verbergen",journey:"Route",checks:"Controles",
+ d_msgid:"Message-ID",d_size:"Grootte",d_client:"Verstuurd vanaf",d_dest:"Afgeleverd bij",d_score:"Spamscore",d_queue:"Queue-ID",
+ resend:"Nu opnieuw afleveren",release:"Vrijgeven",copyid:"Message-ID kopiëren",
+ q_title:"Quarantaine",q_sub:"Berichten die zijn tegengehouden als spam, virus of geblokkeerde bijlage. Vrijgeven of blokkeren traint het spamfilter.",
+ q_spam:"Spam",q_virus:"Virus",q_attach:"Geblokkeerde bijlagen",c_reason:"Waarom tegengehouden",c_score:"Score",c_actions:"Acties",
+ a_release:"Vrijgeven",a_notspam:"Vrijgeven en markeren als geen spam",a_block:"Afzender blokkeren, markeren als spam",a_delete:"Verwijderen",
+ queue_title:"Wachtrijen",queue_sub:"Elk domein heeft een eigen wachtrij, zodat één drukke of kapotte bestemming de rest nooit ophoudt.",
+ c_domain:"Domein",c_active:"Actief",c_deferred:"Uitgesteld",c_hold:"Vastgehouden",c_oldest:"Oudste",c_next:"Volgende poging",
+ flush:"Nu opnieuw",view:"Bekijken",hold:"Vasthouden",
+ logs_title:"Live log",logs_sub:"Ruwe logregels van de mailserver en het spamfilter, zodra ze binnenkomen. Gebruik Mailtrace voor een leesbaar overzicht per bericht.",
+ pause:"Pauzeren",resume:"Hervatten",
+ dom_title:"Domeinen",dom_sub:"Domeinen waarvoor deze gateway mail aanneemt, waar hij die aflevert en hun DNS-status.",
+ add_domain:"Domein toevoegen",c_dest:"Levert af bij",c_dkim:"DKIM",c_spf:"SPF",c_dmarc:"DMARC",c_customer:"Klant",
+ dns_ok:"OK",dns_missing:"Ontbreekt",dns_weak:"Te zwak",
+ dns_title:"Toe te voegen DNS-records",dns_help:"Voeg deze records toe bij je DNS-provider. Mailfilter controleert ze elk uur en toont een groen vinkje zodra ze kloppen.",
+ copy:"Kopiëren",copied:"Gekopieerd",
+ relay_title:"Relay-toegang",relay_sub:"Servers die via deze gateway mail naar buiten mogen sturen. Hun mail wordt net zo goed op spam en virussen gecontroleerd als inkomende mail.",
+ r_tab_ip:"Toegestane IP-adressen",r_tab_auth:"SMTP-accounts",
+ r_add:"Server toestaan om te versturen",r_ip:"IP-adres of netwerk",r_ip_hint:"Bijvoorbeeld 203.0.113.25 of 203.0.113.0/28",
+ r_desc:"Omschrijving",r_desc_ph:"Bijvoorbeeld: Webserver klant A",r_customer:"Klant",r_from:"Toegestane afzenderdomeinen",r_from_hint:"Leeg laten om elk domein van deze klant toe te staan",
+ r_tls:"TLS verplicht",r_limit:"Limiet",r_save:"Server toestaan",r_valid_ip:"Geldig IPv4-adres",r_valid_net:"Geldig netwerk",r_invalid:"Dit is geen geldig IP-adres of netwerk",
+ r_hosts:"adressen",c_ipnet:"IP / netwerk",c_desc:"Omschrijving",c_lastseen:"Laatst gezien",c_sent24:"Verstuurd (24u)",never:"Nooit",
+ auth_user:"Gebruikersnaam",auth_add:"SMTP-account toevoegen",
+ th_title:"Throttling",th_sub:"Beperk hoeveel elk domein of elke server mag versturen, zodat een gehackte website je reputatie niet verpest.",
+ c_minute:"Per minuut",c_hour:"Per uur",c_day:"Per dag",c_usage:"Gebruik dit uur",c_when:"Bij overschrijding",
+ w_defer:"Uitstellen (later opnieuw)",w_hold:"Vasthouden ter controle",w_reject:"Weigeren",default_limits:"Standaardlimieten voor nieuwe domeinen",
+ rules_title:"Filterregels",rules_sub:"Spamdrempels, greylisting en toestaan- of blokkeerlijsten.",
+ thr:"Spamdrempels",thr_tag:"Markeren als spam (header toevoegen)",thr_quar:"Naar quarantaine",thr_reject:"Aan de deur weigeren",
+ feat:"Controles",ft_grey:"Greylisting",ft_grey_d:"Vraag onbekende afzenders om het na 5 minuten opnieuw te proberen. Spambots komen meestal nooit terug.",
+ ft_spf:"SPF-controle",ft_spf_d:"Controleer of de verzendende server namens dat domein mag versturen.",
+ ft_dkim:"DKIM controleren en ondertekenen",ft_dkim_d:"Controleer handtekeningen op inkomende mail en onderteken uitgaande mail per domein.",
+ ft_dmarc:"DMARC-beleid",ft_dmarc_d:"Pas het DMARC-beleid van de afzender toe en verstuur rapporten.",
+ ft_rbl:"Blokkeerlijsten (RBL)",ft_rbl_d:"Controleer afzenders tegen Spamhaus en andere DNS-blokkeerlijsten.",
+ ft_bayes:"Lerend filter (Bayes)",ft_bayes_d:"Leert van wat je vrijgeeft of blokkeert in de quarantaine.",
+ ft_attach:"Riskante bijlagen blokkeren",ft_attach_d:".exe, .js, .iso, Office-bestanden met macro's en archieven met wachtwoord.",
+ lists:"Toestaan- en blokkeerlijsten",c_entry:"Item",c_type:"Soort",c_scope:"Geldt voor",allow:"Toestaan",block:"Blokkeren",global:"Alle domeinen",add_entry:"Item toevoegen",
+ cust_title:"Klanten",cust_sub:"Klanten zien alleen hun eigen domeinen, quarantaine en mailtrace.",
+ add_customer:"Klant toevoegen",c_domains:"Domeinen",c_users:"Gebruikers",c_mail30:"Mail (30 dagen)",
+ sec_title:"Beveiliging",sec_sub:"Deze server hangt direct aan het internet. Dit zijn de beschermingen die hem veilig houden.",
+ cert:"HTTPS-certificaat",cert_d:"Let's Encrypt-certificaat voor de webinterface en voor versleutelde SMTP.",renew:"Nu verlengen",
+ fw:"Firewall",fw_d:"Alleen de poorten hieronder staan open. Al het andere wordt geweigerd.",
+ port_smtp:"Inkomende mail",port_subm:"Uitgaande relay (STARTTLS)",port_smtps:"Uitgaande relay (TLS)",port_https:"Webinterface",port_ssh:"Beheer op afstand",
+ ssh_from:"Alleen vanaf je beheer-IP's",open_world:"Open naar internet",
+ cs:"Inbraakbeveiliging (CrowdSec)",cs_d:"Blokkeert IP's die wachtwoorden proberen te raden of de mailserver misbruiken.",blocked_today:"vandaag geblokkeerd",
+ twofa:"Inloggen in twee stappen",twofa_d:"Verplicht voor alle beheerdersaccounts.",autoupd:"Automatische beveiligingsupdates",autoupd_d:"Debian-beveiligingsupdates worden elke nacht om 03:00 geïnstalleerd.",
+ ms_title:"Mailserver",ms_sub:"De SMTP-server die Mailfilter gebruikt voor zijn eigen berichten: meldingen, quarantainerapporten en wachtwoordherstel.",
+ ms_host:"SMTP-server",ms_port:"Poort",ms_enc:"Versleuteling",ms_user:"Gebruikersnaam",ms_pass:"Wachtwoord",ms_from:"Afzenderadres",ms_name:"Afzendernaam",
+ ms_auth:"Authenticatie",ms_test:"Testmail versturen",ms_save:"Opslaan",ms_sent:"Testmail verstuurd naar reinder@rhis.nl",
+ enc_starttls:"STARTTLS (poort 587)",enc_tls:"TLS (poort 465)",enc_none:"Geen (afgeraden)",
+ ms_use_local:"Via deze gateway zelf versturen",ms_use_local_d:"Gebruik de eigen mailserver van Mailfilter in plaats van een externe SMTP-server.",
+ bk_title:"Backup",bk_sub:"Lokale backups van alle instellingen, de database en DKIM-sleutels. Externe locaties komen in een latere versie.",
+ bk_now:"Nu backup maken",bk_full:"Volledige backup",bk_incr:"Incrementele backup",bk_sched:"Planning",
+ bk_full_s:"Elke zondag om 02:00",bk_incr_s:"Elke dag om 02:00",bk_keep:"Bewaren",bk_keep_v:"4 volledige backups, 30 dagen incrementeel",
+ bk_loc:"Locatie",bk_list:"Backups",c_kind:"Soort",c_created:"Gemaakt",c_size:"Grootte",restore:"Terugzetten",
+ bk_remote:"Externe locaties (FTP, FTPS, SCP)",later:"Latere versie",
+ imp_title:"Import uit Proxmox Mail Gateway",imp_sub:"Neem je domeinen, relay-netwerken en lijsten in één keer over.",
+ imp_s1:"Verbinden",imp_s2:"Kiezen wat je importeert",imp_s3:"Controleren en importeren",
+ imp_host:"PMG-adres",imp_user:"Gebruikersnaam",imp_pass:"Wachtwoord",imp_connect:"Verbinden en configuratie uitlezen",
+ imp_found:"Gevonden op pmg.rhis.nl",imp_go:"Selectie importeren",imp_dom:"Relay-domeinen",imp_tr:"Transports (doelservers)",imp_net:"Relay-netwerken (mynetworks)",imp_wl:"Whitelist-items",imp_bl:"Blacklist-items",imp_rules:"Regeldatabase (ter info, wordt niet omgezet)",
+ info_title:"Over Mailfilter",info_ver:"Versie",info_built:"Gebouwd",info_branch:"Branch",info_channel:"Updatekanaal",
+ ch_prod_d:"Stabiele versies uit de main-branch.",ch_test_d:"Nieuwste wijzigingen uit de test-branch. Voor de testserver.",
+ check:"Controleren op updates",checking:"Controleren op updates…",uptodate:"Je hebt de nieuwste versie.",
+ avail:"Update beschikbaar",update_now:"Nu updaten",updating:"Bezig met updaten…",updated:"Bijgewerkt naar",restart:"Diensten herstart. Er is geen mail verloren gegaan.",
+ switch_to:"Kanaal wisselen",switched:"Gewisseld naar",changelog:"Wat is nieuw",
+ close:"Sluiten",save:"Opslaan",cancel:"Annuleren",saved:"Opgeslagen",added:"Toegevoegd",
+ rel_ok:"Bericht vrijgegeven en afgeleverd",trained_ham:"Vrijgegeven. Het filter heeft geleerd dat dit geen spam is.",trained_spam:"Afzender geblokkeerd. Het filter heeft geleerd dat dit spam is.",deleted:"Verwijderd",
+ retried:"Nieuwe poging gestart",
+ min:"min",ago:"geleden",today:"Vandaag",
+}};
+var store={get:function(k){try{return localStorage.getItem(k)}catch(e){return null}},set:function(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+var state={lang:store.get("mf-lang")||"en",channel:"test",version:"0.1.0",traceFilter:"all",traceDir:"any",qTab:"spam",relayTab:"ip",logPaused:false};
+function t(k){return (I18N[state.lang]&&I18N[state.lang][k])||I18N.en[k]||k}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+/* ---------- icons ---------- */
+var IC={
+dashboard:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+trace:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6M11 8v6"/>',
+quarantine:'<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/>',
+queues:'<path d="M4 6h16M4 12h16M4 18h10"/>',
+logs:'<path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+domains:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z"/>',
+relay:'<path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 5v14"/>',
+throttle:'<path d="M12 14l4-5"/><path d="M4.5 18a9 9 0 1 1 15 0"/>',
+rules:'<path d="M4 5h16l-6 8v6l-4-2v-4L4 5Z"/>',
+customers:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .8 3.2 2.5 3.5 5.2"/>',
+security:'<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+mailserver:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/>',
+backup:'<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+import:'<path d="M4 12h11M11 8l4 4-4 4"/><rect x="15" y="4" width="5" height="16" rx="1.5"/>',
+check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+shield:'<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6l-8-3Z"/>',ban:'<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+in:'<path d="M20 12H8M12 7l-5 5 5 5"/>',out:'<path d="M4 12h12M12 7l5 5-5 5"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M20 20v-4h-4"/>',
+info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+branch:'<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+play:'<path d="M7 5v14l11-7z"/>',pause:'<path d="M8 5v14M16 5v14"/>'
+};
+function ic(n,extra){return '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '+(extra||"")+'>'+(IC[n]||"")+'</svg>'}
+
+/* ---------- sample data ---------- */
+var CUSTOMERS=[
+ {id:"rhis",name:"RHIS",domains:["rhis.nl","rhis.network"],users:2,mail:"48.210"},
+ {id:"kroon",name:"Bakkerij De Kroon",domains:["bakkerijdekroon.nl"],users:3,mail:"6.904"},
+ {id:"vos",name:"Vos Installatietechniek",domains:["vosinstallatie.nl","vos-service.nl"],users:4,mail:"19.377"},
+ {id:"zee",name:"Camping Zeezicht",domains:["campingzeezicht.nl"],users:1,mail:"11.582"}
+];
+var DOMAINS=[
+ {d:"rhis.nl",dest:"mail.rhis.nl:25",dkim:"ok",spf:"ok",dmarc:"ok",cust:"RHIS"},
+ {d:"rhis.network",dest:"mail.rhis.nl:25",dkim:"ok",spf:"ok",dmarc:"weak",cust:"RHIS"},
+ {d:"bakkerijdekroon.nl",dest:"kroon-mx.hosted-exchange.nl:25",dkim:"ok",spf:"ok",dmarc:"missing",cust:"Bakkerij De Kroon"},
+ {d:"vosinstallatie.nl",dest:"vosinstallatie-nl.mail.protection.outlook.com:25",dkim:"ok",spf:"ok",dmarc:"ok",cust:"Vos Installatietechniek"},
+ {d:"vos-service.nl",dest:"vosinstallatie-nl.mail.protection.outlook.com:25",dkim:"missing",spf:"ok",dmarc:"missing",cust:"Vos Installatietechniek"},
+ {d:"campingzeezicht.nl",dest:"10.20.0.15:25",dkim:"ok",spf:"weak",dmarc:"ok",cust:"Camping Zeezicht"}
+];
+var MAILS=[
+ {id:"m1",st:"delivered",time:"23:41",dir:"in",from:"facturen@leverancier-groothandel.nl",to:"administratie@bakkerijdekroon.nl",subj:"Factuur 2026-11873",score:"-1.2",size:"184 KB",client:"mail-out.leverancier-groothandel.nl [198.51.100.40]",dest:"kroon-mx.hosted-exchange.nl [192.0.2.80]",
+  reason:{en:"Accepted by kroon-mx.hosted-exchange.nl: 250 2.0.0 Ok: queued as 4QhT2x",nl:"Aangenomen door kroon-mx.hosted-exchange.nl: 250 2.0.0 Ok: queued as 4QhT2x"},qid:"5F2A1C04B3"},
+ {id:"m2",st:"bounced",time:"23:38",dir:"out",from:"noreply@campingzeezicht.nl",to:"j.devries@gmial.com",subj:"Bevestiging reservering #4471",score:"0.4",size:"36 KB",client:"web-01.campingzeezicht.nl [203.0.113.25]",dest:"gmial.com",
+  reason:{en:"<b>The recipient domain does not exist.</b> gmial.com has no mail server (probably a typo for gmail.com). Remote said: Host or domain name not found. Name service error for name=gmial.com type=MX",nl:"<b>Het domein van de ontvanger bestaat niet.</b> gmial.com heeft geen mailserver (waarschijnlijk een typfout voor gmail.com). Melding: Host or domain name not found. Name service error for name=gmial.com type=MX"},qid:"8C11D2E9A0"},
+ {id:"m3",st:"deferred",time:"23:35",dir:"in",from:"orders@meelfabriek-noord.nl",to:"inkoop@bakkerijdekroon.nl",subj:"Orderbevestiging week 47",score:"-0.8",size:"92 KB",client:"smtp.meelfabriek-noord.nl [198.51.100.77]",dest:"kroon-mx.hosted-exchange.nl [192.0.2.80]",
+  reason:{en:"<b>The destination server is not answering.</b> kroon-mx.hosted-exchange.nl timed out after 30 s. Mailfilter retries automatically; next attempt at 23:50.",nl:"<b>De doelserver reageert niet.</b> kroon-mx.hosted-exchange.nl gaf na 30 s geen antwoord. Mailfilter probeert het automatisch opnieuw; volgende poging om 23:50."},qid:"A93B7710FE"},
+ {id:"m4",st:"quarantine",time:"23:31",dir:"in",from:"security@paypa1-verify.com",to:"info@vosinstallatie.nl",subj:"Uw account is tijdelijk geblokkeerd",score:"18.6",size:"22 KB",client:"unknown [185.234.72.19]",dest:"",
+  reason:{en:"<b>Spam score 18.6</b> (quarantine from 8). Phishing link, sender domain imitates PayPal, listed on Spamhaus, SPF fail.",nl:"<b>Spamscore 18,6</b> (quarantaine vanaf 8). Phishinglink, afzenderdomein imiteert PayPal, staat op Spamhaus, SPF mislukt."},qid:"1D0FF83A22"},
+ {id:"m5",st:"delivered",time:"23:29",dir:"out",from:"webshop@bakkerijdekroon.nl",to:"klant.peters@ziggo.nl",subj:"Je bestelling #10422 is onderweg",score:"0.1",size:"58 KB",client:"webshop-01 [203.0.113.40]",dest:"mx.ziggo.nl [192.0.2.14]",
+  reason:{en:"Accepted by mx.ziggo.nl: 250 2.0.0 Ok. Signed with DKIM (bakkerijdekroon.nl, selector mf2026).",nl:"Aangenomen door mx.ziggo.nl: 250 2.0.0 Ok. Ondertekend met DKIM (bakkerijdekroon.nl, selector mf2026)."},qid:"C4E2B9017D"},
+ {id:"m6",st:"rejected",time:"23:22",dir:"in",from:"promo@cheap-meds-online.top",to:"reinder@rhis.nl",subj:"(no subject)",score:"—",size:"—",client:"unknown [45.95.168.201]",dest:"",
+  reason:{en:"<b>Refused before the message was accepted.</b> Sending IP 45.95.168.201 is on the Spamhaus ZEN blocklist. The sender was told: 554 5.7.1 Service unavailable.",nl:"<b>Geweigerd voordat het bericht werd aangenomen.</b> Verzendend IP 45.95.168.201 staat op de Spamhaus ZEN-blokkeerlijst. De afzender kreeg: 554 5.7.1 Service unavailable."},qid:"—"},
+ {id:"m7",st:"bounced",time:"23:14",dir:"out",from:"planning@vosinstallatie.nl",to:"m.bakker@bouwbedrijf-hoorn.nl",subj:"Planning monteur donderdag",score:"-0.5",size:"41 KB",client:"vosinstallatie-nl.mail.protection.outlook.com [52.101.68.12]",dest:"mx1.bouwbedrijf-hoorn.nl [192.0.2.120]",
+  reason:{en:"<b>The mailbox does not exist.</b> mx1.bouwbedrijf-hoorn.nl replied: 550 5.1.1 &lt;m.bakker@bouwbedrijf-hoorn.nl&gt;: Recipient address rejected: User unknown in virtual mailbox table",nl:"<b>De mailbox bestaat niet.</b> mx1.bouwbedrijf-hoorn.nl antwoordde: 550 5.1.1 &lt;m.bakker@bouwbedrijf-hoorn.nl&gt;: Recipient address rejected: User unknown in virtual mailbox table"},qid:"E71A0C55B8"},
+ {id:"m8",st:"delivered",time:"23:09",dir:"in",from:"nieuwsbrief@ubiquiti-partners.eu",to:"reinder@rhis.nl",subj:"November partner update",score:"2.9",size:"312 KB",client:"mta-12.ubiquiti-partners.eu [198.51.100.12]",dest:"mail.rhis.nl [10.10.0.5]",
+  reason:{en:"Accepted by mail.rhis.nl: 250 2.0.0 Ok: queued as 9QxL1",nl:"Aangenomen door mail.rhis.nl: 250 2.0.0 Ok: queued as 9QxL1"},qid:"77B0E1A3C9"},
+ {id:"m9",st:"deferred",time:"22:58",dir:"out",from:"noreply@campingzeezicht.nl",to:"familie.jansen@hotmail.com",subj:"Bevestiging reservering #4468",score:"0.3",size:"36 KB",client:"web-01.campingzeezicht.nl [203.0.113.25]",dest:"hotmail-com.olc.protection.outlook.com",
+  reason:{en:"<b>Temporarily refused by Outlook.com.</b> 451 4.7.650 The mail server [203.0.113.10] has been temporarily rate limited due to IP reputation. Retrying in 15 minutes.",nl:"<b>Tijdelijk geweigerd door Outlook.com.</b> 451 4.7.650 The mail server [203.0.113.10] has been temporarily rate limited due to IP reputation. Nieuwe poging over 15 minuten."},qid:"3B9C44D0E1"},
+ {id:"m10",st:"quarantine",time:"22:47",dir:"out",from:"info@campingzeezicht.nl",to:"(412 recipients)",subj:"Win een gratis iPhone 17!!!",score:"12.4",size:"18 KB",client:"web-01.campingzeezicht.nl [203.0.113.25]",dest:"",
+  reason:{en:"<b>Outbound spam stopped.</b> Spam score 12.4 and 412 recipients in 2 minutes from web-01. The website may be hacked. Sending from this server is on hold.",nl:"<b>Uitgaande spam gestopt.</b> Spamscore 12,4 en 412 ontvangers in 2 minuten vanaf web-01. De website is mogelijk gehackt. Versturen vanaf deze server staat vast."},qid:"0FA2C8B771"}
+];
+var QUAR={
+ spam:[
+  {from:"security@paypa1-verify.com",to:"info@vosinstallatie.nl",subj:"Uw account is tijdelijk geblokkeerd",score:18.6,when:"23:31",why:{en:"Phishing link, look-alike of paypal.com, Spamhaus listed",nl:"Phishinglink, lijkt op paypal.com, staat op Spamhaus"}},
+  {from:"info@campingzeezicht.nl",to:"(412)",subj:"Win een gratis iPhone 17!!!",score:12.4,when:"22:47",why:{en:"Outbound burst from web-01, prize-scam wording",nl:"Uitgaande piek vanaf web-01, prijsoplichting-tekst"}},
+  {from:"sales@bulk-leads-europe.com",to:"reinder@rhis.nl",subj:"10.000 B2B leads for €49",score:9.1,when:"21:15",why:{en:"Bulk mail, no unsubscribe link, Bayes 99% spam",nl:"Bulkmail, geen afmeldlink, Bayes 99% spam"}},
+  {from:"m.janssen@leverancier-groothandel.nl",to:"administratie@bakkerijdekroon.nl",subj:"Aangepaste bankgegevens",score:8.3,when:"19:02",why:{en:"Reply-To differs from sender, payment-change wording. Could be real: check before releasing",nl:"Reply-To wijkt af van afzender, tekst over gewijzigde betaalgegevens. Kan echt zijn: controleer voor vrijgeven"}}
+ ],
+ virus:[
+  {from:"scan@printer-office.biz",to:"planning@vosinstallatie.nl",subj:"Scanned document 0091",score:"—",when:"20:40",why:{en:"ClamAV: Doc.Downloader.Emotet-9953 in Scan_0091.docm",nl:"ClamAV: Doc.Downloader.Emotet-9953 in Scan_0091.docm"}}
+ ],
+ attach:[
+  {from:"j.smit@gmail.com",to:"receptie@campingzeezicht.nl",subj:"Foto's van ons verblijf",score:"—",when:"17:26",why:{en:"Password-protected archive fotos.zip (cannot be scanned)",nl:"Archief met wachtwoord fotos.zip (kan niet gescand worden)"}}
+ ]
+};
+var RELAYS=[
+ {ip:"203.0.113.25",desc:"web-01 Camping Zeezicht (WordPress)",cust:"Camping Zeezicht",last:"23:38",sent:"1.204",tls:true,hold:true},
+ {ip:"203.0.113.40",desc:"webshop-01 Bakkerij De Kroon",cust:"Bakkerij De Kroon",last:"23:29",sent:"842",tls:true},
+ {ip:"52.101.68.0/24",desc:"Microsoft 365 outbound (Vos)",cust:"Vos Installatietechniek",last:"23:14",sent:"2.981",tls:true},
+ {ip:"10.10.0.5",desc:"mail.rhis.nl (eigen mailserver)",cust:"RHIS",last:"23:40",sent:"3.517",tls:false},
+ {ip:"10.10.0.0/28",desc:"Monitoring en printers kantoor",cust:"RHIS",last:"22:10",sent:"38",tls:false}
+];
+var THROTTLE=[
+ {d:"webshop-01 (203.0.113.40)",m:30,h:1000,day:8000,use:84,act:"defer"},
+ {d:"web-01 (203.0.113.25)",m:20,h:500,day:3000,use:100,act:"hold"},
+ {d:"vosinstallatie.nl",m:60,h:2000,day:15000,use:31,act:"defer"},
+ {d:"rhis.nl",m:120,h:5000,day:40000,use:12,act:"defer"},
+ {d:"campingzeezicht.nl",m:20,h:500,day:3000,use:46,act:"hold"}
+];
+var QUEUES=[
+ {d:"bakkerijdekroon.nl",a:0,df:3,h:0,old:"52 min",next:"23:50"},
+ {d:"hotmail.com",a:2,df:7,h:0,old:"38 min",next:"23:47"},
+ {d:"campingzeezicht.nl (out)",a:0,df:0,h:412,old:"57 min",next:"—"},
+ {d:"gmail.com",a:4,df:0,h:0,old:"1 min",next:"—"},
+ {d:"vosinstallatie.nl",a:1,df:0,h:0,old:"0 min",next:"—"},
+ {d:"rhis.nl",a:0,df:0,h:0,old:"—",next:"—"}
+];
+
+/* ---------- routing ---------- */
+var NAV=[
+ {g:"g_overview",items:[["dashboard","n_dashboard"]]},
+ {g:"g_mail",items:[["trace","n_trace"],["quarantine","n_quarantine",6],["queues","n_queues"],["logs","n_logs"]]},
+ {g:"g_config",items:[["domains","n_domains"],["relay","n_relay"],["throttle","n_throttle"],["rules","n_rules"],["customers","n_customers"]]},
+ {g:"g_system",items:[["security","n_security"],["mailserver","n_mailserver"],["backup","n_backup"],["import","n_import"]]}
+];
+function route(){var h=(location.hash||"").replace("#","");return VIEWS[h]?h:"dashboard"}
+function renderNav(){
+ var cur=route(),h="";
+ NAV.forEach(function(g){h+='<div class="group">'+t(g.g)+'</div>';g.items.forEach(function(it){
+  h+='<a href="#'+it[0]+'" class="'+(cur===it[0]?"active":"")+'" '+(cur===it[0]?'aria-current="page"':"")+'>'+ic(it[0])+'<span>'+t(it[1])+'</span>'+(it[2]?'<span class="count num">'+it[2]+'</span>':"")+'</a>'})});
+ document.getElementById("nav").innerHTML=h;
+}
+function head(title,sub,actions){return '<div class="page-head"><div><h1 class="display">'+t(title)+'</h1><p>'+t(sub)+'</p></div><div class="actions"><span class="sample">'+t("sample")+'</span>'+(actions||"")+'</div></div>'}
+function status(st){var m={delivered:["s-ok","check","st_delivered"],bounced:["s-bad","x","st_bounced"],deferred:["s-warn","clock","st_deferred"],quarantine:["s-info","shield","st_quar"],rejected:["s-mute","ban","st_rejected"]}[st];return '<span class="status '+m[0]+'">'+ic(m[1])+t(m[2])+'</span>'}
+function dir(d){return '<span class="dir">'+ic(d==="in"?"in":"out")+t(d==="in"?"inbound":"outbound")+'</span>'}
+
+/* ---------- views ---------- */
+var VIEWS={};
+VIEWS.dashboard=function(){
+ function spark(pts,color){var w=200,hh=36,max=Math.max.apply(null,pts),min=Math.min.apply(null,pts),st=w/(pts.length-1);var p=pts.map(function(v,i){return [i*st,hh-4-(v-min)/(max-min||1)*(hh-8)]});var d="M"+p.map(function(q){return q[0].toFixed(1)+" "+q[1].toFixed(1)}).join(" L");return '<svg class="spark" viewBox="0 0 200 36" preserveAspectRatio="none"><path d="'+d+' L200 36 L0 36Z" fill="'+color+'" opacity=".12"/><path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="'+p[p.length-1][0]+'" cy="'+p[p.length-1][1]+'" r="3" fill="'+color+'"/></svg>'}
+ var k=[["k_in","4.812","+6%",[3,4,3,5,6,5,7,8,7,9,8,10],"var(--info)"],["k_out","3.296","+2%",[5,5,6,5,6,7,6,6,7,7,6,7],"var(--ok)"],["k_spam","1.947","+18%",[2,3,2,4,3,5,6,5,7,6,8,9],"var(--accent-text)"],["k_virus","6","−2",[1,0,1,1,0,2,0,1,0,1,0,0],"var(--bad)"]];
+ var kp=k.map(function(x){return '<div class="card kpi"><span class="label">'+t(x[0])+'</span><span class="value">'+x[1]+'</span>'+spark(x[3],x[4])+'<span class="delta"><b>'+x[2]+'</b> '+t("k_vs")+'</span></div>'}).join("");
+ // stacked bars per hour
+ var hrs=24,del=[],sp=[],df=[];for(var i=0;i<hrs;i++){var base=120+Math.round(180*Math.sin((i-6)/24*Math.PI*2)+180);if(base<60)base=60+(i*7)%40;del.push(base);sp.push(Math.round(base*.32+(i*13)%30));df.push((i*7)%9)}
+ var W=720,H=220,pl=36,pb=24,pt=10,max=0;for(i=0;i<hrs;i++)max=Math.max(max,del[i]+sp[i]+df[i]);max=Math.ceil(max/200)*200;
+ var bw=(W-pl-8)/hrs,bars="",grid="";
+ for(var g=0;g<=4;g++){var y=pt+(H-pt-pb)*(1-g/4);grid+='<line x1="'+pl+'" x2="'+W+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(y+4)+'" text-anchor="end">'+(max*g/4)+'</text>'}
+ for(i=0;i<hrs;i++){var x=pl+i*bw+2,sc=(H-pt-pb)/max,y0=H-pb;var h1=del[i]*sc,h2=sp[i]*sc,h3=df[i]*sc;
+  bars+='<rect x="'+x+'" y="'+(y0-h1)+'" width="'+(bw-4)+'" height="'+h1+'" fill="var(--ok)" rx="2"/><rect x="'+x+'" y="'+(y0-h1-h2-1)+'" width="'+(bw-4)+'" height="'+h2+'" fill="var(--koraal)" rx="2"/><rect x="'+x+'" y="'+(y0-h1-h2-h3-2)+'" width="'+(bw-4)+'" height="'+h3+'" fill="var(--warn)" rx="2"/>';
+  if(i%3===0)bars+='<text x="'+(x+(bw-4)/2)+'" y="'+(H-6)+'" text-anchor="middle">'+String(i).padStart(2,"0")+':00</text>'}
+ var chart='<svg class="chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="'+t("flow")+'">'+grid+bars+'</svg>';
+ var att=[["s-warn","clock","att1","queues"],["s-warn","throttle","att2","throttle"],["s-info","shield","att3","quarantine"]].map(function(a){return '<a class="list-row" href="#'+a[3]+'" style="color:inherit;text-decoration:none"><span class="status '+a[0]+'" style="padding:6px">'+ic(a[1])+'</span><span class="grow">'+t(a[2])+'</span><span class="muted">›</span></a>'}).join("");
+ var hl=[["h_postfix","running"],["h_rspamd","running"],["h_clam","sigs"],["h_cert","certok"],["h_fw","fwok"],["h_disk","disk"]].map(function(a){return '<div class="list-row"><span class="dot" style="background:var(--ok)"></span><span class="grow"><b style="font-weight:600">'+t(a[0])+'</b><br><span class="cell-sub">'+t(a[1])+'</span></span></div>'}).join("");
+ var ts=[["webshop@bakkerijdekroon.nl",842,84],["planning@vosinstallatie.nl",611,31],["noreply@campingzeezicht.nl",590,100],["facturen@rhis.nl",214,12]].map(function(r){return '<tr><td class="cell-main">'+r[0]+'</td><td class="num nowrap">'+r[1]+'</td><td style="width:40%"><div class="bar"><i class="'+(r[2]>=100?"b":r[2]>80?"w":"")+'" style="width:'+r[2]+'%"></i></div></td></tr>'}).join("");
+ return head("dash_title","dash_sub")+
+ '<div class="grid kpis">'+kp+'</div>'+
+ '<div class="grid two"><div class="card"><div class="card-head"><h2>'+t("flow")+'</h2><div class="right legend"><span><i style="background:var(--ok)"></i>'+t("l_delivered")+'</span><span><i style="background:var(--koraal)"></i>'+t("l_spam")+'</span><span><i style="background:var(--warn)"></i>'+t("l_deferred")+'</span></div></div><div class="card-body">'+chart+'</div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("attention")+'</h2></div><div class="card-body" style="padding-block:6px">'+att+'</div></div></div>'+
+ '<div class="grid halves"><div class="card"><div class="card-head"><h2>'+t("health")+'</h2></div><div class="card-body" style="padding-block:6px">'+hl+'</div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("topsenders")+'</h2></div><div class="tbl-wrap"><table><tbody>'+ts+'</tbody></table></div></div></div>';
+};
+VIEWS.trace=function(){
+ var f=state.traceFilter,dsel=state.traceDir,q=(state.q||"").toLowerCase();
+ var map={all:null,delivered:"delivered",failed:"bounced",deferred:"deferred",quar:"quarantine",rejected:"rejected"};
+ var rows=MAILS.filter(function(m){return (!map[f]||m.st===map[f])&&(dsel==="any"||m.dir===dsel)&&(!q||(m.from+m.to+m.subj+m.qid).toLowerCase().indexOf(q)>=0)});
+ var counts={};MAILS.forEach(function(m){counts[m.st]=(counts[m.st]||0)+1});
+ var fb=[["all","f_all",MAILS.length],["delivered","f_delivered",counts.delivered],["failed","f_failed",counts.bounced],["deferred","f_deferred",counts.deferred],["quar","f_quar",counts.quarantine],["rejected","f_rejected",counts.rejected]].map(function(x){return '<button type="button" class="chip-btn" data-tf="'+x[0]+'" '+(f===x[0]?'style="background:var(--nacht);color:#fff;border-color:var(--nacht)"':"")+'>'+t(x[1])+' <span class="num" style="opacity:.7">'+(x[2]||0)+'</span></button>'}).join("");
+ var tr=rows.map(function(m){return '<tr class="click" data-mail="'+m.id+'"><td class="nowrap">'+status(m.st)+'</td><td class="num nowrap">'+m.time+'</td><td class="nowrap">'+dir(m.dir)+'</td><td><span class="cell-main">'+esc(m.subj)+'</span><div class="cell-sub">'+esc(m.from)+' → '+esc(m.to)+'</div>'+(m.st!=="delivered"?'<span class="reason">'+m.reason[state.lang]+'</span>':"")+'</td></tr>'}).join("")||'<tr><td colspan="4" class="empty">—</td></tr>';
+ return head("trace_title","trace_sub")+
+ '<div class="card"><div class="filters"><label class="search" style="max-width:none;flex:1 1 280px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="traceSearch" type="search" value="'+esc(state.q||"")+'" placeholder="'+t("searchPh")+'"></label>'+
+ '<select class="select inline" id="traceDir"><option value="any">'+t("any_dir")+'</option><option value="in" '+(dsel==="in"?"selected":"")+'>'+t("inbound")+'</option><option value="out" '+(dsel==="out"?"selected":"")+'>'+t("outbound")+'</option></select>'+
+ '<select class="select inline" id="tracePeriod"><option>'+t("last24")+'</option><option>'+t("last7")+'</option></select></div>'+
+ '<div class="filters">'+fb+'</div>'+
+ '<div class="tbl-wrap"><table><thead><tr><th>'+t("c_status")+'</th><th>'+t("c_time")+'</th><th>'+t("c_dir")+'</th><th>'+t("c_subject")+'</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>';
+};
+VIEWS.quarantine=function(){
+ var tab=state.qTab,rows=QUAR[tab];
+ var tabs=[["spam","q_spam",QUAR.spam.length],["virus","q_virus",QUAR.virus.length],["attach","q_attach",QUAR.attach.length]].map(function(x){return '<button type="button" role="tab" data-qtab="'+x[0]+'" aria-selected="'+(tab===x[0])+'">'+t(x[1])+' <span class="num muted">'+x[2]+'</span></button>'}).join("");
+ var tr=rows.map(function(r,i){var sc=typeof r.score==="number"?'<span class="status '+(r.score>=12?"s-bad":"s-warn")+'">'+(state.lang==="nl"?String(r.score).replace(".",","):r.score)+'</span>':'<span class="muted">—</span>';
+  return '<tr><td class="num nowrap">'+r.when+'</td><td><span class="cell-main">'+esc(r.subj)+'</span><div class="cell-sub">'+esc(r.from)+' → '+esc(r.to)+'</div><span class="reason">'+r.why[state.lang]+'</span></td><td>'+sc+'</td><td class="nowrap"><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" data-q="ham" data-i="'+i+'" type="button" title="'+t("a_notspam")+'">'+ic("check")+t("a_release")+'</button><button class="btn small" data-q="spam" data-i="'+i+'" type="button" title="'+t("a_block")+'">'+ic("ban")+t("block")+'</button><button class="btn small ghost danger" data-q="del" data-i="'+i+'" type="button" aria-label="'+t("a_delete")+'">'+ic("trash")+'</button></div></td></tr>'}).join("")||'<tr><td colspan="4" class="empty">—</td></tr>';
+ return head("q_title","q_sub")+
+ '<div class="card"><div class="tabs" role="tablist">'+tabs+'</div><div class="tbl-wrap"><table><thead><tr><th>'+t("c_time")+'</th><th>'+t("c_subject")+' / '+t("c_reason")+'</th><th>'+t("c_score")+'</th><th>'+t("c_actions")+'</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>'+
+ '<div class="callout">'+ic("info")+'<div>'+(state.lang==="nl"?"<b>Vrijgeven</b> levert het bericht af en leert het filter dat dit geen spam is. <b>Blokkeren</b> zet de afzender op de blokkeerlijst en leert het filter dat dit spam is. Klanten krijgen dagelijks een overzicht van hun eigen quarantaine.":"<b>Release</b> delivers the message and teaches the filter it is not spam. <b>Block</b> puts the sender on the block list and teaches the filter it is spam. Customers get a daily digest of their own quarantine.")+'</div></div>';
+};
+VIEWS.queues=function(){
+ var tr=QUEUES.map(function(r){function n(v,c){return v?'<span class="status '+c+' num">'+v+'</span>':'<span class="muted num">0</span>'}
+  return '<tr><td class="cell-main">'+r.d+'</td><td>'+n(r.a,"s-ok")+'</td><td>'+n(r.df,"s-warn")+'</td><td>'+n(r.h,"s-info")+'</td><td class="num nowrap">'+r.old+'</td><td class="num nowrap">'+r.next+'</td><td class="nowrap">'+((r.df||r.h)?'<button class="btn small" type="button" data-flush>'+ic("refresh")+t("flush")+'</button> ':'')+'<a class="btn small ghost" href="#trace">'+t("view")+'</a></td></tr>'}).join("");
+ return head("queue_title","queue_sub",'<button class="btn" type="button" data-flush>'+ic("refresh")+t("flush")+'</button>')+
+ '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>'+t("c_domain")+'</th><th>'+t("c_active")+'</th><th>'+t("c_deferred")+'</th><th>'+t("c_hold")+'</th><th>'+t("c_oldest")+'</th><th>'+t("c_next")+'</th><th></th></tr></thead><tbody>'+tr+'</tbody></table></div></div>'+
+ '<div class="callout warn">'+ic("info")+'<div>'+(state.lang==="nl"?"<b>campingzeezicht.nl (uit)</b>: 412 berichten vastgehouden omdat web-01 spam verstuurde. Controleer de website voordat je de wachtrij vrijgeeft.":"<b>campingzeezicht.nl (out)</b>: 412 messages on hold because web-01 sent spam. Check the website before releasing this queue.")+'</div></div>';
+};
+var LOGLINES=[
+ "postfix/smtpd[48211]: connect from mail-out.leverancier-groothandel.nl[198.51.100.40]",
+ "postfix/smtpd[48211]: 5F2A1C04B3: client=mail-out.leverancier-groothandel.nl[198.51.100.40]",
+ "rspamd[1022]: <5F2A1C04B3>; task; rspamd_task_write_log: id: <20261111.84a2@leverancier-groothandel.nl>, qid: <5F2A1C04B3>, ip: 198.51.100.40, from: <facturen@leverancier-groothandel.nl>, (default: F (no action): [-1.20/15.00] [R_SPF_ALLOW(-0.20){+ip4:198.51.100.0/24},R_DKIM_ALLOW(-0.20){leverancier-groothandel.nl:s=mail},DMARC_POLICY_ALLOW(-0.50)])",
+ "postfix/cleanup[48215]: 5F2A1C04B3: message-id=<20261111.84a2@leverancier-groothandel.nl>",
+ "postfix/qmgr[1201]: 5F2A1C04B3: from=<facturen@leverancier-groothandel.nl>, size=188412, nrcpt=1 (queue active)",
+ "postfix/smtp[48219]: 5F2A1C04B3: to=<administratie@bakkerijdekroon.nl>, relay=kroon-mx.hosted-exchange.nl[192.0.2.80]:25, delay=1.4, dsn=2.0.0, status=sent (250 2.0.0 Ok: queued as 4QhT2x)",
+ "postfix/postscreen[1188]: NOQUEUE: reject: RCPT from [45.95.168.201]:51122: 554 5.7.1 Service unavailable; client [45.95.168.201] blocked using zen.spamhaus.org",
+ "postfix/smtp[48233]: 8C11D2E9A0: to=<j.devries@gmial.com>, relay=none, delay=0.2, dsn=5.4.4, status=bounced (Host or domain name not found. Name service error for name=gmial.com type=MX)",
+ "crowdsec[880]: ban 185.220.101.47 for 4h: crowdsecurity/postfix-spam (12 events)",
+ "clamd[934]: instream(127.0.0.1@55120): Doc.Downloader.Emotet-9953 FOUND",
+ "postfix/smtp[48240]: A93B7710FE: to=<inkoop@bakkerijdekroon.nl>, relay=none, delay=1802, dsn=4.4.1, status=deferred (connect to kroon-mx.hosted-exchange.nl[192.0.2.80]:25: Connection timed out)"
+];
+VIEWS.logs=function(){
+ var now=new Date(),lines=LOGLINES.map(function(l,i){var d=new Date(now-((LOGLINES.length-i)*37000));return "Nov 11 "+d.toTimeString().slice(0,8)+" mailfilter "+l}).join("\n");
+ return head("logs_title","logs_sub",'<button class="btn" type="button" id="logPause">'+ic(state.logPaused?"play":"pause")+t(state.logPaused?"resume":"pause")+'</button>')+
+ '<div class="card"><div class="filters"><label class="search" style="max-width:none;flex:1 1 280px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="logFilter" type="search" placeholder="Filter (queue ID, IP, address)"></label><select class="select inline" id="logSrc"><option>All sources</option><option>postfix</option><option>rspamd</option><option>clamd</option><option>crowdsec</option></select></div><div class="card-body"><pre class="log" id="logPre">'+esc(lines)+'</pre></div></div>';
+};
+VIEWS.domains=function(){
+ function d(v){return v==="ok"?'<span class="status s-ok">'+ic("check")+t("dns_ok")+'</span>':v==="weak"?'<span class="status s-warn">'+ic("clock")+t("dns_weak")+'</span>':'<span class="status s-bad">'+ic("x")+t("dns_missing")+'</span>'}
+ var tr=DOMAINS.map(function(r,i){return '<tr class="click" data-dom="'+i+'"><td><span class="cell-main">'+r.d+'</span><div class="cell-sub">'+r.cust+'</div></td><td class="mono">'+r.dest+'</td><td>'+d(r.dkim)+'</td><td>'+d(r.spf)+'</td><td>'+d(r.dmarc)+'</td></tr>'}).join("");
+ return head("dom_title","dom_sub",'<button class="btn primary" type="button" data-dom="new">'+ic("plus")+t("add_domain")+'</button>')+
+ '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>'+t("c_domain")+'</th><th>'+t("c_dest")+'</th><th>'+t("c_dkim")+'</th><th>'+t("c_spf")+'</th><th>'+t("c_dmarc")+'</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>';
+};
+function ipCheck(v){v=v.trim();if(!v)return null;var m=v.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/);if(!m)return {ok:false};for(var i=1;i<5;i++)if(+m[i]>255)return {ok:false};if(m[5]!==undefined){var p=+m[5];if(p<8||p>32)return {ok:false};return {ok:true,net:true,hosts:Math.pow(2,32-p)}}return {ok:true,net:false}}
+VIEWS.relay=function(){
+ var tab=state.relayTab;
+ var tabs='<button type="button" role="tab" data-rtab="ip" aria-selected="'+(tab==="ip")+'">'+t("r_tab_ip")+' <span class="num muted">'+RELAYS.length+'</span></button><button type="button" role="tab" data-rtab="auth" aria-selected="'+(tab==="auth")+'">'+t("r_tab_auth")+' <span class="num muted">2</span></button>';
+ var custOpts=CUSTOMERS.map(function(c){return '<option>'+c.name+'</option>'}).join("");
+ var form='<div class="card"><div class="card-head"><h2>'+t("r_add")+'</h2></div><form class="card-body form-grid" id="relayForm" novalidate>'+
+  '<div class="field"><label for="rIp">'+t("r_ip")+'</label><input class="input mono" id="rIp" autocomplete="off" placeholder="203.0.113.25"><span class="hint" id="rIpHint">'+t("r_ip_hint")+'</span></div>'+
+  '<div class="field"><label for="rDesc">'+t("r_desc")+'</label><input class="input" id="rDesc" placeholder="'+t("r_desc_ph")+'"></div>'+
+  '<div class="field"><label for="rCust">'+t("r_customer")+'</label><select class="select" id="rCust">'+custOpts+'</select></div>'+
+  '<div class="field"><label for="rFrom">'+t("r_from")+'</label><input class="input" id="rFrom" placeholder="campingzeezicht.nl"><span class="hint">'+t("r_from_hint")+'</span></div>'+
+  '<div class="field"><label for="rLimit">'+t("r_limit")+'</label><select class="select" id="rLimit"><option>500 / '+(state.lang==="nl"?"uur":"hour")+'</option><option>1000 / '+(state.lang==="nl"?"uur":"hour")+'</option><option>5000 / '+(state.lang==="nl"?"uur":"hour")+'</option></select></div>'+
+  '<label class="check" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="rTls" checked><span><b style="font-weight:650">'+t("r_tls")+'</b></span></label>'+
+  '<div class="full" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn primary" type="submit">'+ic("plus")+t("r_save")+'</button></div></form></div>';
+ var body;
+ if(tab==="ip"){body='<div class="tbl-wrap"><table><thead><tr><th>'+t("c_ipnet")+'</th><th>'+t("c_desc")+'</th><th>'+t("c_lastseen")+'</th><th>'+t("c_sent24")+'</th><th></th></tr></thead><tbody>'+RELAYS.map(function(r,i){return '<tr><td class="mono nowrap">'+esc(r.ip)+(r.tls?' <span class="tag lucht">TLS</span>':'')+'</td><td><span class="cell-main">'+esc(r.desc)+'</span><div class="cell-sub">'+esc(r.cust)+'</div>'+(r.hold?'<span class="reason" style="color:var(--bad)">'+(state.lang==="nl"?"Versturen vastgehouden: verdachte piek om 22:47":"Sending on hold: suspicious burst at 22:47")+'</span>':'')+'</td><td class="num nowrap">'+(r.last||t("never"))+'</td><td class="num">'+r.sent+'</td><td><button class="btn small ghost danger" type="button" data-rdel="'+i+'" aria-label="'+t("a_delete")+'">'+ic("trash")+'</button></td></tr>'}).join("")+'</tbody></table></div>'}
+ else{body='<div class="tbl-wrap"><table><thead><tr><th>'+t("auth_user")+'</th><th>'+t("c_customer")+'</th><th>'+t("c_lastseen")+'</th><th>'+t("c_sent24")+'</th></tr></thead><tbody><tr><td class="mono">relay-kroon@mailfilter.rhis.nl</td><td>Bakkerij De Kroon</td><td class="num">21:02</td><td class="num">96</td></tr><tr><td class="mono">printer-vos@mailfilter.rhis.nl</td><td>Vos Installatietechniek</td><td class="num">'+t("never")+'</td><td class="num">0</td></tr></tbody></table></div><div class="card-body" style="border-top:1px solid var(--line)"><button class="btn" type="button">'+ic("plus")+t("auth_add")+'</button></div>'}
+ return head("relay_title","relay_sub")+form+'<div class="card"><div class="tabs" role="tablist">'+tabs+'</div>'+body+'</div>';
+};
+VIEWS.throttle=function(){
+ var acts=["defer","hold","reject"];
+ var tr=THROTTLE.map(function(r){var c=r.use>=100?"b":r.use>=80?"w":"";return '<tr><td class="cell-main">'+r.d+'</td><td><input class="input inline num" style="width:80px" value="'+r.m+'" aria-label="'+t("c_minute")+'"></td><td><input class="input inline num" style="width:90px" value="'+r.h+'" aria-label="'+t("c_hour")+'"></td><td><input class="input inline num" style="width:96px" value="'+r.day+'" aria-label="'+t("c_day")+'"></td><td style="min-width:140px"><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i class="'+c+'" style="width:'+r.use+'%"></i></div><span class="num cell-sub">'+r.use+'%</span></div></td><td><select class="select inline">'+acts.map(function(a){return '<option '+(a===r.act?"selected":"")+'>'+t("w_"+a)+'</option>'}).join("")+'</select></td></tr>'}).join("");
+ return head("th_title","th_sub",'<button class="btn primary" type="button" data-save>'+t("save")+'</button>')+
+ '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>'+t("c_domain")+' / server</th><th>'+t("c_minute")+'</th><th>'+t("c_hour")+'</th><th>'+t("c_day")+'</th><th>'+t("c_usage")+'</th><th>'+t("c_when")+'</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("default_limits")+'</h2></div><div class="card-body form-grid"><div class="field"><label for="dlm">'+t("c_minute")+'</label><input class="input num" id="dlm" value="30"></div><div class="field"><label for="dlh">'+t("c_hour")+'</label><input class="input num" id="dlh" value="1000"></div><div class="field"><label for="dld">'+t("c_day")+'</label><input class="input num" id="dld" value="8000"></div><div class="field"><label for="dla">'+t("c_when")+'</label><select class="select" id="dla"><option>'+t("w_defer")+'</option><option>'+t("w_hold")+'</option><option>'+t("w_reject")+'</option></select></div></div></div>';
+};
+function sw(id,on){return '<label class="switch"><input type="checkbox" id="'+id+'" '+(on?"checked":"")+'><span></span></label>'}
+VIEWS.rules=function(){
+ var feats=[["grey",1],["spf",1],["dkim",1],["dmarc",1],["rbl",1],["bayes",1],["attach",1]].map(function(f){return '<div class="setting"><div class="txt"><b>'+t("ft_"+f[0])+'</b><span>'+t("ft_"+f[0]+"_d")+'</span></div>'+sw("ft-"+f[0],f[1])+'</div>'}).join("");
+ var lists=[["allow","*@ubiquiti-partners.eu","global"],["allow","facturen@leverancier-groothandel.nl","bakkerijdekroon.nl"],["block","*.top",""],["block","185.234.72.0/24",""],["block","sales@bulk-leads-europe.com","rhis.nl"]].map(function(r){return '<tr><td class="mono">'+r[1]+'</td><td>'+(r[0]==="allow"?'<span class="status s-ok">'+ic("check")+t("allow")+'</span>':'<span class="status s-bad">'+ic("ban")+t("block")+'</span>')+'</td><td>'+(r[2]&&r[2]!=="global"?r[2]:t("global"))+'</td></tr>'}).join("");
+ return head("rules_title","rules_sub",'<button class="btn primary" type="button" data-save>'+t("save")+'</button>')+
+ '<div class="grid halves"><div class="card"><div class="card-head"><h2>'+t("thr")+'</h2></div><div class="card-body" style="display:flex;flex-direction:column;gap:16px">'+
+ [["thr_tag",5,"var(--warn)"],["thr_quar",8,"var(--info)"],["thr_reject",15,"var(--bad)"]].map(function(x,i){return '<div class="field"><label for="thr'+i+'" style="display:flex;justify-content:space-between"><span>'+t(x[0])+'</span><span class="num" style="color:'+x[2]+'">≥ <output id="thro'+i+'">'+x[1]+'</output></span></label><input type="range" id="thr'+i+'" min="1" max="25" value="'+x[1]+'" style="accent-color:'+x[2]+'" data-out="thro'+i+'"></div>'}).join("")+
+ '</div></div><div class="card"><div class="card-head"><h2>'+t("feat")+'</h2></div><div class="card-body" style="padding-block:4px">'+feats+'</div></div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("lists")+'</h2><div class="right"><button class="btn small" type="button">'+ic("plus")+t("add_entry")+'</button></div></div><div class="tbl-wrap"><table><thead><tr><th>'+t("c_entry")+'</th><th>'+t("c_type")+'</th><th>'+t("c_scope")+'</th></tr></thead><tbody>'+lists+'</tbody></table></div></div>';
+};
+VIEWS.customers=function(){
+ var tr=CUSTOMERS.map(function(c){return '<tr><td class="cell-main">'+c.name+'</td><td>'+c.domains.map(function(d){return '<span class="tag">'+d+'</span>'}).join(" ")+'</td><td class="num">'+c.users+'</td><td class="num">'+c.mail+'</td></tr>'}).join("");
+ return head("cust_title","cust_sub",'<button class="btn primary" type="button">'+ic("plus")+t("add_customer")+'</button>')+
+ '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>'+t("c_customer")+'</th><th>'+t("c_domains")+'</th><th>'+t("c_users")+'</th><th>'+t("c_mail30")+'</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>';
+};
+VIEWS.security=function(){
+ var ports=[["25","port_smtp","open_world"],["587","port_subm","open_world"],["465","port_smtps","open_world"],["443","port_https","open_world"],["22","port_ssh","ssh_from"]].map(function(p){return '<tr><td class="mono">'+p[0]+'/tcp</td><td>'+t(p[1])+'</td><td>'+(p[0]==="22"?'<span class="status s-info">'+ic("security")+t(p[2])+'</span>':'<span class="status s-mute">'+ic("domains")+t(p[2])+'</span>')+'</td></tr>'}).join("");
+ return head("sec_title","sec_sub")+
+ '<div class="grid halves"><div class="card"><div class="card-head"><h2>'+t("cert")+'</h2><div class="right"><span class="status s-ok">'+ic("check")+'Let\'s Encrypt</span></div></div><div class="card-body"><p class="muted" style="margin:0 0 14px">'+t("cert_d")+'</p><dl class="kv"><dt>Domain</dt><dd class="mono">mailfilter.rhis.nl</dd><dt>'+(state.lang==="nl"?"Geldig tot":"Valid until")+'</dt><dd>9 feb 2027 (90 '+(state.lang==="nl"?"dagen":"days")+')</dd><dt>'+(state.lang==="nl"?"Verlengen":"Renewal")+'</dt><dd>'+(state.lang==="nl"?"Automatisch, 30 dagen voor afloop":"Automatic, 30 days before expiry")+'</dd><dt>TLS</dt><dd>TLS 1.2, TLS 1.3, HSTS</dd></dl><div style="margin-top:14px"><button class="btn" type="button" data-toast="saved">'+ic("refresh")+t("renew")+'</button></div></div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("cs")+'</h2><div class="right"><span class="status s-ok">'+ic("check")+t("running")+'</span></div></div><div class="card-body"><p class="muted" style="margin:0 0 14px">'+t("cs_d")+'</p><div class="kpi" style="padding:0"><span class="value">27</span><span class="delta">IP\'s '+t("blocked_today")+'</span></div><div style="margin-top:10px" class="mono muted">185.220.101.47 · 45.95.168.201 · 193.32.162.0/24 …</div></div></div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("fw")+'</h2><div class="right"><span class="tag">nftables</span></div></div><p class="muted" style="margin:0;padding:14px 18px 0">'+t("fw_d")+'</p><div class="tbl-wrap"><table><tbody>'+ports+'</tbody></table></div></div>'+
+ '<div class="card"><div class="card-body" style="padding-block:4px"><div class="setting"><div class="txt"><b>'+t("twofa")+'</b><span>'+t("twofa_d")+'</span></div>'+sw("s2fa",1)+'</div><div class="setting"><div class="txt"><b>'+t("autoupd")+'</b><span>'+t("autoupd_d")+'</span></div>'+sw("sau",1)+'</div></div></div>';
+};
+VIEWS.mailserver=function(){
+ return head("ms_title","ms_sub")+
+ '<div class="card"><div class="card-body" style="padding-block:4px"><div class="setting"><div class="txt"><b>'+t("ms_use_local")+'</b><span>'+t("ms_use_local_d")+'</span></div>'+sw("msLocal",0)+'</div></div></div>'+
+ '<div class="card"><form class="card-body form-grid" id="msForm"><div class="field"><label for="msHost">'+t("ms_host")+'</label><input class="input mono" id="msHost" value="smtp.rhis.nl"></div>'+
+ '<div class="field"><label for="msEnc">'+t("ms_enc")+'</label><select class="select" id="msEnc"><option>'+t("enc_starttls")+'</option><option>'+t("enc_tls")+'</option><option>'+t("enc_none")+'</option></select></div>'+
+ '<div class="field"><label for="msPort">'+t("ms_port")+'</label><input class="input num" id="msPort" value="587"></div>'+
+ '<div class="field"><label for="msAuth">'+t("ms_auth")+'</label><select class="select" id="msAuth"><option>Username + password</option><option>OAuth 2.0 (Microsoft 365)</option><option>'+(state.lang==="nl"?"Geen":"None")+'</option></select></div>'+
+ '<div class="field"><label for="msUser">'+t("ms_user")+'</label><input class="input" id="msUser" value="mailfilter@rhis.nl" autocomplete="off"></div>'+
+ '<div class="field"><label for="msPass">'+t("ms_pass")+'</label><input class="input" id="msPass" type="password" value="xxxxxxxxxxxx" autocomplete="new-password"></div>'+
+ '<div class="field"><label for="msFrom">'+t("ms_from")+'</label><input class="input" id="msFrom" value="mailfilter@rhis.nl"></div>'+
+ '<div class="field"><label for="msName">'+t("ms_name")+'</label><input class="input" id="msName" value="RHIS Mailfilter"></div>'+
+ '<div class="full" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" type="button" data-toast="ms_sent">'+ic("mailserver")+t("ms_test")+'</button><button class="btn primary" type="submit">'+t("ms_save")+'</button></div></form></div>';
+};
+VIEWS.backup=function(){
+ var rows=[["bk_incr","11 nov 2026 02:00","48 MB"],["bk_incr","10 nov 2026 02:00","51 MB"],["bk_incr","9 nov 2026 02:00","44 MB"],["bk_full","8 nov 2026 02:00","1,9 GB"],["bk_incr","7 nov 2026 02:00","47 MB"],["bk_full","1 nov 2026 02:00","1,8 GB"]].map(function(r){return '<tr><td>'+(r[0]==="bk_full"?'<span class="status s-info">'+t(r[0])+'</span>':'<span class="status s-mute">'+t(r[0])+'</span>')+'</td><td class="num nowrap">'+r[1]+'</td><td class="num">'+r[2]+'</td><td><button class="btn small" type="button" data-restore="'+r[1]+'">'+ic("refresh")+t("restore")+'</button></td></tr>'}).join("");
+ return head("bk_title","bk_sub",'<button class="btn primary" type="button" data-toast="saved">'+ic("backup")+t("bk_now")+'</button>')+
+ '<div class="card"><div class="card-head"><h2>'+t("bk_sched")+'</h2></div><div class="card-body"><dl class="kv"><dt>'+t("bk_full")+'</dt><dd>'+t("bk_full_s")+'</dd><dt>'+t("bk_incr")+'</dt><dd>'+t("bk_incr_s")+'</dd><dt>'+t("bk_keep")+'</dt><dd>'+t("bk_keep_v")+'</dd><dt>'+t("bk_loc")+'</dt><dd class="mono">/var/backups/mailfilter</dd></dl></div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("bk_list")+'</h2></div><div class="tbl-wrap"><table><thead><tr><th>'+t("c_kind")+'</th><th>'+t("c_created")+'</th><th>'+t("c_size")+'</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
+ '<div class="card" style="opacity:.7"><div class="card-body" style="display:flex;gap:12px;align-items:center"><span class="grow" style="flex:1"><b style="font-weight:650">'+t("bk_remote")+'</b></span><span class="tag">'+t("later")+'</span></div></div>';
+};
+VIEWS.import=function(){
+ var items=[["imp_dom",6,1],["imp_tr",6,1],["imp_net",5,1],["imp_wl",14,1],["imp_bl",31,1],["imp_rules",9,0]].map(function(x,i){return '<label class="list-row" style="cursor:pointer"><input type="checkbox" id="imp'+i+'" '+(x[2]?"checked":"")+' style="accent-color:var(--koraal)"><span class="grow">'+t(x[0])+'</span><span class="num tag">'+x[1]+'</span></label>'}).join("");
+ return head("imp_title","imp_sub")+
+ '<div class="grid halves"><div class="card"><div class="card-head"><span class="status s-ok">'+ic("check")+'1</span><h2>'+t("imp_s1")+'</h2></div><div class="card-body" style="display:flex;flex-direction:column;gap:14px"><div class="field"><label for="impHost">'+t("imp_host")+'</label><input class="input mono" id="impHost" value="https://pmg.rhis.nl:8006"></div><div class="field"><label for="impUser">'+t("imp_user")+'</label><input class="input" id="impUser" value="root@pam"></div><div class="field"><label for="impPass">'+t("imp_pass")+'</label><input class="input" id="impPass" type="password" value="xxxxxxxx"></div><div><button class="btn" type="button" data-toast="saved">'+t("imp_connect")+'</button></div></div></div>'+
+ '<div class="card"><div class="card-head"><span class="status s-info">2</span><h2>'+t("imp_s2")+'</h2><div class="right cell-sub">'+t("imp_found")+'</div></div><div class="card-body" style="padding-block:4px">'+items+'</div><div class="card-body" style="border-top:1px solid var(--line);display:flex;justify-content:flex-end"><button class="btn primary" type="button" data-toast="added">'+ic("import")+t("imp_go")+'</button></div></div></div>';
+};
+
+/* ---------- overlays ---------- */
+var overlay=document.getElementById("overlay");
+function closeOverlay(){overlay.innerHTML="";document.removeEventListener("keydown",escClose)}
+function escClose(e){if(e.key==="Escape")closeOverlay()}
+function openDrawer(html){overlay.innerHTML='<div class="scrim" id="scrim"><aside class="drawer" role="dialog" aria-modal="true">'+html+'</aside></div>';document.getElementById("scrim").addEventListener("click",function(e){if(e.target.id==="scrim")closeOverlay()});document.addEventListener("keydown",escClose);var b=overlay.querySelector(".icon-btn");if(b)b.focus()}
+function openModal(html){overlay.innerHTML='<div class="modal-scrim" id="scrim"><div class="modal" role="dialog" aria-modal="true">'+html+'</div></div>';document.getElementById("scrim").addEventListener("click",function(e){if(e.target.id==="scrim")closeOverlay()});document.addEventListener("keydown",escClose);var b=overlay.querySelector(".icon-btn");if(b)b.focus()}
+var closeBtn=function(){return '<button class="icon-btn" type="button" data-close aria-label="'+t("close")+'">'+ic("x")+'</button>'};
+function mailDrawer(id){
+ var m=MAILS.filter(function(x){return x.id===id})[0];if(!m)return;
+ var vmap={delivered:["s-ok","check"],bounced:["s-bad","x"],deferred:["s-warn","clock"],quarantine:["s-info","shield"],rejected:["s-mute","ban"]}[m.st];
+ var steps=[];var nl=state.lang==="nl";
+ if(m.st==="rejected"){steps=[["n",nl?"Verbinding van "+m.client:"Connection from "+m.client,""],["b",nl?"Geweigerd door blokkeerlijst":"Refused by blocklist","zen.spamhaus.org"]]}
+ else{
+  steps.push(["n",nl?"Ontvangen van":"Received from",m.client]);
+  steps.push([m.st==="quarantine"&&m.dir==="in"?"b":"",nl?"SPF, DKIM en DMARC":"SPF, DKIM and DMARC",m.st==="quarantine"&&m.dir==="in"?"SPF fail · DKIM none · DMARC reject":"SPF pass · DKIM pass · DMARC pass"]);
+  steps.push([m.st==="quarantine"?"b":"",nl?"Spamfilter":"Spam filter",(nl?"Score ":"Score ")+m.score+" / 15"]);
+  steps.push(["",nl?"Virusscan":"Virus scan","ClamAV: "+(nl?"schoon":"clean")]);
+  if(m.st==="quarantine")steps.push(["b",nl?"Naar quarantaine":"Moved to quarantine",""]);
+  else{if(m.dir==="out")steps.push(["",nl?"Ondertekend met DKIM":"Signed with DKIM","selector mf2026"]);
+   steps.push([m.st==="delivered"?"":m.st==="deferred"?"w":"b",m.st==="delivered"?(nl?"Afgeleverd":"Delivered"):m.st==="deferred"?(nl?"Uitgesteld":"Deferred"):(nl?"Niet afgeleverd":"Not delivered"),m.dest])}
+ }
+ var base=m.time.split(":"),mins=+base[1];
+ var tl=steps.map(function(s,i){var mm=Math.max(0,mins-(steps.length-1-i)*0)+":"+String(i*2).padStart(2,"0");return '<li><span class="t">'+base[0]+":"+String(mins).padStart(2,"0")+":"+String(i*2+1).padStart(2,"0")+'</span><span class="m '+s[0]+'"></span><span class="d"><b>'+esc(s[1])+'</b><span>'+esc(s[2])+'</span></span></li>'}).join("");
+ var logs=LOGLINES.filter(function(l){return l.indexOf(m.qid)>=0});if(!logs.length)logs=["postfix/smtpd: "+m.qid+": client="+m.client,"rspamd: qid <"+m.qid+">, score "+m.score,"postfix/qmgr: "+m.qid+": from=<"+m.from+">"];
+ var acts=m.st==="deferred"?'<button class="btn primary" type="button" data-toast="retried">'+ic("refresh")+t("resend")+'</button>':m.st==="quarantine"?'<button class="btn primary" type="button" data-toast="rel_ok">'+ic("check")+t("release")+'</button>':'';
+ openDrawer('<div class="drawer-head"><div style="min-width:0"><div class="cell-sub" style="margin-bottom:4px">'+t("trace_detail")+' · '+dir(m.dir)+'</div><h2>'+esc(m.subj)+'</h2><div class="cell-sub">'+esc(m.from)+' → '+esc(m.to)+'</div></div>'+closeBtn()+'</div>'+
+ '<div class="drawer-body"><div class="verdict '+vmap[0]+'">'+ic(vmap[1])+'<div><b>'+t({delivered:"st_delivered",bounced:"st_bounced",deferred:"st_deferred",quarantine:"st_quar",rejected:"st_rejected"}[m.st])+'</b><span style="color:var(--ink)">'+m.reason[state.lang]+'</span></div></div>'+
+ (acts?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+acts+'<button class="btn" type="button" data-copy="'+esc(m.qid)+'">'+ic("copy")+t("copyid")+'</button></div>':'')+
+ '<div><h3 style="margin:0 0 12px;font-size:14px">'+t("journey")+'</h3><ol class="timeline">'+tl+'</ol></div>'+
+ '<dl class="kv"><dt>'+t("d_queue")+'</dt><dd class="mono">'+m.qid+'</dd><dt>'+t("d_client")+'</dt><dd class="mono">'+esc(m.client)+'</dd>'+(m.dest?'<dt>'+t("d_dest")+'</dt><dd class="mono">'+esc(m.dest)+'</dd>':'')+'<dt>'+t("d_score")+'</dt><dd class="num">'+m.score+'</dd><dt>'+t("d_size")+'</dt><dd class="num">'+m.size+'</dd></dl>'+
+ '<div><button class="btn small" type="button" id="logToggle" aria-expanded="false">'+t("showlog")+'</button><pre class="log" id="mailLog" hidden style="margin-top:10px">'+esc(logs.join("\n"))+'</pre></div></div>');
+ document.getElementById("logToggle").addEventListener("click",function(){var p=document.getElementById("mailLog");p.hidden=!p.hidden;this.textContent=t(p.hidden?"showlog":"hidelog");this.setAttribute("aria-expanded",String(!p.hidden))});
+}
+function domainDrawer(i){
+ var r=i==="new"?{d:"nieuwklant.nl",dest:"",cust:"",dkim:"missing",spf:"missing",dmarc:"missing"}:DOMAINS[+i];
+ var nl=state.lang==="nl";
+ var recs=[["TXT","mf2026._domainkey."+r.d,"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx3R…",r.dkim],["TXT",r.d,"v=spf1 include:_spf.mailfilter.rhis.nl ~all",r.spf],["TXT","_dmarc."+r.d,"v=DMARC1; p=quarantine; rua=mailto:dmarc@mailfilter.rhis.nl",r.dmarc],["MX",r.d,"10 mailfilter.rhis.nl.","ok"]];
+ var dns=recs.map(function(x){return '<span class="tag">'+x[0]+'</span><div style="min-width:0"><div class="cell-sub mono" style="margin-bottom:4px">'+x[1]+'</div><code>'+x[2]+'</code></div><div style="display:flex;gap:6px;align-items:center">'+(x[3]==="ok"?'<span class="status s-ok" style="padding:3px">'+ic("check")+'</span>':'<span class="status s-bad" style="padding:3px">'+ic("x")+'</span>')+'<button class="btn small" type="button" data-copy="'+esc(x[2])+'" aria-label="'+t("copy")+'">'+ic("copy")+'</button></div>'}).join("");
+ openDrawer('<div class="drawer-head"><div><div class="cell-sub">'+t("n_domains")+'</div><h2>'+(i==="new"?t("add_domain"):r.d)+'</h2></div>'+closeBtn()+'</div><div class="drawer-body">'+
+ '<div class="form-grid"><div class="field"><label for="dName">'+t("c_domain")+'</label><input class="input" id="dName" value="'+r.d+'"></div><div class="field"><label for="dCust">'+t("c_customer")+'</label><select class="select" id="dCust">'+CUSTOMERS.map(function(c){return '<option '+(c.name===r.cust?"selected":"")+'>'+c.name+'</option>'}).join("")+'</select></div><div class="field full"><label for="dDest">'+t("c_dest")+'</label><input class="input mono" id="dDest" value="'+r.dest+'" placeholder="mail.klant.nl:25"><span class="hint">'+(nl?"De mailserver waar Mailfilter schone mail voor dit domein aflevert.":"The mail server Mailfilter delivers clean mail for this domain to.")+'</span></div></div>'+
+ '<div><h3 style="margin:0 0 6px;font-size:14px">'+t("dns_title")+'</h3><p class="cell-sub" style="margin:0 0 12px">'+t("dns_help")+'</p><div class="dns">'+dns+'</div></div>'+
+ '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" type="button" data-close>'+t("cancel")+'</button><button class="btn primary" type="button" data-toast="saved" data-close>'+t("save")+'</button></div></div>');
+}
+function infoModal(){
+ var nl=state.lang==="nl";
+ function render(){
+  openModal('<div class="modal-head"><h2 class="display" style="font-size:18px">'+t("info_title")+'</h2>'+closeBtn()+'</div><div class="modal-body">'+
+  '<div class="version-hero"><svg class="ic" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#14213D"/><rect x="27.5" y="31" width="9" height="22" rx="2.5" fill="#FF6B57"/><path d="M25.64 22.64A9 9 0 0 1 38.36 22.64M20.69 17.69A16 16 0 0 1 43.31 17.69" fill="none" stroke="#FF6B57" stroke-width="4.5" stroke-linecap="round"/></svg><div><div class="cell-sub">RHIS Mailfilter</div><div class="vn">'+state.version+'</div><div class="cell-sub">'+t("info_branch")+' <span class="mono">'+(state.channel==="test"?"test":"main")+'</span> · '+t("info_built")+' 11 nov 2026 · commit <span class="mono">a41c9e2</span></div></div></div>'+
+  '<div class="field"><label>'+t("info_channel")+'</label><div class="channel"><label><span class="nm"><input type="radio" name="ch" value="prod" '+(state.channel==="prod"?"checked":"")+'>'+t("prod")+'</span><span class="ds">'+t("ch_prod_d")+'</span></label><label><span class="nm"><input type="radio" name="ch" value="test" '+(state.channel==="test"?"checked":"")+'>'+t("test")+'</span><span class="ds">'+t("ch_test_d")+'</span></label></div></div>'+
+  '<div id="updBox" style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" type="button" id="checkUpd">'+ic("refresh")+t("check")+'</button></div></div>'+
+  '<div class="cell-sub">© 2026 RHIS · <a href="https://rhis.nl" style="color:var(--accent-text)">rhis.nl</a> · '+(nl?"Open-sourcecomponenten: Postfix, Rspamd, ClamAV, Redis, PostgreSQL":"Open-source components: Postfix, Rspamd, ClamAV, Redis, PostgreSQL")+'</div></div>');
+  overlay.querySelectorAll('input[name="ch"]').forEach(function(r){r.addEventListener("change",function(){state.channel=this.value;applyChrome();toast(t("switched")+" "+t(this.value==="prod"?"prod":"test"));render()})});
+  document.getElementById("checkUpd").addEventListener("click",check);
+ }
+ function check(){var box=document.getElementById("updBox");box.innerHTML='<div class="cell-sub">'+t("checking")+'</div><div class="progress"><i style="width:35%"></i></div>';
+  setTimeout(function(){var next=state.channel==="test"?"0.1.1-test.3":"0.1.1";if(state.version===next){box.innerHTML='<div class="callout">'+ic("check")+'<div>'+t("uptodate")+'</div></div>';return}
+   box.innerHTML='<div class="callout">'+ic("info")+'<div><b>'+t("avail")+': '+next+'</b><br><span class="cell-sub">'+t("changelog")+': '+(nl?"mailtrace toont nu de reden bij uitgestelde berichten; DKIM-sleutels roteren per jaar.":"mail trace now shows the reason for deferred mail; DKIM keys rotate yearly.")+'</span></div></div><div><button class="btn primary" type="button" id="doUpd">'+ic("backup")+t("update_now")+'</button></div>';
+   document.getElementById("doUpd").addEventListener("click",function(){box.innerHTML='<div class="cell-sub" id="updMsg">'+t("updating")+'</div><div class="progress"><i id="updBar"></i></div>';var p=0,bar=document.getElementById("updBar");var iv=setInterval(function(){p+=20;bar.style.width=p+"%";if(p>=100){clearInterval(iv);state.version=next;applyChrome();box.innerHTML='<div class="callout">'+ic("check")+'<div><b>'+t("updated")+' '+next+'</b><br><span class="cell-sub">'+t("restart")+'</span></div></div>';var vn=overlay.querySelector(".vn");if(vn)vn.textContent=next}},350)})},900)}
+ render();
+}
+var toastTimer;
+function toast(msg){var el=document.createElement("div");el.className="toast";el.setAttribute("role","status");el.innerHTML=ic("check")+'<span>'+esc(msg)+'</span>';var old=document.querySelector(".toast");if(old)old.remove();document.body.appendChild(el);clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.remove()},2600)}
+
+/* ---------- chrome + events ---------- */
+function applyChrome(){
+ document.documentElement.lang=state.lang;
+ document.querySelectorAll("[data-t]").forEach(function(e){e.textContent=t(e.getAttribute("data-t"))});
+ document.querySelectorAll("[data-tp]").forEach(function(e){e.placeholder=t(e.getAttribute("data-tp"))});
+ document.querySelectorAll("[data-lang]").forEach(function(b){b.setAttribute("aria-pressed",String(b.getAttribute("data-lang")===state.lang))});
+ document.getElementById("sideVersion").textContent=state.version;
+ var c=document.getElementById("channelChip");c.innerHTML=ic("branch")+'<span class="dot" style="background:'+(state.channel==="test"?"var(--warn)":"var(--ok)")+'"></span>'+t(state.channel==="test"?"test":"prod");
+}
+var logTimer;
+function render(){
+ renderNav();applyChrome();
+ var v=route();document.getElementById("view").innerHTML=VIEWS[v]();
+ document.getElementById("app").classList.remove("nav-open");
+ clearInterval(logTimer);
+ if(v==="logs"&&!state.logPaused){var i=0;logTimer=setInterval(function(){var pre=document.getElementById("logPre");if(!pre){clearInterval(logTimer);return}var d=new Date();pre.textContent+="\nNov 11 "+d.toTimeString().slice(0,8)+" mailfilter "+LOGLINES[i%LOGLINES.length];i++;pre.scrollTop=pre.scrollHeight},2200)}
+ bindView();
+}
+function bindView(){
+ var ts=document.getElementById("traceSearch");if(ts){ts.addEventListener("input",function(){state.q=this.value;var pos=this.selectionStart;render();var n=document.getElementById("traceSearch");n.focus();n.setSelectionRange(pos,pos)})}
+ var td=document.getElementById("traceDir");if(td)td.addEventListener("change",function(){state.traceDir=this.value;render()});
+ var ip=document.getElementById("rIp");if(ip)ip.addEventListener("input",function(){var r=ipCheck(this.value),h=document.getElementById("rIpHint");this.classList.remove("ok","bad");if(!r){h.textContent=t("r_ip_hint");h.style.color=""}else if(r.ok){this.classList.add("ok");h.style.color="var(--ok)";h.textContent=r.net?t("r_valid_net")+" · "+r.hosts.toLocaleString(state.lang)+" "+t("r_hosts"):t("r_valid_ip")}else{this.classList.add("bad");h.style.color="var(--bad)";h.textContent=t("r_invalid")}});
+ var rf=document.getElementById("relayForm");if(rf)rf.addEventListener("submit",function(e){e.preventDefault();var v=document.getElementById("rIp").value,r=ipCheck(v);if(!r||!r.ok){var i=document.getElementById("rIp");i.classList.add("bad");i.focus();document.getElementById("rIpHint").textContent=t("r_invalid");document.getElementById("rIpHint").style.color="var(--bad)";return}RELAYS.unshift({ip:v.trim(),desc:document.getElementById("rDesc").value||"—",cust:document.getElementById("rCust").value,last:"",sent:"0",tls:document.getElementById("rTls").checked});state.relayTab="ip";render();toast(t("added")+": "+v.trim())});
+ var ms=document.getElementById("msForm");if(ms)ms.addEventListener("submit",function(e){e.preventDefault();toast(t("saved"))});
+ document.querySelectorAll("input[type=range][data-out]").forEach(function(r){r.addEventListener("input",function(){document.getElementById(this.getAttribute("data-out")).textContent=this.value})});
+ var lp=document.getElementById("logPause");if(lp)lp.addEventListener("click",function(){state.logPaused=!state.logPaused;render()});
+}
+document.addEventListener("click",function(e){
+ var el=e.target.closest("[data-mail],[data-tf],[data-qtab],[data-rtab],[data-q],[data-dom],[data-close],[data-toast],[data-copy],[data-flush],[data-save],[data-restore],[data-rdel],[data-lang]");if(!el)return;
+ if(el.hasAttribute("data-lang")){state.lang=el.getAttribute("data-lang");store.set("mf-lang",state.lang);closeOverlay();render();return}
+ if(el.hasAttribute("data-mail"))return mailDrawer(el.getAttribute("data-mail"));
+ if(el.hasAttribute("data-tf")){state.traceFilter=el.getAttribute("data-tf");return render()}
+ if(el.hasAttribute("data-qtab")){state.qTab=el.getAttribute("data-qtab");return render()}
+ if(el.hasAttribute("data-rtab")){state.relayTab=el.getAttribute("data-rtab");return render()}
+ if(el.hasAttribute("data-q")){var k=el.getAttribute("data-q"),i=+el.getAttribute("data-i");QUAR[state.qTab].splice(i,1);render();return toast(t(k==="ham"?"trained_ham":k==="spam"?"trained_spam":"deleted"))}
+ if(el.hasAttribute("data-dom"))return domainDrawer(el.getAttribute("data-dom"));
+ if(el.hasAttribute("data-rdel")){RELAYS.splice(+el.getAttribute("data-rdel"),1);render();return toast(t("deleted"))}
+ if(el.hasAttribute("data-copy")){var txt=el.getAttribute("data-copy");try{navigator.clipboard.writeText(txt).then(function(){toast(t("copied"))},function(){toast(txt)})}catch(_){toast(txt)}return}
+ if(el.hasAttribute("data-flush"))toast(t("retried"));
+ if(el.hasAttribute("data-save"))toast(t("saved"));
+ if(el.hasAttribute("data-restore"))toast((state.lang==="nl"?"Terugzetten gestart: ":"Restore started: ")+el.getAttribute("data-restore"));
+ if(el.hasAttribute("data-toast"))toast(t(el.getAttribute("data-toast")));
+ if(el.hasAttribute("data-close"))closeOverlay();
+});
+document.getElementById("infoBtn").addEventListener("click",infoModal);
+document.getElementById("channelChip").addEventListener("click",infoModal);
+document.getElementById("menuToggle").addEventListener("click",function(){document.getElementById("app").classList.toggle("nav-open")});
+document.getElementById("themeBtn").addEventListener("click",function(){var r=document.documentElement,cur=r.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");r.setAttribute("data-theme",cur==="dark"?"light":"dark")});
+document.getElementById("globalSearch").addEventListener("keydown",function(e){if(e.key==="Enter"){state.q=this.value;state.traceFilter="all";if(location.hash!=="#trace")location.hash="trace";else render()}});
+window.addEventListener("hashchange",render);
+render();
+})();
+</script>
