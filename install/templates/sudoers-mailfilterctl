@@ -1,0 +1,3 @@
+# Installed by the Mailfilter installer. The web app (user mailfilter) may run
+# the system task helper as root; it validates every argument itself.
+mailfilter ALL=(root) NOPASSWD: /usr/local/sbin/mailfilterctl

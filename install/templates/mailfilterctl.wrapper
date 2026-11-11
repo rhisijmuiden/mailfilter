@@ -1,0 +1,3 @@
+#!/bin/sh
+# Installed by the Mailfilter installer. Runs the system task helper from the checkout.
+exec /usr/bin/python3 -B -E -s {{MF_SRC}}/ops/bin/mailfilterctl "$@"

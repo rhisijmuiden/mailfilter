@@ -33,11 +33,13 @@ Usage: install.sh [options]
                           Without it SSH stays open to the internet (CrowdSec still guards it)
   --skip-certificate      Do not request a Let's Encrypt certificate (DNS not ready yet)
   --non-interactive       Never ask questions; fail when a required value is missing
+  --reconfigure           Re-apply everything with the settings saved by the previous
+                          install, without questions. Used by updates from the web interface
   -h, --help              Show this help
 EOF
 }
 
-RELAY_NETS=(); RELAY_PORTS=(); SSH_FROM=(); SKIP_CERT=0; NONINTERACTIVE=0
+RELAY_NETS=(); RELAY_PORTS=(); SSH_FROM=(); SKIP_CERT=0; NONINTERACTIVE=0; RECONFIGURE=0
 HOSTNAME_FQDN=""; ADMIN_EMAIL=""; FIRST_DOMAIN=""; FIRST_DEST=""
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -50,10 +52,21 @@ while [[ $# -gt 0 ]]; do
     --ssh-from) SSH_FROM+=("$2"); shift 2 ;;
     --skip-certificate) SKIP_CERT=1; shift ;;
     --non-interactive) NONINTERACTIVE=1; shift ;;
+    --reconfigure) RECONFIGURE=1; NONINTERACTIVE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage; die "Unknown option: $1" ;;
   esac
 done
+
+if [[ $RECONFIGURE == 1 ]]; then
+  [[ -f $MF_ETC/mailfilter.env ]] || die "--reconfigure needs a previous install ($MF_ETC/mailfilter.env is missing)"
+  # Read only the keys we need; never execute the file.
+  saved() { sed -n "s/^$1=//p" "$MF_ETC/mailfilter.env" | tail -1; }
+  [[ -n $HOSTNAME_FQDN ]] || HOSTNAME_FQDN=$(saved MF_HOSTNAME)
+  [[ -n $ADMIN_EMAIL ]] || ADMIN_EMAIL=$(saved MF_ADMIN_EMAIL)
+  # Relay networks, ports and domains live in gateway.json (mailfilter-config), so they are kept as they are
+  [[ ${#SSH_FROM[@]} -gt 0 ]] || read -r -a SSH_FROM <<<"$(saved MF_SSH_FROM)"
+fi
 
 printf '\n%sRHIS Mailfilter%s installer\n' "$C_BOLD" "$C_RESET"
 printf '%sInstalls an inbound and outbound mail filter gateway on this server.%s\n' "$C_DIM" "$C_RESET"
@@ -109,6 +122,7 @@ MF_ADMIN_EMAIL=$ADMIN_EMAIL
 MF_PUBLIC_V4=$PUBLIC_V4
 MF_PUBLIC_V6=$PUBLIC_V6
 MF_SOURCE=$MF_SRC
+MF_SSH_FROM=${SSH_FROM[*]}
 EOF
 chmod 0640 "$MF_ETC/mailfilter.env"
 
@@ -131,7 +145,7 @@ run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
-      nodejs npm sudo git curl dnsutils ca-certificates jq crowdsec)
+      nodejs npm sudo git zstd curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
@@ -302,6 +316,9 @@ run systemctl enable --now postgresql
 if [[ -z ${DB_PASSWORD:-} ]]; then DB_PASSWORD=$(gen_secret 32); echo "DB_PASSWORD=$DB_PASSWORD" >>"$SECRETS"; fi
 if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mailfilter'" | grep 1 >/dev/null; then
   runuser -u postgres -- psql -q -c "CREATE ROLE mailfilter LOGIN PASSWORD '$DB_PASSWORD'"
+else
+  # Keeps the role in step with secrets.env, also after restoring a backup onto a new server
+  runuser -u postgres -- psql -q -c "ALTER ROLE mailfilter LOGIN PASSWORD '$DB_PASSWORD'"
 fi
 if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='mailfilter'" | grep 1 >/dev/null; then
   runuser -u postgres -- createdb -O mailfilter mailfilter
@@ -365,8 +382,21 @@ if [[ $HAVE_CERT == 1 ]]; then
 else
   warn "No certificate yet, so the web interface is not published. Re-run the installer after DNS is in place."
 fi
-git -C "$MF_SRC" describe --tags --always 2>/dev/null >"$MF_ETC/version" || echo "0.1.0" >"$MF_ETC/version"
-git -C "$MF_SRC" rev-parse --abbrev-ref HEAD 2>/dev/null >"$MF_ETC/branch" || echo "test" >"$MF_ETC/branch"
+
+# ---------------------------------------------------------------------------
+step "Updates and backups"
+render "$TPL/mailfilterctl.wrapper" /usr/local/sbin/mailfilterctl 0755
+install -d -m 0700 /var/lib/mailfilterctl /var/backups/mailfilter
+install -m 0644 "$TPL/systemd/mailfilter-backup.service" /etc/systemd/system/mailfilter-backup.service
+install -m 0644 "$TPL/systemd/mailfilter-backup.timer" /etc/systemd/system/mailfilter-backup.timer
+install -m 0440 "$TPL/sudoers-mailfilterctl" /etc/sudoers.d/mailfilterctl
+visudo -cqf /etc/sudoers.d/mailfilterctl || { rm -f /etc/sudoers.d/mailfilterctl; die "sudoers rule for mailfilterctl is invalid"; }
+run systemctl daemon-reload
+# Writes the timer schedule from $MF_ETC/backup.json (created with defaults on first run)
+run /usr/local/sbin/mailfilterctl backup schedule
+head -1 "$MF_SRC/VERSION" >"$MF_ETC/version" 2>/dev/null || echo "0.0.0" >"$MF_ETC/version"
+git -c safe.directory="$MF_SRC" -C "$MF_SRC" rev-parse --abbrev-ref HEAD 2>/dev/null >"$MF_ETC/branch" || echo "test" >"$MF_ETC/branch"
+ok "Version $(cat "$MF_ETC/version") ($(cat "$MF_ETC/branch")), daily backup at $(jq -r .time "$MF_ETC/backup.json") to /var/backups/mailfilter"
 
 # ---------------------------------------------------------------------------
 step "Blocklist monitoring"
@@ -383,7 +413,7 @@ ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minu
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
