@@ -31,3 +31,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Postfix, Rspamd, Dovecot, unbound, nftables and Caddy configs
         run: bash install/tests/validate-configs.sh
+  gateway-config:
+    # Domains, relay access and throttling: unit tests, then apply a sample
+    # configuration with the real Debian 13 Postfix, Rspamd and nftables
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      options: --cap-add=NET_ADMIN
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Postfix and Rspamd from the installer templates
+        run: bash install/tests/validate-configs.sh
+      - name: Apply a sample gateway configuration
+        run: bash backend/mailfilter_config/tests/integration.sh
