@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Info, LogOut, Menu, Moon, Sun, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { setLanguage, type Lang } from "../i18n";
 import { api } from "../lib/api";
 import type { Me } from "../lib/auth";
+import type { Stats } from "../lib/trace";
 import { GROUPS, NAV } from "../nav";
 import { InfoModal, useSystemInfo } from "./InfoModal";
 import { Logo } from "./Logo";
@@ -37,6 +38,8 @@ export function Layout({ me }: { me: Me }) {
   const [info, setInfo] = useState(false);
   const [theme, toggleTheme] = useTheme();
   const sys = useSystemInfo();
+  const stats = useQuery({ queryKey: ["trace-stats"], queryFn: () => api.get<Stats>("/trace/stats?hours=24"), refetchInterval: 60_000 });
+  const BADGES = { quarantine: stats.data?.quarantined_now };
   useEffect(() => setNavOpen(false), [loc.pathname]);
 
   const changeLang = async (lang: Lang) => {
@@ -72,6 +75,7 @@ export function Layout({ me }: { me: Me }) {
                   <NavLink key={n.to} to={n.to} end={n.to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>
                     <n.icon aria-hidden />
                     <span>{t(n.label)}</span>
+                    {n.badge && !!BADGES[n.badge] && <span className="count">{BADGES[n.badge]}</span>}
                   </NavLink>
                 ))}
               </div>

@@ -2,5 +2,6 @@
 so Alembic sees every table."""
 
 from .core import AppSetting, AuditLog, AuthSession, Domain, User, user_domain
+from .trace import QuarantineAction, TraceMessage, TraceRecipient
 
-__all__ = ["AppSetting", "AuditLog", "AuthSession", "Domain", "User", "user_domain"]
+__all__ = ["AppSetting", "AuditLog", "AuthSession", "Domain", "User", "user_domain", "QuarantineAction", "TraceMessage", "TraceRecipient"]

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Mailfilter backup (time is set in the web interface)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
