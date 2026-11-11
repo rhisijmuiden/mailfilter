@@ -167,24 +167,17 @@ ok "unbound answers on 127.0.0.1 and ::1"
 step "Mailfilter lists and maps"
 install -d -m 0755 "$MF_ETC/postfix" "$MF_ETC/rspamd"
 install -d -m 0750 -o root -g _rspamd /var/lib/rspamd/dkim
-# Plain list of relay networks (IPv4 and IPv6, one per line). The web app owns it after install.
-NETS_FILE=$MF_ETC/relay_networks.list
-touch "$NETS_FILE"
-for n in "${RELAY_NETS[@]}"; do grep -qxF "$n" "$NETS_FILE" || echo "$n" >>"$NETS_FILE"; done
-for f in relay_domains transport sender_block tls_policy; do touch "$MF_ETC/postfix/$f"; done
-for f in client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
-for f in allow_from allow_domain block_from block_domain block_ip antivirus_skip dkim_selectors; do touch "$MF_ETC/rspamd/$f.map"; done
-if [[ -n $FIRST_DOMAIN ]]; then
-  grep -q "^$FIRST_DOMAIN " "$MF_ETC/postfix/relay_domains" || echo "$FIRST_DOMAIN OK" >>"$MF_ETC/postfix/relay_domains"
-  grep -q "^$FIRST_DOMAIN " "$MF_ETC/postfix/transport" || echo "$FIRST_DOMAIN relay:[$FIRST_DEST]:25" >>"$MF_ETC/postfix/transport"
-fi
-# Generate the Postfix and Rspamd views of the relay list (awk, not grep: an empty list is fine)
-active_nets() { awk '!/^[[:space:]]*(#|$)/ {print $1}' "$NETS_FILE"; }
-{ echo "# Generated from $NETS_FILE"; active_nets | awk '{print $1" OK"}'; } >"$MF_ETC/postfix/relay_networks.cidr"
-{ echo "# Generated from $NETS_FILE"; echo "127.0.0.0/8"; echo "::1"; active_nets; } >"$MF_ETC/rspamd/local_addrs.map"
+install -d -m 0755 "$MF_ETC/nftables"
+# Domains, relay networks, extra relay ports and throttling are written by
+# mailfilter-config (step "Domains, relay access and throttling" below, and the
+# web interface). Here we only make sure every file exists so Postfix can start.
+touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
+for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_networks.cidr client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
+for f in allow_from allow_domain block_from block_domain block_ip antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
-ok "$(active_nets | wc -l) relay network(s), $(grep -c . "$MF_ETC/postfix/relay_domains" || true) domain(s)"
+ok "Lists and maps in $MF_ETC"
 
 # ---------------------------------------------------------------------------
 step "Firewall (nftables, IPv4 and IPv6)"
@@ -205,13 +198,11 @@ if [[ ${#SSH_FROM[@]} -gt 0 ]]; then
 else
   SSH_RULES='    tcp dport 22 accept comment "SSH (open, guarded by CrowdSec)"'
 fi
-EXTRA_RELAY_PORTS_NFT=""
-for p in "${RELAY_PORTS[@]}"; do EXTRA_RELAY_PORTS_NFT+=", $p"; done
 render "$TPL/nftables/nftables.conf" /etc/nftables.conf 0755
 run nft -c -f /etc/nftables.conf
 run systemctl enable nftables
 run systemctl restart nftables
-ok "Open: 22, 25, 80, 443, 465, 587${EXTRA_RELAY_PORTS_NFT}"
+ok "Open: 22, 25, 80, 443, 465, 587 (extra relay ports follow below)"
 
 # ---------------------------------------------------------------------------
 step "HTTPS certificate (Let's Encrypt)"
@@ -237,19 +228,6 @@ HAVE_CERT=0; [[ -f /etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem ]] && HAVE
 step "Mail server (Postfix)"
 backup_file /etc/postfix/main.cf; backup_file /etc/postfix/master.cf
 HOSTNAME=$HOSTNAME_FQDN
-EXTRA_RELAY_LISTENERS=""
-for p in "${RELAY_PORTS[@]}"; do
-  EXTRA_RELAY_LISTENERS+="$p      inet  n       -       y       -       -       smtpd
-  -o syslog_name=postfix/port-$p
-  -o smtpd_tls_security_level=may
-  -o smtpd_sasl_auth_enable=yes
-  -o smtpd_client_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o smtpd_helo_restrictions=
-  -o smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o smtpd_recipient_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o milter_macro_daemon_name=ORIGINATING
-"
-done
 render "$TPL/postfix/main.cf" /etc/postfix/main.cf
 render "$TPL/postfix/master.cf" /etc/postfix/master.cf
 if [[ $HAVE_CERT == 0 ]]; then
@@ -258,14 +236,14 @@ if [[ $HAVE_CERT == 0 ]]; then
   postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
   warn "Postfix uses a temporary self-signed certificate until Let's Encrypt succeeds."
 fi
-for f in relay_domains transport sender_block tls_policy; do run postmap "hash:$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify; do run postmap "hash:$MF_ETC/postfix/$f"; done
 # A bare install with "No configuration" has no /etc/aliases; route system mail to the admin.
 [[ -f /etc/aliases ]] || printf 'postmaster: root\nabuse: root\nroot: %s\n' "$ADMIN_EMAIL" >/etc/aliases
 run newaliases
 run postfix check
 run systemctl enable postfix
 run systemctl restart postfix
-ok "Listening on 25 (inbound), 587 and 465 (relay)${RELAY_PORTS[*]:+, extra relay: ${RELAY_PORTS[*]}}"
+ok "Listening on 25 (inbound), 587 and 465 (relay)"
 
 # ---------------------------------------------------------------------------
 step "SMTP accounts for relay (Dovecot)"
@@ -337,6 +315,18 @@ run systemctl daemon-reload
 run systemctl enable mailfilter-tracer
 run systemctl restart mailfilter-tracer
 ok "Postfix and Rspamd logs flow into the mail trace"
+
+# ---------------------------------------------------------------------------
+step "Domains, relay access and throttling"
+# Starts /etc/mailfilter/gateway.json on the first run (taking over lists from older
+# installs), adds what was given on the command line, and applies it. On a re-run it
+# puts back what the templates above overwrote (extra listeners, per-domain queues).
+SEED_ARGS=()
+for n in "${RELAY_NETS[@]}"; do SEED_ARGS+=(--relay-net "$n"); done
+for p in "${RELAY_PORTS[@]}"; do SEED_ARGS+=(--relay-port "$p"); done
+[[ -n $FIRST_DOMAIN ]] && SEED_ARGS+=(--domain "$FIRST_DOMAIN" --destination "$FIRST_DEST")
+run "$MF_SRC/backend/bin/mailfilter-config" seed "${SEED_ARGS[@]}"
+ok "$(jq '.relay_networks | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0) relay network(s), $(jq '.domains | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0) domain(s), extra relay ports: $(jq -r '[.relay_ports[].port] | join(", ")' "$MF_ETC/gateway.json" 2>/dev/null || true)"
 
 # ---------------------------------------------------------------------------
 step "Intrusion protection (CrowdSec)"

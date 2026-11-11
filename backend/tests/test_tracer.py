@@ -175,3 +175,14 @@ def test_every_rule_has_both_languages():
             assert rule[lang]["title"] and rule[lang]["action"], rule["id"]
     for key, val in data["local"].items():
         assert val["en"]["title"] and val["nl"]["title"], key
+
+
+def test_per_domain_and_throttled_queues():
+    _, msgs = run([
+        f"Nov 11 15:00:00 h postfix/domain/rhis.nl/smtp[1]: {QA}: to=<info@rhis.nl>, relay=mail.rhis.nl[192.0.2.10]:25, "
+        "delay=1, delays=0.5/0/0.2/0.3, dsn=2.0.0, status=sent (250 OK)",
+        f"Nov 11 15:00:00 h postfix/out/outlook.com/smtp[2]: {QB}: to=<a@outlook.com>, relay=mx.outlook.com[192.0.2.20]:25, "
+        "delay=1, delays=0.5/0/0.2/0.3, dsn=2.0.0, status=sent (250 OK)",
+    ])
+    assert msgs[QA].direction == "inbound" and msgs[QA].recipients["info@rhis.nl"].transport == "relay"
+    assert msgs[QB].direction == "outbound" and msgs[QB].recipients["a@outlook.com"].transport == "smtp"
