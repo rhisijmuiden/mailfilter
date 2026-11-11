@@ -55,6 +55,10 @@ check "postconf -M (2525 listener from seed)" bash -c 'postconf -M | grep "^2525
 check "postfix check after seed" postfix check
 check "relay network in Postfix map" bash -c 'postmap -q 2a02:58:1f:42::1 cidr:/etc/mailfilter/postfix/relay_networks.cidr | grep OK >/dev/null'
 check "rspamadm configtest after seed" rspamadm configtest
+# Rspamd reads its maps as _rspamd, not as root: use the installer's permissions
+chmod 0751 /etc/mailfilter
+# shellcheck disable=SC2016  # expanded by the inner bash
+check "_rspamd can read the Mailfilter maps" bash -c 'for f in /etc/mailfilter/rspamd/*; do runuser -u _rspamd -- cat "$f" >/dev/null || exit 1; done'
 check "rspamd quarantine action known" bash -c 'rspamadm configdump actions 2>/dev/null | grep -qi quarantine'
 
 render "$TPL/dovecot/dovecot.conf" /etc/dovecot/dovecot.conf
