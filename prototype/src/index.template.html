@@ -192,6 +192,22 @@ td.nowrap{white-space:nowrap}
 .verdict{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:var(--r-md)}
 .verdict svg{width:28px;height:28px;flex:none;stroke:currentColor;stroke-width:2.4}
 .verdict b{display:block;font-size:16px;margin-bottom:2px}
+.route{display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr);align-items:stretch;gap:0}
+.route .node{border:1px solid var(--line);border-radius:var(--r-md);padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0;background:var(--surface)}
+.route .node.mf{border-color:var(--accent);border-width:2px;background:var(--surface-raised)}
+.route .node .k{font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted)}
+.route .node b{font-size:13.5px;font-weight:700;word-break:break-word;line-height:1.25}
+.route .node .ip{font-family:var(--mono);font-size:11px;color:var(--ink-muted);word-break:break-all}
+.route .node .ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--surface-raised);border:1px solid var(--line)}
+.route .node .ico svg{width:16px;height:16px;stroke:var(--ink)}
+.route .node.mf .ico{background:var(--nacht);border-color:var(--nacht)}
+.route .node.mf .ico svg{stroke:var(--koraal)}
+.route .node.dim{opacity:.55;border-style:dashed}
+.route .link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.route .link svg{width:44px;height:16px;overflow:visible}
+.route .link .st{width:22px;height:22px;border-radius:50%;display:grid;place-items:center}
+.route .link .st svg{width:13px;height:13px;stroke:currentColor;stroke-width:3}
+@media (max-width:520px){.route{grid-template-columns:minmax(0,1fr)}.route .link{flex-direction:row;padding:4px 0}.route .link>svg{transform:rotate(90deg);width:24px}}
 .timeline{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .timeline li{display:grid;grid-template-columns:64px 18px minmax(0,1fr);gap:10px;position:relative;padding-bottom:16px}
 .timeline li:not(:last-child)::after{content:"";position:absolute;left:82px;top:18px;bottom:0;width:2px;background:var(--line)}
@@ -838,6 +854,26 @@ function escClose(e){if(e.key==="Escape")closeOverlay()}
 function openDrawer(html){overlay.innerHTML='<div class="scrim" id="scrim"><aside class="drawer" role="dialog" aria-modal="true">'+html+'</aside></div>';document.getElementById("scrim").addEventListener("click",function(e){if(e.target.id==="scrim")closeOverlay()});document.addEventListener("keydown",escClose);var b=overlay.querySelector(".icon-btn");if(b)b.focus()}
 function openModal(html){overlay.innerHTML='<div class="modal-scrim" id="scrim"><div class="modal" role="dialog" aria-modal="true">'+html+'</div></div>';document.getElementById("scrim").addEventListener("click",function(e){if(e.target.id==="scrim")closeOverlay()});document.addEventListener("keydown",escClose);var b=overlay.querySelector(".icon-btn");if(b)b.focus()}
 var closeBtn=function(){return '<button class="icon-btn" type="button" data-close aria-label="'+t("close")+'">'+ic("x")+'</button>'};
+function routeHtml(m){
+ var nl=state.lang==="nl";
+ function host(s){var mm=String(s).match(/^(.*?)\s*\[(.*)\]$/);return mm?{n:mm[1],ip:mm[2]}:{n:s,ip:""}}
+ var src=host(m.client),dst=host(m.dest||"");
+ var srcLabel=src.n==="unknown"?(nl?"Onbekende server":"Unknown server"):src.n;
+ var dstName=dst.n||"—";
+ var known={"kroon-mx.hosted-exchange.nl":"Hosted Exchange","mx.ziggo.nl":"Ziggo","mail.rhis.nl":"RHIS mail","vosinstallatie-nl.mail.protection.outlook.com":"Microsoft 365","hotmail-com.olc.protection.outlook.com":"Outlook.com","mx1.bouwbedrijf-hoorn.nl":"Bouwbedrijf Hoorn","gmial.com":"gmial.com"};
+ var srcKnown={"web-01.campingzeezicht.nl":"web-01 · Camping Zeezicht","webshop-01":"webshop-01 · Bakkerij De Kroon","vosinstallatie-nl.mail.protection.outlook.com":"Microsoft 365 · Vos"};
+ var leg1=m.st==="rejected"?"b":"ok";
+ var leg2={delivered:"ok",bounced:"b",deferred:"w",quarantine:"stop",rejected:"none"}[m.st];
+ function link(st){if(st==="none")return '<div class="link" aria-hidden="true"></div>';var c=st==="ok"?"var(--ok)":st==="w"?"var(--warn)":st==="stop"?"var(--info)":"var(--bad)",bg=st==="ok"?"var(--ok-soft)":st==="w"?"var(--warn-soft)":st==="stop"?"var(--info-soft)":"var(--bad-soft)",i=st==="ok"?"check":st==="w"?"clock":st==="stop"?"shield":"x";return '<div class="link"><svg viewBox="0 0 44 16"><path d="M2 8h34" stroke="'+c+'" stroke-width="2" '+(st==="ok"?'':'stroke-dasharray="4 3"')+' fill="none"/><path d="M34 3l7 5-7 5" fill="none" stroke="'+c+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="st" style="background:'+bg+';color:'+c+'">'+ic(i)+'</span></div>'}
+ function node(kind,cls,iconName,title,sub,ip){return '<div class="node '+cls+'"><span class="ico">'+ic(iconName)+'</span><span class="k">'+kind+'</span><b>'+esc(title)+'</b>'+(sub?'<span class="cell-sub">'+esc(sub)+'</span>':'')+(ip?'<span class="ip">'+esc(ip)+'</span>':'')+'</div>'}
+ var srcIcon=m.dir==="out"?"mailserver":"domains";
+ var dstNode=m.st==="rejected"||m.st==="quarantine"?node(nl?"Bestemming":"Destination","dim","mailserver",m.st==="quarantine"?(nl?"Niet doorgestuurd":"Not forwarded"):(nl?"Niet bereikt":"Not reached"),m.to,""):node(nl?"Bestemming":"Destination","","mailserver",known[dstName]||dstName,known[dstName]?dstName:m.to,dst.ip);
+ return '<div class="route" role="img" aria-label="'+(nl?"Route van het bericht":"Message route")+'">'+
+  node(nl?"Bron":"Source","",srcIcon,srcKnown[src.n]||srcLabel,srcKnown[src.n]?src.n:(m.dir==="out"?(nl?"Relay":"Relay"):(nl?"Internet":"Internet")),src.ip)+
+  link(leg1)+
+  node("Mailfilter","mf","quarantine","mailfilter01",nl?"Spam "+m.score+" · virus schoon":"Spam "+m.score+" · virus clean","203.0.113.10")+
+  link(leg2)+dstNode+'</div>';
+}
 function mailDrawer(id){
  var m=MAILS.filter(function(x){return x.id===id})[0];if(!m)return;
  var vmap={delivered:["s-ok","check"],bounced:["s-bad","x"],deferred:["s-warn","clock"],quarantine:["s-info","shield"],rejected:["s-mute","ban"]}[m.st];
@@ -857,7 +893,7 @@ function mailDrawer(id){
  var logs=LOGLINES.filter(function(l){return l.indexOf(m.qid)>=0});if(!logs.length)logs=["postfix/smtpd: "+m.qid+": client="+m.client,"rspamd: qid <"+m.qid+">, score "+m.score,"postfix/qmgr: "+m.qid+": from=<"+m.from+">"];
  var acts=m.st==="deferred"?'<button class="btn primary" type="button" data-toast="retried">'+ic("refresh")+t("resend")+'</button>':m.st==="quarantine"?'<button class="btn primary" type="button" data-toast="rel_ok">'+ic("check")+t("release")+'</button>':'';
  openDrawer('<div class="drawer-head"><div style="min-width:0"><div class="cell-sub" style="margin-bottom:4px">'+t("trace_detail")+' · '+dir(m.dir)+'</div><h2>'+esc(m.subj)+'</h2><div class="cell-sub">'+esc(m.from)+' → '+esc(m.to)+'</div></div>'+closeBtn()+'</div>'+
- '<div class="drawer-body"><div class="verdict '+vmap[0]+'">'+ic(vmap[1])+'<div><b>'+t({delivered:"st_delivered",bounced:"st_bounced",deferred:"st_deferred",quarantine:"st_quar",rejected:"st_rejected"}[m.st])+'</b><span style="color:var(--ink)">'+m.reason[state.lang]+'</span></div></div>'+
+ '<div class="drawer-body">'+routeHtml(m)+'<div class="verdict '+vmap[0]+'">'+ic(vmap[1])+'<div><b>'+t({delivered:"st_delivered",bounced:"st_bounced",deferred:"st_deferred",quarantine:"st_quar",rejected:"st_rejected"}[m.st])+'</b><span style="color:var(--ink)">'+m.reason[state.lang]+'</span></div></div>'+
  (acts?'<div style="display:flex;gap:8px;flex-wrap:wrap">'+acts+'<button class="btn" type="button" data-copy="'+esc(m.qid)+'">'+ic("copy")+t("copyid")+'</button></div>':'')+
  '<div><h3 style="margin:0 0 12px;font-size:14px">'+t("journey")+'</h3><ol class="timeline">'+tl+'</ol></div>'+
  '<dl class="kv"><dt>'+t("d_queue")+'</dt><dd class="mono">'+m.qid+'</dd><dt>'+t("d_client")+'</dt><dd class="mono">'+esc(m.client)+'</dd>'+(m.dest?'<dt>'+t("d_dest")+'</dt><dd class="mono">'+esc(m.dest)+'</dd>':'')+'<dt>'+t("d_score")+'</dt><dd class="num">'+m.score+'</dd><dt>'+t("d_size")+'</dt><dd class="num">'+m.size+'</dd></dl>'+

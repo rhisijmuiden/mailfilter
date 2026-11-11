@@ -1,0 +1,3 @@
+# Hide which blocklist keys we use in the reply text
+zen.spamhaus.org        Service unavailable; client blocked using a DNS blocklist
+b.barracudacentral.org  Service unavailable; client blocked using a DNS blocklist

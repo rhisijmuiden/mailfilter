@@ -1,0 +1,36 @@
+# Managed by Mailfilter. The web interface is only served over HTTPS.
+{
+	auto_https disable_certs
+	admin off
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+http://{{HOSTNAME}} {
+	handle /.well-known/acme-challenge/* {
+		root * /var/www/acme
+		file_server
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}
+
+https://{{HOSTNAME}} {
+	tls /etc/letsencrypt/live/{{HOSTNAME}}/fullchain.pem /etc/letsencrypt/live/{{HOSTNAME}}/privkey.pem {
+		protocols tls1.2 tls1.3
+	}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+	# Until the web app exists (phase 3) this shows the interface prototype.
+	root * /opt/mailfilter/prototype
+	file_server
+}
