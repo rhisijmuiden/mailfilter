@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import BlacklistAlert from "../components/BlacklistAlert";
 import { Reason, StatusPill } from "../components/TraceBits";
 import { Card, PageHead, formatDate } from "../components/ui";
 import { api } from "../lib/api";
@@ -34,6 +35,7 @@ export default function Dashboard({ me }: { me: Me }) {
         title={t("dashboard.welcome", { name: me.name || me.email })}
         sub={admin ? t("dashboard.sub_admin") : t("dashboard.sub_customer", { domains: me.domains.join(", ") || "–" })}
       />
+      <BlacklistAlert admin={admin} />
       <div className="grid kpis">
         {kpis.map((k) => (
           <Link key={k.label} to={k.to} className="card kpi" style={{ color: "inherit", textDecoration: "none" }}>
@@ -70,7 +72,7 @@ export default function Dashboard({ me }: { me: Me }) {
         </Card>
         <Card title={t("dashboard.next")}>
           {[
-            ...(admin ? [{ to: "/users", label: t("dashboard.next_users") }] : []),
+            ...(admin ? [{ to: "/users", label: t("dashboard.next_users") }, { to: "/dns?tab=cloudflare", label: t("dashboard.next_dns") }] : []),
             { to: "/trace", label: t("dashboard.next_trace") },
             { to: "/quarantine", label: t("dashboard.next_quarantine") },
           ].map((s) => (
