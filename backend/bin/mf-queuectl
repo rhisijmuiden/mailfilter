@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Mailfilter queue helper. The web app (user "mailfilter") may run exactly this
+# script as root via sudo; it only allows these actions on valid queue IDs:
+#   mf-queuectl list-hold          JSON lines of messages in the hold queue (quarantine)
+#   mf-queuectl show ID            the full message (headers and body)
+#   mf-queuectl release ID         release from quarantine, delivery continues
+#   mf-queuectl delete ID          delete from quarantine
+set -euo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+action=${1:-}
+id=${2:-}
+need_id() {
+  [[ $id =~ ^[0-9A-Za-z]{5,20}$ ]] || { echo "bad_queue_id" >&2; exit 2; }
+}
+in_hold() {
+  postqueue -j | jq -e --arg id "$id" 'select(.queue_name == "hold" and .queue_id == $id)' >/dev/null || { echo "not_in_quarantine" >&2; exit 3; }
+}
+
+case $action in
+  list-hold) postqueue -j | jq -c 'select(.queue_name == "hold") | {queue_id, arrival_time, message_size, sender, recipients: [.recipients[].address]}' ;;
+  show) need_id; in_hold; postcat -bh -q "$id" ;;
+  release) need_id; in_hold; postsuper -H "$id" >/dev/null 2>&1 ;;
+  delete) need_id; in_hold; postsuper -d "$id" hold >/dev/null 2>&1 ;;
+  *) echo "usage: mf-queuectl list-hold|show ID|release ID|delete ID" >&2; exit 2 ;;
+esac
