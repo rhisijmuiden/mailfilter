@@ -26,6 +26,13 @@ install_webapp() {
   (cd "$MF_SRC/frontend" && run npm ci --no-audit --no-fund --loglevel=error && run npm run build)
   ok "Web interface built"
 
+  # The web app may run only the queue helper as root (quarantine release/block).
+  local sudoers=/etc/sudoers.d/mailfilter
+  printf '# Managed by Mailfilter.\nmailfilter ALL=(root) NOPASSWD: %s\n' "$MF_SRC/backend/bin/mf-queuectl" >"$sudoers.tmp"
+  chmod 0440 "$sudoers.tmp"
+  if visudo -cqf "$sudoers.tmp"; then mv "$sudoers.tmp" "$sudoers"; else rm -f "$sudoers.tmp"; warn "Could not install $sudoers"; fi
+  chmod 0755 "$MF_SRC/backend/bin/mf-queuectl"
+
   install -m 0644 "$TPL/systemd/mailfilter-web.service" /etc/systemd/system/mailfilter-web.service
   run systemctl daemon-reload
   run systemctl enable mailfilter-web
