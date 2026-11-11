@@ -61,7 +61,12 @@ backup_file() {
   if [[ -f $f && ! -f $f.mailfilter-orig ]]; then cp -a "$f" "$f.mailfilter-orig"; fi
 }
 
-gen_secret() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${1:-32}"; }
+# gen_secret [LENGTH]: random letters and digits. head ends first, so no SIGPIPE under pipefail.
+gen_secret() {
+  local n=${1:-32} s=""
+  while ((${#s} < n)); do s+=$(head -c 256 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9'); done
+  printf '%s' "${s:0:n}"
+}
 
 is_ipv4() { [[ $1 =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]]; }
 is_ipv6() { [[ $1 == *:* && $1 =~ ^[0-9a-fA-F:]+(/[0-9]{1,3})?$ ]]; }

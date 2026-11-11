@@ -12,6 +12,8 @@ jobs:
         run: shellcheck -x -P install -P . install/install.sh install/lib/common.sh install/templates/certbot/deploy-hook.sh install/tests/validate-configs.sh
       - name: Bash syntax
         run: bash -n install/install.sh
+      - name: Helpers work under the installer's strict mode
+        run: bash -c 'set -Eeuo pipefail; trap "exit 1" ERR; source install/lib/common.sh; s=$(gen_secret 32); [[ $s =~ ^[A-Za-z0-9]{32}$ ]]'
   prototype:
     runs-on: ubuntu-latest
     steps:
