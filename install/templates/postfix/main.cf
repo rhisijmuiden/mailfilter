@@ -1,0 +1,102 @@
+# Managed by Mailfilter. Changes here are overwritten; use the web interface.
+compatibility_level = 3.6
+smtputf8_enable = yes
+
+myhostname = {{HOSTNAME}}
+myorigin = $myhostname
+mydestination = localhost
+inet_interfaces = all
+inet_protocols = all
+smtpd_banner = $myhostname ESMTP
+biff = no
+append_dot_mydomain = no
+readme_directory = no
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+
+# Who may relay out through this gateway (IPv4 and IPv6, managed in "Relay access")
+mynetworks = 127.0.0.0/8 [::1]/128 cidr:/etc/mailfilter/postfix/relay_networks.cidr
+
+# Domains we accept mail for, and where we deliver it (managed in "Domains")
+relay_domains = hash:/etc/mailfilter/postfix/relay_domains
+transport_maps = hash:/etc/mailfilter/postfix/transport
+# Check with the destination server that a recipient exists before accepting (no backscatter)
+address_verify_map = lmdb:$data_directory/verify_cache
+address_verify_positive_expire_time = 7d
+unverified_recipient_reject_code = 550
+unverified_recipient_reject_reason = Recipient address does not exist
+
+# Restrictions
+smtpd_helo_required = yes
+disable_vrfy_command = yes
+strict_rfc821_envelopes = yes
+smtpd_client_restrictions = permit_mynetworks, permit_sasl_authenticated, check_client_access cidr:/etc/mailfilter/postfix/client_block.cidr
+smtpd_helo_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_invalid_helo_hostname, reject_non_fqdn_helo_hostname
+smtpd_sender_restrictions = reject_non_fqdn_sender, reject_unknown_sender_domain, check_sender_access hash:/etc/mailfilter/postfix/sender_block
+smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
+smtpd_recipient_restrictions = reject_non_fqdn_recipient, reject_unknown_recipient_domain, permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination, reject_unverified_recipient
+smtpd_data_restrictions = reject_unauth_pipelining
+message_size_limit = 52428800
+mailbox_size_limit = 0
+recipient_delimiter = +
+
+# postscreen: drop bots before they reach the real SMTP server
+postscreen_access_list = permit_mynetworks, cidr:/etc/mailfilter/postfix/postscreen_access.cidr
+postscreen_blacklist_action = drop
+postscreen_greet_action = enforce
+postscreen_dnsbl_action = enforce
+postscreen_dnsbl_threshold = 3
+postscreen_dnsbl_allowlist_threshold = -1
+postscreen_dnsbl_sites =
+    zen.spamhaus.org=127.0.0.[2..11]*3
+    zen.spamhaus.org=127.0.0.[4..7]*2
+    b.barracudacentral.org=127.0.0.2*2
+    bl.spamcop.net*1
+    bl.mailspike.net=127.0.0.[2..4]*1
+    list.dnswl.org=127.0.[0..255].[1..3]*-3
+postscreen_dnsbl_reply_map = texthash:/etc/mailfilter/postfix/dnsbl_reply
+
+# Spam and virus checks (Rspamd) for inbound and outbound mail
+smtpd_milters = inet:127.0.0.1:11332
+non_smtpd_milters = $smtpd_milters
+milter_default_action = tempfail
+milter_protocol = 6
+milter_mail_macros = i {mail_addr} {client_addr} {client_name} {auth_authen}
+
+# TLS for incoming connections (certificate from Let's Encrypt)
+smtpd_tls_chain_files = /etc/letsencrypt/live/{{HOSTNAME}}/privkey.pem, /etc/letsencrypt/live/{{HOSTNAME}}/fullchain.pem
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_loglevel = 1
+smtpd_tls_received_header = yes
+smtpd_tls_protocols = >=TLSv1
+smtpd_tls_mandatory_protocols = >=TLSv1.2
+smtpd_tls_mandatory_ciphers = high
+tls_preempt_cipherlist = no
+smtpd_tls_session_cache_database = lmdb:${data_directory}/smtpd_scache
+
+# TLS for outgoing connections
+smtp_tls_security_level = may
+smtp_tls_loglevel = 1
+smtp_tls_protocols = >=TLSv1.2
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtp_tls_session_cache_database = lmdb:${data_directory}/smtp_scache
+smtp_tls_policy_maps = hash:/etc/mailfilter/postfix/tls_policy
+
+# SMTP authentication for relay accounts (Dovecot handles the passwords)
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+smtpd_sasl_auth_enable = no
+smtpd_sasl_security_options = noanonymous
+broken_sasl_auth_clients = no
+
+# Queues: Postfix schedules each destination domain separately, so one slow or
+# broken destination never blocks the others. Limits per destination:
+default_destination_concurrency_limit = 10
+default_destination_rate_delay = 0s
+smtp_destination_concurrency_failed_cohort_limit = 10
+maximal_queue_lifetime = 5d
+bounce_queue_lifetime = 5d
+minimal_backoff_time = 300s
+maximal_backoff_time = 1800s
+queue_run_delay = 300s

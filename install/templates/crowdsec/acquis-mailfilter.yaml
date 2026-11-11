@@ -1,0 +1,18 @@
+# Managed by Mailfilter. Let CrowdSec read Postfix and Dovecot from the journal.
+source: journalctl
+journalctl_filter:
+  - "_SYSTEMD_UNIT=postfix@-.service"
+labels:
+  type: syslog
+---
+source: journalctl
+journalctl_filter:
+  - "_SYSTEMD_UNIT=dovecot.service"
+labels:
+  type: syslog
+---
+source: journalctl
+journalctl_filter:
+  - "_SYSTEMD_UNIT=ssh.service"
+labels:
+  type: syslog
