@@ -117,9 +117,10 @@ def plan_dmarc(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
     return _txt_change(recs[0] if recs else None, name, value, "dmarc")
 
 
-def apply(cf: Cloudflare, plan: Plan, *, actor: str = "", journal: Path = JOURNAL, undo_of: str | None = None) -> list[dict]:
+def apply(cf: Cloudflare, plan: Plan, *, actor: str = "", journal: Path | None = None, undo_of: str | None = None) -> list[dict]:
     """Write the plan to Cloudflare. Stops at the first error; what was done
     before that is in the journal and in the returned list."""
+    journal = journal or JOURNAL
     zone = Zone(plan.zone_id, plan.zone_name)
     batch = uuid.uuid4().hex[:12]
     done: list[dict] = []
@@ -146,8 +147,9 @@ def apply(cf: Cloudflare, plan: Plan, *, actor: str = "", journal: Path = JOURNA
     return done
 
 
-def undo_batch(cf: Cloudflare, batch: str, *, actor: str = "", journal: Path = JOURNAL) -> list[dict]:
+def undo_batch(cf: Cloudflare, batch: str, *, actor: str = "", journal: Path | None = None) -> list[dict]:
     """Put back the records a batch changed, newest first."""
+    journal = journal or JOURNAL
     entries = [e for e in read_journal(journal) if e.get("batch") == batch and not e.get("undo")]
     if not entries:
         raise ValueError("unknown_batch")
@@ -167,7 +169,8 @@ def undo_batch(cf: Cloudflare, batch: str, *, actor: str = "", journal: Path = J
     return apply(cf, plan, actor=actor, journal=journal, undo_of=batch)
 
 
-def read_journal(journal: Path = JOURNAL, limit: int | None = None) -> list[dict]:
+def read_journal(journal: Path | None = None, limit: int | None = None) -> list[dict]:
+    journal = journal or JOURNAL
     try:
         lines = journal.read_text().splitlines()
     except FileNotFoundError:
@@ -182,6 +185,10 @@ def _journal(path: Path, entry: dict) -> None:
         f.write(json.dumps(entry) + "\n")
         f.flush()
         os.fsync(f.fileno())
+    if os.geteuid() == 0:
+        # Run from the CLI as root: keep the file writable for the web app
+        st = path.parent.stat()
+        os.chown(path, st.st_uid, st.st_gid)
 
 
 def _now() -> str:

@@ -15,7 +15,8 @@
     "account": "Mijn account",
     "menu": "Menu",
     "trace": "Mailtrace",
-    "quarantine": "Quarantaine"
+    "quarantine": "Quarantaine",
+    "dns": "DNS-toolbox"
   },
   "common": {
     "save": "Opslaan",
@@ -51,7 +52,28 @@
     "invalid_input": "Niet alle velden zijn goed ingevuld.",
     "not_found": "Niet gevonden.",
     "unknown_domain": "Onbekend domein: {{value}}",
-    "error": "Er ging iets mis. Probeer het opnieuw."
+    "error": "Er ging iets mis. Probeer het opnieuw.",
+    "cloudflare_not_configured": "Koppel eerst Cloudflare (DNS-toolbox, tabblad Cloudflare).",
+    "cloudflare_denied": "Cloudflare weigerde het verzoek. Controleer de rechten van het token.",
+    "cloudflare_error": "Cloudflare gaf een fout: {{value}}",
+    "cloudflare_token_invalid": "Cloudflare accepteert dit token niet.",
+    "zone_not_found": "Geen Cloudflare-zone gevonden voor {{value}}.",
+    "invalid_domain": "Dit is geen geldige domeinnaam.",
+    "multiple_spf": "Het domein heeft meer dan één SPF-record. Laat er eerst in Cloudflare één over.",
+    "multiple_dmarc": "Het domein heeft meer dan één DMARC-record. Laat er eerst één over.",
+    "no_dkim_key": "Mailfilter heeft geen DKIM-sleutel voor dit domein.",
+    "invalid_record": "Het record is niet geldig.",
+    "invalid_address": "Geen geldig adres: {{value}}",
+    "invalid_email": "Geen geldig e-mailadres.",
+    "confirm_mismatch": "Het getypte domein klopt niet.",
+    "preflight_failed": "Controles vooraf zijn mislukt.",
+    "already_live": "Dit domein is al live.",
+    "not_live": "Dit domein is niet live.",
+    "unknown_batch": "Wijziging niet gevonden.",
+    "already_undone": "Deze wijziging is al ongedaan gemaakt.",
+    "no_server_addresses": "De adressen van deze server zijn niet bekend (MF_PUBLIC_V4 / MF_PUBLIC_V6).",
+    "dns_error": "DNS-fout: {{value}}",
+    "zone_not_found_short": "Zone niet gevonden."
   },
   "login": {
     "title": "Inloggen",
@@ -90,7 +112,8 @@
     "k_quarantine_sub": "Wacht op een beslissing",
     "problems": "Recente problemen",
     "all": "Alles",
-    "no_problems": "Geen afleverproblemen in de afgelopen 24 uur."
+    "no_problems": "Geen afleverproblemen in de afgelopen 24 uur.",
+    "next_dns": "Koppel Cloudflare en controleer de DNS van je domeinen"
   },
   "account": {
     "title": "Mijn account",
@@ -272,5 +295,39 @@
     "SURBL_MULTI": "Link naar een geblokkeerde website",
     "FORGED_SENDER": "Vervalste afzender",
     "HFILTER_HOSTNAME_UNKNOWN": "Verzendende server heeft geen naam"
+  },
+  "dns": {
+    "title": "DNS-toolbox",
+    "sub": "Controleer de mail-DNS van een domein, maak SPF en DMARC, publiceer direct in Cloudflare en zet domeinen over naar Mailfilter.",
+    "tab": {"check": "Domein controleren", "mx": "MX-lookup", "spf": "SPF-generator", "dmarc": "DMARC-generator", "blacklist": "Blacklistcontrole", "cloudflare": "Cloudflare", "journal": "Wijzigingslog"},
+    "run": "Controleren",
+    "domain_ph": "Domein, bijvoorbeeld rhis.nl",
+    "check_empty": "Vul een domein in om te controleren.",
+    "col": {"check": "Controle", "status": "Status", "value": "Huidige waarde"},
+    "item": {"mx": "MX wijst naar Mailfilter", "spf": "SPF", "dkim": "DKIM", "dmarc": "DMARC", "ptr": "Reverse DNS (PTR) van Mailfilter", "mta_sts": "MTA-STS-beleid", "tls_rpt": "TLS-rapportage (TLS-RPT)"},
+    "status": {"ok": "OK", "weak": "Zwak", "missing": "Ontbreekt", "bad": "Probleem", "error": "Fout", "listed": "Vermeld", "clean": "Niet vermeld", "unusable": "Niet bruikbaar", "skipped": "Geen IPv6"},
+    "suggested": "Voorgesteld record",
+    "publish": "Publiceren in Cloudflare",
+    "publish_now": "Nu publiceren",
+    "published": "Gepubliceerd in Cloudflare",
+    "nothing_to_do": "Al up-to-date",
+    "zone": "Cloudflare-zone",
+    "current": "Huidig",
+    "new": "Nieuw",
+    "result": "Resultaat",
+    "not_managed": "{{domain}} is nog geen domein in Mailfilter, dus live gaan kan nog niet. Voeg het eerst toe onder Domeinen.",
+    "action": {"create": "Toevoegen", "update": "Wijzigen", "delete": "Verwijderen", "none": "Geen wijziging"},
+    "publish_title": {"spf": "Mailfilter toevoegen aan SPF", "spf_value": "SPF-record publiceren", "dkim": "DKIM-sleutel publiceren", "dmarc": "DMARC-record publiceren", "server_spf": "SPF-record van Mailfilter publiceren"},
+    "publish_help": {"spf": "Je huidige SPF-waarde blijft staan; Mailfilter voegt alleen zichzelf toe. Verder verandert er niets.", "spf_value": "Dit vervangt het SPF-record van het domein door de gemaakte waarde.", "dkim": "Publiceert de publieke sleutel waarmee Mailfilter uitgaande mail ondertekent.", "dmarc": "Dit zet het DMARC-record van het domein op de getoonde waarde.", "server_spf": "Het gedeelde record met alle adressen van Mailfilter. Domeinen verwijzen naar deze naam."},
+    "problem": {"missing": "Geen record gevonden.", "syntax": "Het record bevat een fout.", "multiple_spf": "Het domein heeft meer dan één SPF-record; ontvangers zien dat als fout. Laat er één over.", "no_all": "Het record eindigt niet met \"all\".", "plus_all": "\"+all\" laat het hele internet namens dit domein versturen.", "neutral_all": "\"?all\" beschermt het domein niet.", "ptr_deprecated": "Het \"ptr\"-mechanisme is verouderd en traag.", "long": "Het record is erg lang; gebruik eventueel een include.", "mailfilter_missing": "Mailfilter staat nog niet in het SPF-record, dus uitgaande mail via Mailfilter kan SPF-controles laten mislukken.", "too_many_lookups": "Meer dan 10 DNS-lookups: SPF mislukt bij ontvangers.", "too_many_void_lookups": "Meer dan 2 lookups die niets vinden.", "dns": "DNS-fout: {{value}}", "policy_none": "Beleid \"none\" monitort alleen; vervalste mail wordt nog steeds afgeleverd.", "pct_partial": "Het beleid geldt maar voor een deel van de mail.", "no_reports": "Geen rapportadres (rua).", "multiple_dmarc": "Meer dan één DMARC-record.", "mismatch": "Het DNS-record komt niet overeen met de sleutel in Mailfilter.", "revoked": "De sleutel in DNS is ingetrokken (lege p=).", "no_key": "Mailfilter heeft geen DKIM-sleutel voor dit domein.", "error": "Opzoeken mislukt.", "mx_mixed": "MX wijst deels naar Mailfilter en deels ergens anders heen.", "mx_elsewhere": "MX wijst nog niet naar Mailfilter.", "ptr": "Geen passend PTR-record voor {{value}}. Vraag je hostingpartij om het op de hostnaam van Mailfilter te zetten."},
+    "note": {"null_mx": "Het domein geeft aan helemaal geen mail aan te nemen (null MX).", "no_mx": "Geen MX-record; mail gaat naar het A/AAAA-record van {{host}}.", "no_address": "{{host}} heeft geen IPv4- of IPv6-adres.", "dns_error": "DNS-fout voor {{host}}.", "no_ipv6": "{{host}} heeft geen IPv6-adres.", "no_ptr": "{{host}} heeft geen passend PTR-record.", "smtp_unreachable": "{{host}} reageert niet op poort 25.", "no_starttls": "{{host}} heeft geen STARTTLS. Mail naar deze server gaat onversleuteld.", "cert_name": "Het certificaat van {{host}} is voor een andere naam.", "cert_expired": "Het certificaat van {{host}} is verlopen."},
+    "mx": {"help": "Zoek op waar mail voor een willekeurig domein heen gaat, bijvoorbeeld van een klant: adressen, reverse DNS, poort 25 en STARTTLS.", "ph": "Elk domein, bijvoorbeeld van een klant", "probe": "Ook poort 25 en STARTTLS testen (duurt een paar seconden)", "prio": "Prioriteit", "host": "Mailserver", "ips": "Adressen", "smtp": "SMTP op poort 25", "tls": "STARTTLS", "ptr": "PTR", "null_mx": "Dit domein neemt geen mail aan (null MX)."},
+    "spf": {"help": "Stel een SPF-record samen en publiceer het direct in Cloudflare.", "merge_title": "Mailfilter toevoegen aan bestaande SPF", "merge_help": "Gebruik Domein controleren en \"Publiceren in Cloudflare\" naast SPF: je huidige waarde blijft staan en Mailfilter voegt alleen zichzelf toe.", "mailfilter": "Mailfilter (include:{{name}})", "m365": "Microsoft 365 (include:spf.protection.outlook.com)", "google": "Google Workspace (include:_spf.google.com)", "mx": "De eigen MX-servers van het domein (mx)", "a": "Het eigen A/AAAA-adres van het domein (a)", "ip4": "Extra IPv4-adressen", "ip6": "Extra IPv6-adressen", "other": "Andere includes (gescheiden door spaties)", "all": "Mail van andere servers", "all_soft": "Markeren als verdacht (~all)", "all_hard": "Weigeren (-all)", "all_neutral": "Neutraal (?all)", "lookups": "DNS-lookups: {{n}} van 10."},
+    "dmarc": {"help": "Stel een DMARC-record samen. Begin met \"none\" om rapporten te verzamelen en ga daarna naar quarantaine en weigeren.", "policy": "Beleid", "p_none": "Alleen monitoren", "p_quarantine": "Quarantaine", "p_reject": "Weigeren", "policy_none": "Ontvangers leveren alles af en sturen je rapporten.", "policy_quarantine": "Mail die faalt gaat naar de spammap van de ontvanger.", "policy_reject": "Mail die faalt wordt geweigerd.", "pct": "Toepassen op percentage mail", "rua": "Rapporten sturen naar", "adkim": "DKIM-uitlijning", "aspf": "SPF-uitlijning", "relaxed": "Ruim", "strict": "Strikt"},
+    "bl": {"help": "Mailfilter controleert elke 15 minuten zijn eigen IPv4- en IPv6-adressen op de belangrijkste blokkeerlijsten.", "last": "Laatste controle", "check_now": "Nu controleren", "list": "Blokkeerlijst", "listed_on": "{{ip}} staat op {{name}}", "since": "Sinds {{time}}", "delist": "Verwijdering aanvragen", "none_yet": "Er is nog geen controle gedaan. Klik op \"Nu controleren\".", "unusable": "Deze lijsten gaven vanaf deze server geen antwoord op hun eigen testitem, dus hun uitslag is onbekend: {{lists}}."},
+    "cf": {"title": "Cloudflare-koppeling", "not_set": "Niet gekoppeld", "st_ok": "Verbonden", "st_denied": "Token geweigerd", "st_unreachable": "Cloudflare niet bereikbaar", "help": "Met een API-token kan Mailfilter SPF, DKIM en DMARC voor je publiceren en MX-records omzetten. Elke wijziging zie je eerst en kun je terugdraaien.", "token": "API-token", "replace": "API-token vervangen", "token_hint": "In Cloudflare: My Profile, API Tokens, Create Token. Rechten: Zone: Read en DNS: Edit, voor de zones die Mailfilter mag wijzigen. Wordt versleuteld opgeslagen.", "save": "Controleren en opslaan", "remove": "Ontkoppelen", "remove_confirm": "Het Cloudflare-token uit Mailfilter verwijderen?", "zones": "Zones die dit token mag beheren", "server_spf": "Eigen SPF-record van Mailfilter", "server_spf_help": "Publiceert {{name}} met alle adressen van deze server. Domeinen verwijzen alleen naar deze naam, dus een extra server later betekent één record aanpassen."},
+    "gl": {"title": "Livegang", "help": "Eenmalige omschakeling voor dit domein: zet het MX-record in Cloudflare om naar {{host}}. Mailfilter controleert eerst alles en bewaart de oude waarde, zodat je kunt terugdraaien.", "checks": "Controles vooraf", "c": {"accepts": "Mailfilter neemt mail aan voor dit domein", "destination": "Doelserver bereikbaar", "spf": "SPF bevat Mailfilter", "dkim": "DKIM-record gepubliceerd en klopt", "certificate": "Certificaat geldig voor {{host}}", "host_dns": "{{host}} wijst naar deze server"}, "warning_only": "waarschuwing, blokkeert niet", "type_domain": "Typ {{domain}} om te bevestigen", "force": "Toch live gaan, ook al zijn er controles mislukt", "go": "Nu live gaan", "done_toast": "Live: MX wijst nu naar Mailfilter", "live": "Live", "live_since": "MX wijst sinds {{time}} naar {{host}} ({{who}}).", "old_mx": "Vorige MX", "rollback": "Terugdraaien", "rollback_confirm": "De vorige MX-records terugzetten? Mail gaat dan weer naar de oude server.", "rolled_back": "Teruggedraaid: de vorige MX-records staan er weer", "was_rolled_back": "Dit domein is eerder teruggedraaid. Je kunt opnieuw live gaan."},
+    "log": {"help": "Elke wijziging die Mailfilter in Cloudflare heeft gedaan, met de oude waarde. Ongedaan maken zet de oude waarde terug. Een livegang draai je terug met Terugdraaien bij het domein.", "empty": "Nog geen wijzigingen.", "when": "Wanneer", "what": "Wijziging", "undo": "Ongedaan maken", "undone": "Ongedaan gemaakt", "is_undo": "Terugdraaien van een eerdere wijziging", "undo_confirm": "De oude waarde terugzetten in Cloudflare?"},
+    "alert": {"title": "Mailfilter staat op een blokkeerlijst", "detail": "{{ip}} staat sinds {{time}} op {{name}} ({{zone}}). Uitgaande mail naar sommige providers kan worden geweigerd. Controleer uitgaande spam en vraag daarna verwijdering aan.", "customer": "Uitgaande mail naar sommige providers kan tijdelijk worden geweigerd. We zijn ermee bezig.", "open": "Blacklistcontrole openen"}
   }
 }
