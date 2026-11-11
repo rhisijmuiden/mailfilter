@@ -135,6 +135,9 @@ ok "Packages installed"
 # ---------------------------------------------------------------------------
 step "Local DNS resolver (needed for blocklists)"
 render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.conf
+# DNSSEC trust anchor; unbound-anchor exits 1 when it (re)wrote the file, which is fine
+unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
+chown unbound:unbound /var/lib/unbound/root.key 2>/dev/null || true
 run unbound-checkconf
 run systemctl enable --now unbound
 run systemctl restart unbound

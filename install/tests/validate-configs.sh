@@ -54,6 +54,7 @@ render "$TPL/dovecot/dovecot.conf" /etc/dovecot/dovecot.conf
 check "doveconf -n" doveconf -n
 
 render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.conf
+unbound-anchor -a /var/lib/unbound/root.key >/dev/null 2>&1 || true
 check "unbound-checkconf" unbound-checkconf
 
 MGMT_V4_ELEMENTS="elements = { 198.51.100.7 }"; MGMT_V6_ELEMENTS=""

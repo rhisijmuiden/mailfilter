@@ -23,7 +23,10 @@ jobs:
   configs:
     # Renders every template and checks it with the real Debian 13 tools
     runs-on: ubuntu-latest
-    container: debian:trixie
+    container:
+      image: debian:trixie
+      # nft -c needs to talk to the kernel's netfilter, like on a real server
+      options: --cap-add=NET_ADMIN
     steps:
       - uses: actions/checkout@v4
       - name: Validate Postfix, Rspamd, Dovecot, unbound, nftables and Caddy configs
