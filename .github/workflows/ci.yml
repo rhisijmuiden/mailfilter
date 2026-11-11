@@ -44,6 +44,27 @@ jobs:
         run: bash install/tests/validate-configs.sh
       - name: Apply a sample gateway configuration
         run: bash backend/mailfilter_config/tests/integration.sh
+  tracer:
+    # Mail trace log collector, with the same Python and psycopg as Debian 13
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mailfilter
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: mailfilter
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MAILFILTER_TEST_DB: host=postgres dbname=mailfilter user=mailfilter password=test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python packages from Debian
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-psycopg python3-pytest
+      - name: Tests
+        working-directory: backend
+        run: python3 -m pytest -v
   pmg-import:
     runs-on: ubuntu-latest
     steps:

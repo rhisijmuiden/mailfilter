@@ -128,7 +128,7 @@ echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
-      python3 python3-venv git curl dnsutils ca-certificates jq crowdsec)
+      python3 python3-venv python3-psycopg git curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep -q '^[ri]i'; then run apt-get purge -y 'exim4*'; fi
@@ -328,6 +328,16 @@ fi
 ok "Database 'mailfilter' ready"
 
 # ---------------------------------------------------------------------------
+step "Mail trace log collector"
+install -m 0600 /dev/null "$MF_ETC/tracer.env"
+printf 'MAILFILTER_DB=host=127.0.0.1 dbname=mailfilter user=mailfilter password=%s\n' "$DB_PASSWORD" >"$MF_ETC/tracer.env"
+render "$TPL/systemd/mailfilter-tracer.service" /etc/systemd/system/mailfilter-tracer.service
+run systemctl daemon-reload
+run systemctl enable mailfilter-tracer
+run systemctl restart mailfilter-tracer
+ok "Postfix and Rspamd logs flow into the mail trace"
+
+# ---------------------------------------------------------------------------
 step "Intrusion protection (CrowdSec)"
 install -D -m 0644 "$TPL/crowdsec/acquis-mailfilter.yaml" /etc/crowdsec/acquis.d/mailfilter.yaml
 for c in crowdsecurity/linux crowdsecurity/sshd crowdsecurity/postfix crowdsecurity/dovecot; do
@@ -363,7 +373,7 @@ git -C "$MF_SRC" rev-parse --abbrev-ref HEAD 2>/dev/null >"$MF_ETC/branch" || ec
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
