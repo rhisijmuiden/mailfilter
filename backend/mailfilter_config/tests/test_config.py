@@ -229,6 +229,17 @@ class ApplyTest(unittest.TestCase):
         self.assertTrue(Applier(srv, root=self.root).apply(sample()).nothing_changed)
         self.assertNotIn(["postfix", "reload"], srv.calls)
 
+    def test_dkim_key_for_new_domains(self):
+        srv = FakeServer()
+        os.makedirs(f"{self.root}/etc/mailfilter/rspamd")
+        with open(f"{self.root}/etc/mailfilter/rspamd/dkim_selectors.map", "w") as fh:
+            fh.write("rhis.nl mf2025\n")
+        Applier(srv, root=self.root).apply(sample())
+        keygens = [c for c in srv.calls if c[:2] == ["rspamadm", "dkim_keygen"]]
+        self.assertEqual([c[c.index("-d") + 1] for c in keygens], ["xn--bcker-gra.de"])  # rhis.nl already had a key
+        dkim_map = self.read("/etc/mailfilter/rspamd/dkim_selectors.map")
+        self.assertTrue(dkim_map.startswith("rhis.nl mf2025\n") and "xn--bcker-gra.de mf" in dkim_map)
+
     def test_failed_check_rolls_back(self):
         master_before = self.read("/etc/postfix/master.cf")
         srv = FakeServer(fail={"postfix check"})

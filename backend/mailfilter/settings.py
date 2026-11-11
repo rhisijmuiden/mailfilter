@@ -30,6 +30,10 @@ def _read_env_file(path: Path) -> dict[str, str]:
     return values
 
 
+CONFIG_HELPER_PREFIX = ["sudo", "-n", "/usr/bin/systemd-run", "--quiet", "--pipe", "--wait", "--collect",
+                        "--service-type=exec"]
+
+
 @dataclass(frozen=True)
 class Settings:
     hostname: str = "localhost"
@@ -42,6 +46,10 @@ class Settings:
     rspamd_password: str = ""
     rspamd_controller: str = "http://127.0.0.1:11334"
     queue_helper: list[str] = field(default_factory=lambda: ["sudo", "-n", "/opt/mailfilter/backend/bin/mf-queuectl"])
+    # Applies domains, relay access and throttling as root. The web app runs with
+    # ProtectSystem=full (read-only /etc), so the helper is started by systemd-run
+    # outside that sandbox; sudoers allows exactly this command plus "apply --stdin --json".
+    config_helper: list[str] = field(default_factory=list)
     cookie_secure: bool = True
     session_hours: int = 12
 
@@ -65,6 +73,8 @@ def get_settings() -> Settings:
         rspamd_password=env.get("RSPAMD_PASSWORD", ""),
         rspamd_controller=env.get("MF_RSPAMD_CONTROLLER", "http://127.0.0.1:11334"),
         queue_helper=helper.split() if helper else ["sudo", "-n", str(source / "backend/bin/mf-queuectl")],
+        config_helper=env["MF_CONFIG_HELPER"].split() if env.get("MF_CONFIG_HELPER") else
+        [*CONFIG_HELPER_PREFIX, str((source / "backend/bin/mailfilter-config").resolve())],
         cookie_secure=env.get("MF_COOKIE_SECURE", "1") != "0",
         session_hours=int(env.get("MF_SESSION_HOURS", "12")),
     )
