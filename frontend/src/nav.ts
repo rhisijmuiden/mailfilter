@@ -1,6 +1,6 @@
 // The left menu. Each feature adds its entries here; `group` decides the section.
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Search, ShieldAlert, Users } from "lucide-react";
+import { DatabaseBackup, LayoutDashboard, Search, Send, ShieldAlert, Users } from "lucide-react";
 
 export type NavGroup = "overview" | "mail" | "config" | "system";
 
@@ -21,4 +21,6 @@ export const NAV: NavItem[] = [
   { to: "/trace", label: "nav.trace", icon: Search, group: "mail" },
   { to: "/quarantine", label: "nav.quarantine", icon: ShieldAlert, group: "mail", badge: "quarantine" },
   { to: "/users", label: "nav.users", icon: Users, group: "system", adminOnly: true },
+  { to: "/system/mail", label: "nav.mail_sending", icon: Send, group: "system", adminOnly: true },
+  { to: "/system/backups", label: "nav.backups", icon: DatabaseBackup, group: "system", adminOnly: true },
 ];

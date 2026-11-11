@@ -197,7 +197,7 @@ def choose_type(now_=None) -> str:
 
 def create(kind: str = "auto", label: str = "", log=print, step=None) -> dict:
     """Make a backup. kind is full, incremental or auto."""
-    step = step or log
+    step = step or (lambda text, *_, **__: log(text))
     if kind == "auto":
         kind = choose_type()
     if kind not in ("full", "incremental"):
@@ -221,7 +221,7 @@ def create(kind: str = "auto", label: str = "", log=print, step=None) -> dict:
         chain = _chains()[-1]
         number = len(_steps(chain))
     backup_id = f"{chain.name}.{number:03d}"
-    step(f"{'Full' if kind == 'full' else 'Incremental'} backup {backup_id}")
+    step(f"{'Full' if kind == 'full' else 'Incremental'} backup {backup_id}", "backup_start", type=kind, id=backup_id)
 
     work = Path(tempfile.mkdtemp(prefix=f".tmp-{number:03d}-", dir=chain))
     try:
@@ -229,7 +229,7 @@ def create(kind: str = "auto", label: str = "", log=print, step=None) -> dict:
         skip = _skip()
         if "files" not in skip:
             sources = _tar_sources()
-            step(f"Saving files: {', '.join('/' + s for s in sources)}")
+            step(f"Saving files: {', '.join('/' + s for s in sources)}", "backup_files")
             snar = work / "state.snar"
             if kind == "incremental":
                 shutil.copy2(chain / "state.snar", snar)
@@ -240,11 +240,11 @@ def create(kind: str = "auto", label: str = "", log=print, step=None) -> dict:
                  "-C", paths.root(), *sources], timeout=7200, log=log)
             files[archive] = "files"
         if "database" not in skip:
-            step("Saving the database")
+            step("Saving the database", "backup_database")
             _dump_database(work / "database.dump", log)
             files["database.dump"] = "database"
         if "redis" not in skip:
-            step("Saving spam filter learning data")
+            step("Saving spam filter learning data", "backup_redis")
             _dump_redis(work / "redis.rdb", log)
             files["redis.rdb"] = "redis"
 
@@ -339,21 +339,21 @@ def _systemctl(action: str, units: list[str], log) -> None:
 
 
 def restore(backup_id: str, components=None, safety_backup: bool = True, log=print, step=None) -> dict:
-    step = step or log
+    step = step or (lambda text, *_, **__: log(text))
     components = list(components or COMPONENTS)
     for c in components:
         if c not in COMPONENTS:
             raise CtlError(f"Unknown part to restore: {c}")
     chain, number = _resolve(backup_id)
-    step("Checking the backup")
+    step("Checking the backup", "restore_check")
     verify(backup_id, log=log)
     target = read_json(chain / f"{number:03d}" / "manifest.json")
 
     if safety_backup:
-        step("Making a safety backup of the current state first")
+        step("Making a safety backup of the current state first", "restore_safety")
         create("full", label="before restore", log=log)
 
-    step("Stopping mail services")
+    step("Stopping mail services", "restore_stop")
     _systemctl("stop", SERVICES_TO_STOP, log)
     try:
         if "files" in components:
@@ -361,22 +361,22 @@ def restore(backup_id: str, components=None, safety_backup: bool = True, log=pri
                 archive = _archive(chain / f"{i:03d}")
                 if not archive:
                     continue
-                step(f"Restoring files from {chain.name}.{i:03d}")
+                step(f"Restoring files from {chain.name}.{i:03d}", "restore_files", id=f"{chain.name}.{i:03d}")
                 # --listed-incremental=/dev/null replays deletions too, so the
                 # folders end up exactly as they were at the time of the backup.
                 run(["tar", "--extract", "--file", archive, "--listed-incremental=/dev/null",
                      "--same-owner", "--same-permissions", "-C", paths.root()], timeout=7200, log=log)
         if "database" in components and "database" in target["components"]:
-            step("Restoring the database")
+            step("Restoring the database", "restore_database")
             _restore_database(chain / f"{number:03d}" / "database.dump", log)
         if "redis" in components and "redis" in target["components"]:
-            step("Restoring spam filter learning data")
+            step("Restoring spam filter learning data", "restore_redis")
             _restore_redis(chain / f"{number:03d}" / "redis.rdb", log)
         if "files" in components and paths.root() == Path("/") and os.environ.get("MF_NO_RECONFIGURE") != "1":
-            step("Applying the restored configuration")
+            step("Applying the restored configuration", "restore_apply")
             system.reconfigure(log)
     finally:
-        step("Starting mail services")
+        step("Starting mail services", "restore_start")
         _systemctl("start", list(reversed(SERVICES_TO_STOP)), log)
     msg = f"Restored backup {backup_id} from {target['created']}"
     log(msg)

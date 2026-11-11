@@ -24,6 +24,8 @@ De update draait als achtergrondtaak onder systemd en loopt dus door als de webi
 
 ## Backups
 
+In de webinterface: **Systeem > Backups**. Daar zie je alle backups, maak je direct een volledige of incrementele backup, pas je de planning aan, controleer je een backup en zet je hem terug.
+
 Een backup bevat:
 
 | Onderdeel | Waar het vandaan komt |
@@ -60,3 +62,12 @@ Kies in de webinterface een backup en klik op **Terugzetten**, of draai `mailfil
 6. draait de installer met de teruggezette instellingen en start alles weer.
 
 Met `--only files,database,redis` zet je alleen bepaalde onderdelen terug. Dit werkt ook op een vers geïnstalleerde server: installeer Mailfilter, kopieer de backupmap naar `/var/backups/mailfilter` en zet hem terug.
+
+## E-mail verzenden
+
+Mailfilter verstuurt zijn eigen berichten (meldingen, quarantainerapporten, wachtwoord- en backupberichten). Dit stel je in onder **Systeem > E-mail verzenden**:
+
+- **Via deze Mailfilter** (standaard): de eigen Postfix van de gateway op 127.0.0.1:25, zodat de berichten net als alle andere mail met DKIM ondertekend worden.
+- **Via een andere SMTP-server**: server, poort, STARTTLS (587) of TLS (465), gebruikersnaam en wachtwoord. TLS 1.2 of nieuwer met certificaatcontrole; het wachtwoord wordt versleuteld in de database bewaard.
+
+**Testbericht versturen** probeert de instellingen uit het formulier al voordat je opslaat, en legt in gewone woorden uit wat er misging (verkeerd wachtwoord, ongeldig certificaat, server onbereikbaar, enzovoort).

@@ -24,6 +24,8 @@ The update runs as a background task under systemd, so it keeps going when the w
 
 ## Backups
 
+In the web interface: **System > Backups**. There you see every backup, make a full or incremental backup right away, change the schedule, check a backup and restore it.
+
 A backup contains:
 
 | Part | Where it comes from |
@@ -60,3 +62,12 @@ Choose a backup in the web interface and press **Restore**, or run `mailfilterct
 6. runs the installer with the restored settings and starts everything again.
 
 With `--only files,database,redis` you restore only some parts. This also works on a freshly installed server: install Mailfilter, copy the backup folder to `/var/backups/mailfilter` and restore it.
+
+## E-mail sending
+
+Mailfilter sends its own messages (alerts, quarantine reports, password and backup notices). Set this up under **System > E-mail sending**:
+
+- **Through this Mailfilter** (default): the gateway's own Postfix on 127.0.0.1:25, so the messages are DKIM-signed like all other mail.
+- **Through another SMTP server**: host, port, STARTTLS (587) or TLS (465), username and password. TLS 1.2 or newer with certificate checks; the password is stored encrypted in the database.
+
+**Send test message** tries the settings in the form before you save them and explains in plain words what went wrong (wrong password, certificate not valid, server unreachable, and so on).

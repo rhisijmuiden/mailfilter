@@ -225,6 +225,9 @@ pre.log{margin:0;background:var(--code-bg);color:var(--code-ink);font-family:var
 .version-hero .vn{font-size:24px;font-stretch:120%;font-weight:800;font-variant-numeric:tabular-nums}
 .progress{height:8px;border-radius:999px;background:var(--surface-sunk);overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+.progress.indeterminate i{width:35%;animation:mf-indet 1.3s ease-in-out infinite}
+@keyframes mf-indet{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+@media (prefers-reduced-motion:reduce){.progress.indeterminate i{animation:none;width:100%;opacity:.5}}
 .channel{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .channel label{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer}
 .channel label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
