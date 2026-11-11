@@ -28,7 +28,7 @@ EXTRA_RELAY_LISTENERS="2525      inet  n       -       y       -       -       s
 install -d /etc/mailfilter/postfix /etc/mailfilter/rspamd /var/lib/rspamd/dkim
 printf '203.0.113.25 OK\n2a02:58:1f:42::/64 OK\n' >/etc/mailfilter/postfix/relay_networks.cidr
 printf '127.0.0.0/8\n::1\n203.0.113.25\n2a02:58:1f:42::/64\n' >/etc/mailfilter/rspamd/local_addrs.map
-for f in relay_domains transport sender_block tls_policy; do touch /etc/mailfilter/postfix/$f; postmap hash:/etc/mailfilter/postfix/$f; done
+for f in relay_domains transport sender_block tls_policy; do touch /etc/mailfilter/postfix/$f; done
 touch /etc/mailfilter/postfix/client_block.cidr /etc/mailfilter/postfix/postscreen_access.cidr
 cp "$TPL/postfix/dnsbl_reply" "$TPL/postfix/bounce.cf" /etc/mailfilter/postfix/
 for f in allow_from allow_domain block_from block_domain block_ip antivirus_skip dkim_selectors; do touch /etc/mailfilter/rspamd/$f.map; done
@@ -36,6 +36,7 @@ touch /etc/mailfilter/rspamd/ratelimit_overrides.conf /etc/mailfilter/smtp-users
 
 render "$TPL/postfix/main.cf" /etc/postfix/main.cf
 render "$TPL/postfix/master.cf" /etc/postfix/master.cf
+for f in relay_domains transport sender_block tls_policy; do postmap hash:/etc/mailfilter/postfix/$f; done
 postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
 newaliases
 check "postfix check" postfix check
