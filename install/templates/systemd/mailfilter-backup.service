@@ -1,0 +1,9 @@
+[Unit]
+Description=Mailfilter scheduled backup (full or incremental)
+After=postgresql.service redis-server.service
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/usr/local/sbin/mailfilterctl backup create --type auto --label scheduled --wait

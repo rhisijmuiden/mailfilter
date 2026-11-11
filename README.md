@@ -42,6 +42,7 @@ What it sets up:
 | Let's Encrypt + Caddy | HTTPS-only web interface, certificate also used for SMTP TLS, automatic renewal |
 | nftables + CrowdSec | Firewall (only 22, 25, 80, 443, 465, 587 and extra relay ports) and automatic blocking of attackers |
 | PostgreSQL, Redis | Database for the web app, storage for Rspamd |
+| mailfilterctl + timer | Updates from the web interface and a nightly local backup |
 | unattended-upgrades | Nightly Debian security updates |
 
 Configuration that the web app will manage lives in `/etc/mailfilter/`.
@@ -53,7 +54,23 @@ Configuration that the web app will manage lives in `/etc/mailfilter/`.
 | `main` | Production releases |
 | `test` | Every change lands here first and runs on the test server |
 
-The app's Info screen will let you switch between the two and update from the UI.
+The app's Info screen shows the running version and lets you check for updates, update, and switch between production and test.
+
+## Updates and backups
+
+Everything below is done from the web interface; the same commands work on the server as root with `mailfilterctl` (add `--json` for machine-readable output). See [docs/updates-and-backups.md](docs/updates-and-backups.md) ([Nederlands](docs/nl/updates-en-backups.md)).
+
+| Command | What it does |
+| --- | --- |
+| `mailfilterctl info` | Version, branch, commit and versions of Postfix, Rspamd, ClamAV and the rest |
+| `mailfilterctl update check` | Looks on GitHub for a newer version of the current branch and of the other one |
+| `mailfilterctl update apply [--branch main\|test]` | Backs up, installs the newest version (or switches branch), re-applies the configuration; rolls back when that fails |
+| `mailfilterctl backup create --type full\|incremental\|auto` | Local backup of configuration, DKIM keys, certificates, quarantine, database and spam filter learning data |
+| `mailfilterctl backup list` / `verify ID` / `delete CHAIN` | Manage backups |
+| `mailfilterctl backup config time=03:00 full_every_days=7 keep_full=4` | Schedule and retention |
+| `mailfilterctl restore ID [--only files,database,redis]` | Restore, after making a safety backup of the current state |
+
+A timer makes a backup every night: a full backup once a week, incremental backups in between. Backups are stored in `/var/backups/mailfilter`. Copying them to FTP, FTPS or SCP comes in a later version.
 
 ## What is in this repository
 
@@ -62,6 +79,7 @@ The app's Info screen will let you switch between the two and update from the UI
 | `prototype/index.html` | Clickable interface prototype (open it in a browser). Sample data only |
 | `prototype/src/index.template.html` | Prototype source; `python3 prototype/build.py` rebuilds `index.html` with the font inlined |
 | `install/` | Installer for Debian 13 and the configuration templates it renders |
+| `ops/` | `mailfilterctl`: updates, branch switch, backup and restore (runs as root, called by the web app through sudo) |
 | `huisstijl/` | Copy of the RHIS house style (tokens, Archivo font, logos, guide) from `rhisijmuiden/rhis-huisstijl` |
 
 ## Planned stack

@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""Entry point for mailfilterctl. Installed as /usr/local/sbin/mailfilterctl (a wrapper that runs this file)."""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from mailfilterctl.cli import main  # noqa: E402
+
+sys.exit(main())

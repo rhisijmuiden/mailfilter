@@ -14,7 +14,8 @@ MF_LOG=/tmp/validate.log
 export DEBIAN_FRONTEND=noninteractive
 echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends postfix postfix-lmdb rspamd dovecot-core unbound dns-root-data caddy nftables ssl-cert ca-certificates >/dev/null
+apt-get install -y -qq --no-install-recommends postfix postfix-lmdb rspamd dovecot-core unbound dns-root-data caddy nftables ssl-cert ca-certificates \
+  sudo systemd python3 python3-pytest zstd git >/dev/null
 echo "Versions: $(dpkg-query -W -f='${Package} ${Version}, ' postfix rspamd dovecot-core caddy unbound nftables)"
 
 fail=0
@@ -71,5 +72,17 @@ render "$TPL/caddy/Caddyfile" /tmp/Caddyfile
 check "caddy validate" caddy validate --config /tmp/Caddyfile --adapter caddyfile
 render "$TPL/caddy/Caddyfile.acme" /tmp/Caddyfile.acme
 check "caddy validate (acme)" caddy validate --config /tmp/Caddyfile.acme --adapter caddyfile
+
+MF_SRC=/opt/mailfilter
+render "$TPL/mailfilterctl.wrapper" /usr/local/sbin/mailfilterctl 0755
+check "mailfilterctl wrapper" sh -n /usr/local/sbin/mailfilterctl
+install -m 0440 "$TPL/sudoers-mailfilterctl" /tmp/sudoers-mailfilterctl
+check "sudoers rule" visudo -cf /tmp/sudoers-mailfilterctl
+install -m 0644 "$TPL"/systemd/mailfilter-backup.* /etc/systemd/system/
+printf '#!/bin/sh\n' >/usr/local/sbin/mailfilterctl; chmod 0755 /usr/local/sbin/mailfilterctl
+check "systemd units" systemd-analyze verify /etc/systemd/system/mailfilter-backup.service /etc/systemd/system/mailfilter-backup.timer
+git config --global user.name ci; git config --global user.email ci@example.org
+git config --global --add safe.directory '*'
+check "mailfilterctl tests (Debian 13 Python)" python3 -m pytest -q -p no:cacheprovider "$SRC/ops/tests"
 
 exit $fail

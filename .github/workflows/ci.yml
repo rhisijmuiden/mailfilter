@@ -12,6 +12,21 @@ jobs:
         run: shellcheck -x -P install -P . install/install.sh install/lib/common.sh install/templates/certbot/deploy-hook.sh install/tests/validate-configs.sh
       - name: Bash syntax
         run: bash -n install/install.sh
+  mailfilterctl:
+    # Updater, backup and restore helper (runs as root on the server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tests
+        run: |
+          sudo apt-get install -y -q zstd
+          pip install pytest pyflakes
+          python -m pyflakes ops
+          git config --global user.name ci && git config --global user.email ci@example.org
+          python -m pytest -q ops/tests
   prototype:
     runs-on: ubuntu-latest
     steps:
