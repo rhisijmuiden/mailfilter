@@ -446,10 +446,12 @@ if [[ -n $FIRST_DOMAIN ]]; then
   echo "  DKIM  $(tr -s ' \n\t' ' ' <"$MF_ETC/dkim-$FIRST_DOMAIN.$SEL.txt" | sed 's/  */ /g')"
   echo "  MX    $FIRST_DOMAIN -> $HOSTNAME_FQDN  (only at go-live)"
 fi
+# Also show it on later runs until it is removed: an earlier run may have stopped before this point.
+[[ -z $WEB_ADMIN_PASSWORD && -s $MF_ETC/initial-admin-password ]] && WEB_ADMIN_PASSWORD=$(<"$MF_ETC/initial-admin-password")
 if [[ -n $WEB_ADMIN_PASSWORD ]]; then
   printf '\n%sWeb interface login%s  https://%s\n' "$C_BOLD" "$C_RESET" "$HOSTNAME_FQDN"
   echo "  User:     $ADMIN_EMAIL"
-  echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in)"
+  echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in, then delete that file)"
 fi
 echo
 echo "Log of this install: $MF_LOG"
