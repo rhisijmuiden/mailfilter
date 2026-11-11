@@ -8,7 +8,7 @@ The interface is in English and fully translated to Dutch.
 
 - Phase 1 (done): interactive interface prototype and repository setup.
 - Phase 2 (in progress): installer that turns a bare Debian 13 server into a working gateway.
-- Phase 3 (in progress): the web app. Login with admin and customer roles, users, English and Dutch, left menu in the house style. Mail trace and quarantine follow.
+- Phase 3 (in progress): the web app. Login with admin and customer roles, users, English and Dutch, left menu in the house style. Mail trace (search, route picture, plain-language reasons in English and Dutch) and quarantine (release or block, the spam filter learns from each choice).
 
 ## Install on a bare Debian 13 server
 

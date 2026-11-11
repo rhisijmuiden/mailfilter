@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""Stand-in for bin/mf-queuectl in tests. State: JSON file in $FAKE_QUEUE."""
+import json, os, sys
+
+path = os.environ["FAKE_QUEUE"]
+state = json.load(open(path))
+action, qid = sys.argv[1], (sys.argv[2] if len(sys.argv) > 2 else "")
+if action == "list-hold":
+    for q in state["hold"]:
+        print(json.dumps({"queue_id": q}))
+    sys.exit(0)
+if qid not in state["hold"]:
+    print("not_in_quarantine", file=sys.stderr)
+    sys.exit(3)
+if action == "show":
+    sys.stdout.write(state["messages"][qid])
+elif action in ("release", "delete"):
+    state["hold"].remove(qid)
+    state.setdefault("log", []).append([action, qid])
+    json.dump(state, open(path, "w"))
