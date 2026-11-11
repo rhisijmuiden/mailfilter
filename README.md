@@ -7,7 +7,8 @@ The interface is in English and fully translated to Dutch.
 ## Status
 
 - Phase 1 (done): interactive interface prototype and repository setup.
-- Phase 2 (in progress): installer that turns a bare Debian 13 server into a working gateway. The web app follows in phase 3; until then the server shows the prototype.
+- Phase 2 (in progress): installer that turns a bare Debian 13 server into a working gateway.
+- Phase 3 (in progress): the web app. Login with admin and customer roles, users, English and Dutch, left menu in the house style. Mail trace and quarantine follow.
 
 ## Install on a bare Debian 13 server
 
@@ -47,6 +48,22 @@ What it sets up:
 
 Configuration that the web app will manage lives in `/etc/mailfilter/`.
 
+At the end the installer prints the web interface login: the admin e-mail address and a generated password (also stored in `/etc/mailfilter/initial-admin-password`). Change it under My account after logging in. Lost the password? `/var/lib/mailfilter/venv/bin/mailfilter-admin set-password you@example.nl` prints a new one.
+
+## Develop the web app
+
+```bash
+# API (needs a PostgreSQL database)
+python3 -m venv .venv && .venv/bin/pip install -e "backend[test]"
+export MAILFILTER_DB_URL=postgresql+psycopg://mailfilter:dev@127.0.0.1/mailfilter MF_COOKIE_SECURE=0 APP_SECRET=dev
+.venv/bin/mailfilter-admin migrate && .venv/bin/mailfilter-admin create-admin you@example.nl
+.venv/bin/uvicorn mailfilter.main:app --reload
+# Interface, proxies /api to the API on port 8000
+cd frontend && npm ci && npm run dev
+```
+
+Tests: `cd backend && pytest` (set `MAILFILTER_TEST_DB_URL` to an empty test database).
+
 ## Branches
 
 | Branch | Purpose |
@@ -76,7 +93,9 @@ A timer makes a backup every night: a full backup once a week, incremental backu
 
 | Path | Contents |
 | --- | --- |
-| `prototype/index.html` | Clickable interface prototype (open it in a browser). Sample data only |
+| `backend/mailfilter/` | Web app API (FastAPI, SQLAlchemy, Alembic). Routers in `api/`, models in `models/`, migrations in `migrations/versions/` |
+| `frontend/` | Web interface (React, TypeScript, Vite, Tailwind). Pages in `src/pages/`, menu in `src/nav.ts`, routes in `src/routes.tsx`, texts in `src/i18n/en.json` and `nl.json` |
+| `prototype/index.html` | Clickable interface prototype (open it in a browser, or `/prototype/` on the server). Sample data only |
 | `prototype/src/index.template.html` | Prototype source; `python3 prototype/build.py` rebuilds `index.html` with the font inlined |
 | `install/` | Installer for Debian 13 and the configuration templates it renders |
 | `ops/` | `mailfilterctl`: updates, branch switch, backup and restore (runs as root, called by the web app through sudo) |

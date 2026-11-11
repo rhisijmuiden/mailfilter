@@ -30,7 +30,8 @@ submissions inet n      -       y       -       -       smtpd
 
 # Extra relay ports (managed in Settings > Listeners). Same rules as 587:
 # only allowed IPs and SMTP accounts, never mail from unknown senders.
-{{EXTRA_RELAY_LISTENERS}}
+# BEGIN mailfilter-config (managed by the web interface, do not edit)
+# END mailfilter-config
 
 pickup    unix  n       -       y       60      1       pickup
 cleanup   unix  n       -       y       -       0       cleanup

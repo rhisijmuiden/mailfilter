@@ -22,7 +22,8 @@ mynetworks = 127.0.0.0/8 [::1]/128 cidr:/etc/mailfilter/postfix/relay_networks.c
 # Domains we accept mail for, and where we deliver it (managed in "Domains")
 relay_domains = hash:/etc/mailfilter/postfix/relay_domains
 transport_maps = hash:/etc/mailfilter/postfix/transport
-# Check with the destination server that a recipient exists before accepting (no backscatter)
+# Check with the destination server that a recipient exists before accepting (no backscatter).
+# Switched on per domain in recipient_verify (domain -> reject_unverified_recipient).
 address_verify_map = lmdb:$data_directory/verify_cache
 address_verify_positive_expire_time = 7d
 unverified_recipient_reject_code = 550
@@ -36,7 +37,7 @@ smtpd_client_restrictions = permit_mynetworks, permit_sasl_authenticated, check_
 smtpd_helo_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_invalid_helo_hostname, reject_non_fqdn_helo_hostname
 smtpd_sender_restrictions = reject_non_fqdn_sender, reject_unknown_sender_domain, check_sender_access hash:/etc/mailfilter/postfix/sender_block
 smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
-smtpd_recipient_restrictions = reject_non_fqdn_recipient, reject_unknown_recipient_domain, permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination, reject_unverified_recipient
+smtpd_recipient_restrictions = reject_non_fqdn_recipient, reject_unknown_recipient_domain, permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination, check_recipient_access hash:/etc/mailfilter/postfix/recipient_verify
 smtpd_data_restrictions = reject_unauth_pipelining
 message_size_limit = 52428800
 mailbox_size_limit = 0
@@ -108,7 +109,7 @@ bounce_template_file = /etc/mailfilter/postfix/bounce.cf
 delay_warning_time = 4h
 
 # Backscatter and loop protection: reject at the door instead of bouncing later
-# (see reject_unverified_recipient above), and stop mail that loops between servers.
+# (recipient verification per domain, see recipient_verify above), and stop mail that loops between servers.
 hopcount_limit = 30
 smtpd_reject_unlisted_recipient = yes
 notify_classes = resource, software

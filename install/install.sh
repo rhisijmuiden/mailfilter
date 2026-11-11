@@ -14,6 +14,8 @@ MF_SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TPL=$MF_SRC/install/templates
 # shellcheck source=lib/common.sh
 source "$MF_SRC/install/lib/common.sh"
+# shellcheck source=lib/webapp.sh
+source "$MF_SRC/install/lib/webapp.sh"
 
 trap 'die "Installer stopped at line $LINENO (see $MF_LOG)"' ERR
 
@@ -62,7 +64,7 @@ if [[ $RECONFIGURE == 1 ]]; then
   saved() { sed -n "s/^$1=//p" "$MF_ETC/mailfilter.env" | tail -1; }
   [[ -n $HOSTNAME_FQDN ]] || HOSTNAME_FQDN=$(saved MF_HOSTNAME)
   [[ -n $ADMIN_EMAIL ]] || ADMIN_EMAIL=$(saved MF_ADMIN_EMAIL)
-  [[ ${#RELAY_PORTS[@]} -gt 0 ]] || read -r -a RELAY_PORTS <<<"$(saved MF_RELAY_PORTS)"
+  # Relay networks, ports and domains live in gateway.json (mailfilter-config), so they are kept as they are
   [[ ${#SSH_FROM[@]} -gt 0 ]] || read -r -a SSH_FROM <<<"$(saved MF_SSH_FROM)"
 fi
 
@@ -78,8 +80,8 @@ source /etc/os-release
 [[ ${ID:-} == debian && ${VERSION_ID:-} == 13 ]] || die "This installer needs Debian 13 (trixie). Found: ${PRETTY_NAME:-unknown}."
 ok "Debian 13 ($VERSION_CODENAME)"
 for p in 25 465 587 80 443; do
-  if ss -Hltn "sport = :$p" | grep -q . && ! systemctl is-active -q postfix caddy 2>/dev/null; then
-    USER_OF_PORT=$(ss -Hltnp "sport = :$p" | awk '{print $NF}' | head -1)
+  if ss -Hltn "sport = :$p" | grep . >/dev/null && ! systemctl is-active -q postfix caddy 2>/dev/null; then
+    USER_OF_PORT=$(ss -Hltnp "sport = :$p" | awk 'NR==1 {print $NF}')
     if [[ $USER_OF_PORT == *exim* || $USER_OF_PORT == *sendmail* ]]; then
       info "Port $p is used by the default mail server ($USER_OF_PORT); Postfix replaces it."
     else
@@ -120,7 +122,6 @@ MF_ADMIN_EMAIL=$ADMIN_EMAIL
 MF_PUBLIC_V4=$PUBLIC_V4
 MF_PUBLIC_V6=$PUBLIC_V6
 MF_SOURCE=$MF_SRC
-MF_RELAY_PORTS=${RELAY_PORTS[*]}
 MF_SSH_FROM=${SSH_FROM[*]}
 EOF
 chmod 0640 "$MF_ETC/mailfilter.env"
@@ -143,10 +144,11 @@ echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
-      python3 python3-venv git sudo zstd curl dnsutils ca-certificates jq crowdsec)
+      python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
+      nodejs npm git sudo zstd curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
-if dpkg -l 'exim4*' 2>/dev/null | grep -q '^[ri]i'; then run apt-get purge -y 'exim4*'; fi
+if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
 if apt-cache show crowdsec-firewall-bouncer >/dev/null 2>&1; then
   run apt-get install -y --no-install-recommends crowdsec-firewall-bouncer
 else
@@ -181,24 +183,17 @@ ok "unbound answers on 127.0.0.1 and ::1"
 step "Mailfilter lists and maps"
 install -d -m 0755 "$MF_ETC/postfix" "$MF_ETC/rspamd"
 install -d -m 0750 -o root -g _rspamd /var/lib/rspamd/dkim
-# Plain list of relay networks (IPv4 and IPv6, one per line). The web app owns it after install.
-NETS_FILE=$MF_ETC/relay_networks.list
-touch "$NETS_FILE"
-for n in "${RELAY_NETS[@]}"; do grep -qxF "$n" "$NETS_FILE" || echo "$n" >>"$NETS_FILE"; done
-for f in relay_domains transport sender_block tls_policy; do touch "$MF_ETC/postfix/$f"; done
-for f in client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
-for f in allow_from allow_domain block_from block_domain block_ip antivirus_skip dkim_selectors; do touch "$MF_ETC/rspamd/$f.map"; done
-if [[ -n $FIRST_DOMAIN ]]; then
-  grep -q "^$FIRST_DOMAIN " "$MF_ETC/postfix/relay_domains" || echo "$FIRST_DOMAIN OK" >>"$MF_ETC/postfix/relay_domains"
-  grep -q "^$FIRST_DOMAIN " "$MF_ETC/postfix/transport" || echo "$FIRST_DOMAIN relay:[$FIRST_DEST]:25" >>"$MF_ETC/postfix/transport"
-fi
-# Generate the Postfix and Rspamd views of the relay list (awk, not grep: an empty list is fine)
-active_nets() { awk '!/^[[:space:]]*(#|$)/ {print $1}' "$NETS_FILE"; }
-{ echo "# Generated from $NETS_FILE"; active_nets | awk '{print $1" OK"}'; } >"$MF_ETC/postfix/relay_networks.cidr"
-{ echo "# Generated from $NETS_FILE"; echo "127.0.0.0/8"; echo "::1"; active_nets; } >"$MF_ETC/rspamd/local_addrs.map"
+install -d -m 0755 "$MF_ETC/nftables"
+# Domains, relay networks, extra relay ports and throttling are written by
+# mailfilter-config (step "Domains, relay access and throttling" below, and the
+# web interface). Here we only make sure every file exists so Postfix can start.
+touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
+for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_networks.cidr client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
+for f in allow_from allow_domain block_from block_domain block_ip antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
-ok "$(active_nets | wc -l) relay network(s), $(grep -c . "$MF_ETC/postfix/relay_domains" || true) domain(s)"
+ok "Lists and maps in $MF_ETC"
 
 # ---------------------------------------------------------------------------
 step "Firewall (nftables, IPv4 and IPv6)"
@@ -219,13 +214,11 @@ if [[ ${#SSH_FROM[@]} -gt 0 ]]; then
 else
   SSH_RULES='    tcp dport 22 accept comment "SSH (open, guarded by CrowdSec)"'
 fi
-EXTRA_RELAY_PORTS_NFT=""
-for p in "${RELAY_PORTS[@]}"; do EXTRA_RELAY_PORTS_NFT+=", $p"; done
 render "$TPL/nftables/nftables.conf" /etc/nftables.conf 0755
 run nft -c -f /etc/nftables.conf
 run systemctl enable nftables
 run systemctl restart nftables
-ok "Open: 22, 25, 80, 443, 465, 587${EXTRA_RELAY_PORTS_NFT}"
+ok "Open: 22, 25, 80, 443, 465, 587 (extra relay ports follow below)"
 
 # ---------------------------------------------------------------------------
 step "HTTPS certificate (Let's Encrypt)"
@@ -251,19 +244,6 @@ HAVE_CERT=0; [[ -f /etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem ]] && HAVE
 step "Mail server (Postfix)"
 backup_file /etc/postfix/main.cf; backup_file /etc/postfix/master.cf
 HOSTNAME=$HOSTNAME_FQDN
-EXTRA_RELAY_LISTENERS=""
-for p in "${RELAY_PORTS[@]}"; do
-  EXTRA_RELAY_LISTENERS+="$p      inet  n       -       y       -       -       smtpd
-  -o syslog_name=postfix/port-$p
-  -o smtpd_tls_security_level=may
-  -o smtpd_sasl_auth_enable=yes
-  -o smtpd_client_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o smtpd_helo_restrictions=
-  -o smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o smtpd_recipient_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o milter_macro_daemon_name=ORIGINATING
-"
-done
 render "$TPL/postfix/main.cf" /etc/postfix/main.cf
 render "$TPL/postfix/master.cf" /etc/postfix/master.cf
 if [[ $HAVE_CERT == 0 ]]; then
@@ -272,14 +252,14 @@ if [[ $HAVE_CERT == 0 ]]; then
   postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
   warn "Postfix uses a temporary self-signed certificate until Let's Encrypt succeeds."
 fi
-for f in relay_domains transport sender_block tls_policy; do run postmap "hash:$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify; do run postmap "hash:$MF_ETC/postfix/$f"; done
 # A bare install with "No configuration" has no /etc/aliases; route system mail to the admin.
 [[ -f /etc/aliases ]] || printf 'postmaster: root\nabuse: root\nroot: %s\n' "$ADMIN_EMAIL" >/etc/aliases
 run newaliases
 run postfix check
 run systemctl enable postfix
 run systemctl restart postfix
-ok "Listening on 25 (inbound), 587 and 465 (relay)${RELAY_PORTS[*]:+, extra relay: ${RELAY_PORTS[*]}}"
+ok "Listening on 25 (inbound), 587 and 465 (relay)"
 
 # ---------------------------------------------------------------------------
 step "SMTP accounts for relay (Dovecot)"
@@ -334,16 +314,43 @@ ok "Rspamd running as milter on 127.0.0.1:11332"
 step "Database (PostgreSQL)"
 run systemctl enable --now postgresql
 if [[ -z ${DB_PASSWORD:-} ]]; then DB_PASSWORD=$(gen_secret 32); echo "DB_PASSWORD=$DB_PASSWORD" >>"$SECRETS"; fi
-if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mailfilter'" | grep -q 1; then
+if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mailfilter'" | grep 1 >/dev/null; then
   runuser -u postgres -- psql -q -c "CREATE ROLE mailfilter LOGIN PASSWORD '$DB_PASSWORD'"
 else
   # Keeps the role in step with secrets.env, also after restoring a backup onto a new server
   runuser -u postgres -- psql -q -c "ALTER ROLE mailfilter LOGIN PASSWORD '$DB_PASSWORD'"
 fi
-if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='mailfilter'" | grep -q 1; then
+if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='mailfilter'" | grep 1 >/dev/null; then
   runuser -u postgres -- createdb -O mailfilter mailfilter
 fi
 ok "Database 'mailfilter' ready"
+
+# ---------------------------------------------------------------------------
+step "Web app"
+WEB_ADMIN_PASSWORD=""
+install_webapp
+
+# ---------------------------------------------------------------------------
+step "Mail trace log collector"
+install -m 0600 /dev/null "$MF_ETC/tracer.env"
+printf 'MAILFILTER_DB=host=127.0.0.1 dbname=mailfilter user=mailfilter password=%s\n' "$DB_PASSWORD" >"$MF_ETC/tracer.env"
+render "$TPL/systemd/mailfilter-tracer.service" /etc/systemd/system/mailfilter-tracer.service
+run systemctl daemon-reload
+run systemctl enable mailfilter-tracer
+run systemctl restart mailfilter-tracer
+ok "Postfix and Rspamd logs flow into the mail trace"
+
+# ---------------------------------------------------------------------------
+step "Domains, relay access and throttling"
+# Starts /etc/mailfilter/gateway.json on the first run (taking over lists from older
+# installs), adds what was given on the command line, and applies it. On a re-run it
+# puts back what the templates above overwrote (extra listeners, per-domain queues).
+SEED_ARGS=()
+for n in "${RELAY_NETS[@]}"; do SEED_ARGS+=(--relay-net "$n"); done
+for p in "${RELAY_PORTS[@]}"; do SEED_ARGS+=(--relay-port "$p"); done
+[[ -n $FIRST_DOMAIN ]] && SEED_ARGS+=(--domain "$FIRST_DOMAIN" --destination "$FIRST_DEST")
+run "$MF_SRC/backend/bin/mailfilter-config" seed "${SEED_ARGS[@]}"
+ok "$(jq '.relay_networks | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0) relay network(s), $(jq '.domains | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0) domain(s), extra relay ports: $(jq -r '[.relay_ports[].port] | join(", ")' "$MF_ETC/gateway.json" 2>/dev/null || true)"
 
 # ---------------------------------------------------------------------------
 step "Intrusion protection (CrowdSec)"
@@ -392,13 +399,25 @@ git -c safe.directory="$MF_SRC" -C "$MF_SRC" rev-parse --abbrev-ref HEAD 2>/dev/
 ok "Version $(cat "$MF_ETC/version") ($(cat "$MF_ETC/branch")), daily backup at $(jq -r .time "$MF_ETC/backup.json") to /var/backups/mailfilter"
 
 # ---------------------------------------------------------------------------
+step "Blocklist monitoring"
+install -d -m 0755 /var/lib/mailfilter
+for u in mailfilter-blacklist.service mailfilter-blacklist.timer; do
+  render "$TPL/systemd/$u" "/etc/systemd/system/$u" 0644
+done
+run systemctl daemon-reload
+run systemctl enable --now mailfilter-blacklist.timer
+# First check right away, so the dashboard has a status from the start
+systemctl start --no-block mailfilter-blacklist.service >>"$MF_LOG" 2>&1 || true
+ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minutes"
+
+# ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in mailfilter-backup.timer unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
-  if ss -Hltn "sport = :$p" | grep -q .; then ok "Port $p listening"; else warn "Nothing listens on port $p"; FAILED=1; fi
+  if ss -Hltn "sport = :$p" | grep . >/dev/null; then ok "Port $p listening"; else warn "Nothing listens on port $p"; FAILED=1; fi
 done
 
 # ---------------------------------------------------------------------------
@@ -415,6 +434,11 @@ if [[ -n $FIRST_DOMAIN ]]; then
   echo "  SPF   add to $FIRST_DOMAIN:   ip4:${PUBLIC_V4:-<IPv4>}${PUBLIC_V6:+ ip6:$PUBLIC_V6}"
   echo "  DKIM  $(tr -s ' \n\t' ' ' <"$MF_ETC/dkim-$FIRST_DOMAIN.$SEL.txt" | sed 's/  */ /g')"
   echo "  MX    $FIRST_DOMAIN -> $HOSTNAME_FQDN  (only at go-live)"
+fi
+if [[ -n $WEB_ADMIN_PASSWORD ]]; then
+  printf '\n%sWeb interface login%s  https://%s\n' "$C_BOLD" "$C_RESET" "$HOSTNAME_FQDN"
+  echo "  User:     $ADMIN_EMAIL"
+  echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in)"
 fi
 echo
 echo "Log of this install: $MF_LOG"
