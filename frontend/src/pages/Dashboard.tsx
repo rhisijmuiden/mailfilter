@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import BlacklistAlert from "../components/BlacklistAlert";
 import { Card, PageHead } from "../components/ui";
 import type { Me } from "../lib/auth";
 
@@ -8,7 +9,7 @@ export default function Dashboard({ me }: { me: Me }) {
   const { t } = useTranslation();
   const admin = me.role === "admin";
   const steps = [
-    ...(admin ? [{ to: "/users", label: t("dashboard.next_users") }] : []),
+    ...(admin ? [{ to: "/users", label: t("dashboard.next_users") }, { to: "/dns?tab=cloudflare", label: t("dashboard.next_dns") }] : []),
     { to: "/trace", label: t("dashboard.next_trace") },
     { to: "/quarantine", label: t("dashboard.next_quarantine") },
   ];
@@ -18,6 +19,7 @@ export default function Dashboard({ me }: { me: Me }) {
         title={t("dashboard.welcome", { name: me.name || me.email })}
         sub={admin ? t("dashboard.sub_admin") : t("dashboard.sub_customer", { domains: me.domains.join(", ") || "–" })}
       />
+      <BlacklistAlert admin={admin} />
       <Card title={t("dashboard.next")}>
         {steps.map((s) => (
           <Link key={s.to} to={s.to} className="list-row" style={{ color: "inherit", textDecoration: "none" }}>

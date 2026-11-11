@@ -1,6 +1,6 @@
 // The left menu. Each feature adds its entries here; `group` decides the section.
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Users } from "lucide-react";
+import { Globe, LayoutDashboard, Users } from "lucide-react";
 
 export type NavGroup = "overview" | "mail" | "config" | "system";
 
@@ -18,5 +18,6 @@ export const GROUPS: NavGroup[] = ["overview", "mail", "config", "system"];
 
 export const NAV: NavItem[] = [
   { to: "/", label: "nav.dashboard", icon: LayoutDashboard, group: "overview" },
+  { to: "/dns", label: "nav.dns", icon: Globe, group: "config", adminOnly: true },
   { to: "/users", label: "nav.users", icon: Users, group: "system", adminOnly: true },
 ];

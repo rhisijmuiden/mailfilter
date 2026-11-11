@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Me } from "./lib/auth";
 import Account from "./pages/Account";
 import Dashboard from "./pages/Dashboard";
+import Dns from "./pages/Dns";
 import Users from "./pages/Users";
 
 export type AppRoute = { path: string; element: (me: Me) => ReactNode; adminOnly?: boolean };
@@ -11,4 +12,5 @@ export const ROUTES: AppRoute[] = [
   { path: "/", element: (me) => <Dashboard me={me} /> },
   { path: "/account", element: (me) => <Account me={me} /> },
   { path: "/users", element: () => <Users />, adminOnly: true },
+  { path: "/dns", element: () => <Dns />, adminOnly: true },
 ];

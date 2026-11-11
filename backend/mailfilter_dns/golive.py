@@ -114,18 +114,21 @@ def preflight(
     return pf
 
 
-def state_file(domain: str, base: Path = GOLIVE_DIR) -> Path:
+def state_file(domain: str, base: Path | None = None) -> Path:
+    base = base or GOLIVE_DIR
     return base / f"{norm(domain)}.json"
 
 
-def state(domain: str, base: Path = GOLIVE_DIR) -> dict | None:
+def state(domain: str, base: Path | None = None) -> dict | None:
+    base = base or GOLIVE_DIR
     try:
         return json.loads(state_file(domain, base).read_text())
     except FileNotFoundError:
         return None
 
 
-def plan(cf: Cloudflare, domain: str, server: ServerConfig, *, base: Path = GOLIVE_DIR) -> publish.Plan:
+def plan(cf: Cloudflare, domain: str, server: ServerConfig, *, base: Path | None = None) -> publish.Plan:
+    base = base or GOLIVE_DIR
     domain = norm(domain)
     st = state(domain, base)
     if st and st.get("status") == "live":
@@ -151,8 +154,10 @@ def plan(cf: Cloudflare, domain: str, server: ServerConfig, *, base: Path = GOLI
     return p
 
 
-def go_live(cf: Cloudflare, p: publish.Plan, *, actor: str = "", base: Path = GOLIVE_DIR,
-            journal: Path = publish.JOURNAL) -> dict:
+def go_live(cf: Cloudflare, p: publish.Plan, *, actor: str = "", base: Path | None = None,
+            journal: Path | None = None) -> dict:
+    journal = journal or publish.JOURNAL
+    base = base or GOLIVE_DIR
     st = state(p.domain, base)
     if st and st.get("status") == "live":
         raise ValueError("already_live")
@@ -170,8 +175,10 @@ def go_live(cf: Cloudflare, p: publish.Plan, *, actor: str = "", base: Path = GO
     return record
 
 
-def rollback(cf: Cloudflare, domain: str, *, actor: str = "", base: Path = GOLIVE_DIR,
-             journal: Path = publish.JOURNAL) -> dict:
+def rollback(cf: Cloudflare, domain: str, *, actor: str = "", base: Path | None = None,
+             journal: Path | None = None) -> dict:
+    journal = journal or publish.JOURNAL
+    base = base or GOLIVE_DIR
     st = state(domain, base)
     if not st or st.get("status") != "live":
         raise ValueError("not_live")
