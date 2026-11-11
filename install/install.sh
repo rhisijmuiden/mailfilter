@@ -65,8 +65,8 @@ source /etc/os-release
 [[ ${ID:-} == debian && ${VERSION_ID:-} == 13 ]] || die "This installer needs Debian 13 (trixie). Found: ${PRETTY_NAME:-unknown}."
 ok "Debian 13 ($VERSION_CODENAME)"
 for p in 25 465 587 80 443; do
-  if ss -Hltn "sport = :$p" | grep -q . && ! systemctl is-active -q postfix caddy 2>/dev/null; then
-    USER_OF_PORT=$(ss -Hltnp "sport = :$p" | awk '{print $NF}' | head -1)
+  if ss -Hltn "sport = :$p" | grep . >/dev/null && ! systemctl is-active -q postfix caddy 2>/dev/null; then
+    USER_OF_PORT=$(ss -Hltnp "sport = :$p" | awk 'NR==1 {print $NF}')
     if [[ $USER_OF_PORT == *exim* || $USER_OF_PORT == *sendmail* ]]; then
       info "Port $p is used by the default mail server ($USER_OF_PORT); Postfix replaces it."
     else
@@ -132,7 +132,7 @@ PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam do
       git curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
-if dpkg -l 'exim4*' 2>/dev/null | grep -q '^[ri]i'; then run apt-get purge -y 'exim4*'; fi
+if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
 if apt-cache show crowdsec-firewall-bouncer >/dev/null 2>&1; then
   run apt-get install -y --no-install-recommends crowdsec-firewall-bouncer
 else
@@ -320,10 +320,10 @@ ok "Rspamd running as milter on 127.0.0.1:11332"
 step "Database (PostgreSQL)"
 run systemctl enable --now postgresql
 if [[ -z ${DB_PASSWORD:-} ]]; then DB_PASSWORD=$(gen_secret 32); echo "DB_PASSWORD=$DB_PASSWORD" >>"$SECRETS"; fi
-if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mailfilter'" | grep -q 1; then
+if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mailfilter'" | grep 1 >/dev/null; then
   runuser -u postgres -- psql -q -c "CREATE ROLE mailfilter LOGIN PASSWORD '$DB_PASSWORD'"
 fi
-if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='mailfilter'" | grep -q 1; then
+if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='mailfilter'" | grep 1 >/dev/null; then
   runuser -u postgres -- createdb -O mailfilter mailfilter
 fi
 ok "Database 'mailfilter' ready"
@@ -390,7 +390,7 @@ for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nf
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
-  if ss -Hltn "sport = :$p" | grep -q .; then ok "Port $p listening"; else warn "Nothing listens on port $p"; FAILED=1; fi
+  if ss -Hltn "sport = :$p" | grep . >/dev/null; then ok "Port $p listening"; else warn "Nothing listens on port $p"; FAILED=1; fi
 done
 
 # ---------------------------------------------------------------------------
