@@ -128,7 +128,8 @@ echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
-      python3 python3-venv python3-psycopg git curl dnsutils ca-certificates jq crowdsec)
+      python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
+      git curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep -q '^[ri]i'; then run apt-get purge -y 'exim4*'; fi
@@ -369,6 +370,18 @@ else
 fi
 git -C "$MF_SRC" describe --tags --always 2>/dev/null >"$MF_ETC/version" || echo "0.1.0" >"$MF_ETC/version"
 git -C "$MF_SRC" rev-parse --abbrev-ref HEAD 2>/dev/null >"$MF_ETC/branch" || echo "test" >"$MF_ETC/branch"
+
+# ---------------------------------------------------------------------------
+step "Blocklist monitoring"
+install -d -m 0755 /var/lib/mailfilter
+for u in mailfilter-blacklist.service mailfilter-blacklist.timer; do
+  render "$TPL/systemd/$u" "/etc/systemd/system/$u" 0644
+done
+run systemctl daemon-reload
+run systemctl enable --now mailfilter-blacklist.timer
+# First check right away, so the dashboard has a status from the start
+systemctl start --no-block mailfilter-blacklist.service >>"$MF_LOG" 2>&1 || true
+ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minutes"
 
 # ---------------------------------------------------------------------------
 step "Self-test"
