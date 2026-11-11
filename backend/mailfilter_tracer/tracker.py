@@ -150,7 +150,9 @@ class Tracker:
         elif ev.kind == "delivery":
             r = msg.rcpt(d["to"])
             r.relay_host, r.relay_ip = split_relay(d["relay"])
-            r.transport = ev.service.split("/")[-1]
+            # Per-domain queues log as postfix/domain/<name>, throttled outbound ones as postfix/out/<name>
+            parts = ev.service.split("/")
+            r.transport = {"domain": "relay", "out": "smtp"}.get(parts[0], parts[-1])
             r.dsn, r.reply, r.updated = d["dsn"], d["reply"], ev.ts
             r.delay = float(d["delay"])
             r.attempts += 1
