@@ -165,6 +165,12 @@ td.nowrap{white-space:nowrap}
 .bar i{display:block;height:100%;border-radius:999px;background:var(--ok)}
 .bar i.w{background:var(--warn)} .bar i.b{background:var(--bad)}
 
+.alert-bl{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:18px 20px;border-radius:var(--r-md);background:var(--bad);color:#fff}
+.alert-bl>svg{width:32px;height:32px;stroke:#fff;flex:none;stroke-width:2.2}
+.alert-bl .grow{flex:1 1 320px;min-width:0}
+.alert-bl b{display:block;font-size:17px;font-stretch:115%;font-weight:800;margin-bottom:2px}
+.alert-bl span{font-size:13.5px;opacity:.95}
+.alert-bl .btn{background:#fff;color:#7A1C1C;border-color:#fff}
 .callout{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-md);background:var(--info-soft);color:var(--ink)}
 .callout svg{width:18px;height:18px;stroke:var(--info);flex:none;margin-top:2px}
 .callout.warn{background:var(--warn-soft)} .callout.warn svg{stroke:var(--warn)}
@@ -245,7 +251,7 @@ pre.log{margin:0;background:var(--code-bg);color:var(--code-ink);font-family:var
   <aside class="sidebar" id="sidebar" aria-label="Main menu">
     <div class="brand">
       <svg viewBox="0 0 3074 1092" role="img" aria-label="RHIS"><path fill="currentColor" style="color:var(--ink)" d="M0 1080V392H572Q647 392 696.0 423.0Q745 454 770.0 504.5Q795 555 795 615Q795 680 764.0 733.5Q733 787 671 818L811 1080H581L467 851H203V1080ZM203 701H505Q542 701 564.0 679.0Q586 657 586 620Q586 596 576.0 578.5Q566 561 548.0 552.0Q530 543 505 543H203ZM942 1080V392H1145V648H1558V392H1761V1080H1558V812H1145V1080ZM2703 1092Q2619 1092 2546.0 1082.0Q2473 1072 2418.0 1047.0Q2363 1022 2332.0 977.0Q2301 932 2301 863Q2301 861 2301.0 858.0Q2301 855 2302 852H2502Q2501 856 2500.5 860.0Q2500 864 2500 869Q2500 900 2523.5 917.5Q2547 935 2589.0 942.0Q2631 949 2688 949Q2711 949 2735.5 947.5Q2760 946 2783.0 942.5Q2806 939 2824.5 932.0Q2843 925 2853.5 914.5Q2864 904 2864 888Q2864 867 2841.5 854.5Q2819 842 2779.5 834.5Q2740 827 2691.5 821.0Q2643 815 2591.0 806.5Q2539 798 2490.0 783.5Q2441 769 2402.0 745.0Q2363 721 2340.0 683.0Q2317 645 2317 591Q2317 536 2344.5 496.5Q2372 457 2422.0 431.0Q2472 405 2540.0 392.5Q2608 380 2688 380Q2770 380 2836.5 393.0Q2903 406 2950.5 431.5Q2998 457 3023.5 495.5Q3049 534 3049 586V600H2852V592Q2852 571 2834.0 554.5Q2816 538 2781.5 528.5Q2747 519 2698 519Q2639 519 2601.0 526.5Q2563 534 2545.0 546.5Q2527 559 2527 575Q2527 595 2550.0 606.5Q2573 618 2612.0 625.0Q2651 632 2699.5 638.0Q2748 644 2800.5 652.0Q2853 660 2901.5 674.0Q2950 688 2989.0 711.5Q3028 735 3051.0 771.5Q3074 808 3074 861Q3074 944 3026.0 995.0Q2978 1046 2894.5 1069.0Q2811 1092 2703 1092Z"/><rect x="1941" y="392" width="215" height="688" rx="40" fill="#FF6B57"/><path d="M1942.4 215.9A150 150 0 0 1 2154.6 215.9 M1850.5 124.0A280 280 0 0 1 2246.5 124.0" fill="none" stroke="#FF6B57" stroke-width="75" stroke-linecap="round"/></svg>
-      <span class="product">Mailfilter</span>
+      <span class="product">Mailfilter</span><span class="mono muted" style="font-size:11.5px">mailfilter01.rhis.nl</span>
     </div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot">
@@ -274,6 +280,27 @@ pre.log{margin:0;background:var(--code-bg);color:var(--code-ink);font-family:var
 /* ---------- i18n ---------- */
 var I18N={
 en:{
+ tb_mxl:"MX lookup",tb_bl:"Blacklist check",mx_any:"Any domain, for example a customer's",mx_prio:"Priority",mx_host:"Mail server",mx_ips:"Addresses",mx_smtp:"SMTP on port 25",mx_tls:"STARTTLS",mx_ptr:"PTR",
+ bl_title:"Blacklist status of this server",bl_sub:"Mailfilter checks its own IPv4 and IPv6 addresses against the major blocklists every 15 minutes.",bl_listed:"Listed",bl_clean:"Not listed",bl_lastcheck:"Last check",bl_delist:"Request removal",bl_checknow:"Check now",
+ bl_alert:"mailfilter01 is on a blocklist",bl_alert_d:"203.0.113.10 is listed on Barracuda (b.barracudacentral.org) since 22:40. Outbound mail to some providers may be refused. Check outbound spam, then request removal.",bl_open:"Open blacklist check",
+ n_dns:"DNS toolbox",n_integrations:"Integrations",n_cluster:"Cluster",
+ cf:"Cloudflare",cf_conn:"Connected",cf_pub:"Publish to Cloudflare",cf_published:"Published to Cloudflare",cf_zone:"Zone in Cloudflare",
+ dns_cur:"Current record",dns_new:"New record",spf_merge:"Add Mailfilter to existing SPF",spf_merge_d:"Your current SPF value stays as it is; Mailfilter only adds itself. Nothing else changes.",
+ dkim_match:"DNS record matches the key in Mailfilter",dkim_nomatch:"DNS record does not match the key in Mailfilter",
+ golive:"Go live",golive_d:"One-time switch for this domain: points the MX record in Cloudflare to mailfilter01. Mailfilter checks everything first and keeps the old value so you can roll back.",
+ golive_checks:"Pre-flight checks",golive_btn:"Go live now",golive_done:"Live. MX now points to mailfilter01.rhis.nl",rollback:"Roll back",
+ gl_c1:"Mailfilter accepts mail for this domain",gl_c2:"Destination server reachable on port 25",gl_c3:"SPF includes Mailfilter",gl_c4:"DKIM record published and matching",gl_c5:"Certificate valid for mailfilter01.rhis.nl",
+ tb_title:"DNS toolbox",tb_sub:"Check a domain's mail DNS, and generate SPF and DMARC records you can publish straight to Cloudflare.",
+ tb_check:"Check domain",tb_spf:"SPF generator",tb_dmarc:"DMARC generator",tb_run:"Check",
+ tb_mx:"MX points to Mailfilter",tb_ptr:"Reverse DNS (PTR) for IPv4 and IPv6",tb_mtasts:"MTA-STS policy",tb_tlsrpt:"TLS reporting (TLS-RPT)",
+ spf_inc_mf:"Mailfilter (include:_spf.mailfilter.rhis.nl)",spf_inc_m365:"Microsoft 365 (include:spf.protection.outlook.com)",spf_inc_google:"Google Workspace (include:_spf.google.com)",
+ spf_ip4:"Extra IPv4 addresses",spf_ip6:"Extra IPv6 addresses",spf_all:"Mail from other servers",spf_soft:"Mark as suspicious (~all)",spf_hard:"Reject (-all)",
+ spf_lookups:"DNS lookups",result:"Result",
+ dm_policy:"Policy",dm_none:"Monitor only (none)",dm_quar:"Quarantine",dm_reject:"Reject",dm_pct:"Apply to percentage of mail",dm_rua:"Send reports to",dm_adkim:"DKIM alignment",dm_aspf:"SPF alignment",relaxed:"Relaxed",strict:"Strict",
+ int_title:"Integrations",int_sub:"Connect services Mailfilter can use. Tokens are stored encrypted on this server.",
+ cf_token:"API token",cf_token_d:"Needs Zone:Read and DNS:Edit for the zones you want Mailfilter to manage.",cf_zones:"Zones found",cf_test:"Test connection",
+ cl_title:"Cluster",cl_sub:"Run two or more Mailfilters that share their configuration. Each one keeps filtering on its own if the other goes down.",
+ cl_node:"Server",cl_role:"Role",cl_sync:"Last sync",cl_this:"This server",cl_peer:"Peer",cl_add:"Add server",cl_what:"Synchronised",cl_what_v:"Domains, relay access, throttling, filter rules, lists, DKIM keys, customers and users. Queues and quarantine stay local.",
  searchPh:"Search mail by sender, recipient, subject or message ID",info:"Info",
  g_overview:"Overview",g_mail:"Mail flow",g_config:"Configuration",g_system:"System",
  n_dashboard:"Dashboard",n_trace:"Mail trace",n_quarantine:"Quarantine",n_queues:"Queues",n_logs:"Live log",
@@ -311,7 +338,7 @@ en:{
  copy:"Copy",copied:"Copied",
  relay_title:"Relay access",relay_sub:"Servers that may send mail out through this gateway. Their mail is checked for spam and viruses just like inbound mail.",
  r_tab_ip:"Allowed IP addresses",r_tab_auth:"SMTP accounts",
- r_add:"Allow a server to send",r_ip:"IP address or network",r_ip_hint:"For example 203.0.113.25 or 203.0.113.0/28",
+ r_add:"Allow a server to send",r_ip:"IP address or network",r_ip_hint:"IPv4 or IPv6, for example 203.0.113.25, 203.0.113.0/28 or 2a02:58:1f:42::/64",
  r_desc:"Description",r_desc_ph:"For example: Webserver customer A",r_customer:"Customer",r_from:"Allowed sender domains",r_from_hint:"Leave empty to allow any domain this customer owns",
  r_tls:"Require TLS",r_limit:"Rate limit",r_save:"Allow this server",r_valid_ip:"Valid IPv4 address",r_valid_net:"Valid network",r_invalid:"This is not a valid IP address or network",
  r_hosts:"addresses",c_ipnet:"IP / network",c_desc:"Description",c_lastseen:"Last seen",c_sent24:"Sent (24h)",never:"Never",
@@ -363,6 +390,27 @@ en:{
  min:"min",ago:"ago",today:"Today",
 },
 nl:{
+ tb_mxl:"MX-lookup",tb_bl:"Blacklistcontrole",mx_any:"Elk domein, bijvoorbeeld van een klant",mx_prio:"Prioriteit",mx_host:"Mailserver",mx_ips:"Adressen",mx_smtp:"SMTP op poort 25",mx_tls:"STARTTLS",mx_ptr:"PTR",
+ bl_title:"Blacklist-status van deze server",bl_sub:"Mailfilter controleert elke 15 minuten zijn eigen IPv4- en IPv6-adressen op de belangrijkste blokkeerlijsten.",bl_listed:"Vermeld",bl_clean:"Niet vermeld",bl_lastcheck:"Laatste controle",bl_delist:"Verwijdering aanvragen",bl_checknow:"Nu controleren",
+ bl_alert:"mailfilter01 staat op een blokkeerlijst",bl_alert_d:"203.0.113.10 staat sinds 22:40 op Barracuda (b.barracudacentral.org). Uitgaande mail naar sommige providers kan worden geweigerd. Controleer uitgaande spam en vraag daarna verwijdering aan.",bl_open:"Blacklistcontrole openen",
+ n_dns:"DNS-toolbox",n_integrations:"Koppelingen",n_cluster:"Cluster",
+ cf:"Cloudflare",cf_conn:"Verbonden",cf_pub:"Publiceren in Cloudflare",cf_published:"Gepubliceerd in Cloudflare",cf_zone:"Zone in Cloudflare",
+ dns_cur:"Huidig record",dns_new:"Nieuw record",spf_merge:"Mailfilter toevoegen aan bestaande SPF",spf_merge_d:"Je huidige SPF-waarde blijft staan; Mailfilter voegt alleen zichzelf toe. Verder verandert er niets.",
+ dkim_match:"DNS-record komt overeen met de sleutel in Mailfilter",dkim_nomatch:"DNS-record komt niet overeen met de sleutel in Mailfilter",
+ golive:"Livegang",golive_d:"Eenmalige omschakeling voor dit domein: zet het MX-record in Cloudflare om naar mailfilter01. Mailfilter controleert eerst alles en bewaart de oude waarde, zodat je kunt terugdraaien.",
+ golive_checks:"Controles vooraf",golive_btn:"Nu live gaan",golive_done:"Live. MX wijst nu naar mailfilter01.rhis.nl",rollback:"Terugdraaien",
+ gl_c1:"Mailfilter neemt mail aan voor dit domein",gl_c2:"Doelserver bereikbaar op poort 25",gl_c3:"SPF bevat Mailfilter",gl_c4:"DKIM-record gepubliceerd en klopt",gl_c5:"Certificaat geldig voor mailfilter01.rhis.nl",
+ tb_title:"DNS-toolbox",tb_sub:"Controleer de mail-DNS van een domein en maak SPF- en DMARC-records die je direct in Cloudflare publiceert.",
+ tb_check:"Domein controleren",tb_spf:"SPF-generator",tb_dmarc:"DMARC-generator",tb_run:"Controleren",
+ tb_mx:"MX wijst naar Mailfilter",tb_ptr:"Reverse DNS (PTR) voor IPv4 en IPv6",tb_mtasts:"MTA-STS-beleid",tb_tlsrpt:"TLS-rapportage (TLS-RPT)",
+ spf_inc_mf:"Mailfilter (include:_spf.mailfilter.rhis.nl)",spf_inc_m365:"Microsoft 365 (include:spf.protection.outlook.com)",spf_inc_google:"Google Workspace (include:_spf.google.com)",
+ spf_ip4:"Extra IPv4-adressen",spf_ip6:"Extra IPv6-adressen",spf_all:"Mail van andere servers",spf_soft:"Markeren als verdacht (~all)",spf_hard:"Weigeren (-all)",
+ spf_lookups:"DNS-lookups",result:"Resultaat",
+ dm_policy:"Beleid",dm_none:"Alleen monitoren (none)",dm_quar:"Quarantaine",dm_reject:"Weigeren",dm_pct:"Toepassen op percentage mail",dm_rua:"Rapporten sturen naar",dm_adkim:"DKIM-uitlijning",dm_aspf:"SPF-uitlijning",relaxed:"Ruim",strict:"Strikt",
+ int_title:"Koppelingen",int_sub:"Koppel diensten die Mailfilter kan gebruiken. Tokens worden versleuteld op deze server opgeslagen.",
+ cf_token:"API-token",cf_token_d:"Heeft Zone:Read en DNS:Edit nodig voor de zones die Mailfilter mag beheren.",cf_zones:"Gevonden zones",cf_test:"Verbinding testen",
+ cl_title:"Cluster",cl_sub:"Draai twee of meer Mailfilters die hun configuratie delen. Elk blijft zelfstandig filteren als de ander uitvalt.",
+ cl_node:"Server",cl_role:"Rol",cl_sync:"Laatste sync",cl_this:"Deze server",cl_peer:"Partner",cl_add:"Server toevoegen",cl_what:"Wordt gesynchroniseerd",cl_what_v:"Domeinen, relay-toegang, throttling, filterregels, lijsten, DKIM-sleutels, klanten en gebruikers. Wachtrijen en quarantaine blijven lokaal.",
  searchPh:"Zoek mail op afzender, ontvanger, onderwerp of message-ID",info:"Info",
  g_overview:"Overzicht",g_mail:"Mailverkeer",g_config:"Configuratie",g_system:"Systeem",
  n_dashboard:"Dashboard",n_trace:"Mailtrace",n_quarantine:"Quarantaine",n_queues:"Wachtrijen",n_logs:"Live log",
@@ -400,7 +448,7 @@ nl:{
  copy:"Kopiëren",copied:"Gekopieerd",
  relay_title:"Relay-toegang",relay_sub:"Servers die via deze gateway mail naar buiten mogen sturen. Hun mail wordt net zo goed op spam en virussen gecontroleerd als inkomende mail.",
  r_tab_ip:"Toegestane IP-adressen",r_tab_auth:"SMTP-accounts",
- r_add:"Server toestaan om te versturen",r_ip:"IP-adres of netwerk",r_ip_hint:"Bijvoorbeeld 203.0.113.25 of 203.0.113.0/28",
+ r_add:"Server toestaan om te versturen",r_ip:"IP-adres of netwerk",r_ip_hint:"IPv4 of IPv6, bijvoorbeeld 203.0.113.25, 203.0.113.0/28 of 2a02:58:1f:42::/64",
  r_desc:"Omschrijving",r_desc_ph:"Bijvoorbeeld: Webserver klant A",r_customer:"Klant",r_from:"Toegestane afzenderdomeinen",r_from_hint:"Leeg laten om elk domein van deze klant toe te staan",
  r_tls:"TLS verplicht",r_limit:"Limiet",r_save:"Server toestaan",r_valid_ip:"Geldig IPv4-adres",r_valid_net:"Geldig netwerk",r_invalid:"Dit is geen geldig IP-adres of netwerk",
  r_hosts:"adressen",c_ipnet:"IP / netwerk",c_desc:"Omschrijving",c_lastseen:"Laatst gezien",c_sent24:"Verstuurd (24u)",never:"Nooit",
@@ -477,7 +525,7 @@ shield:'<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6l-8-3Z"/>',ban:
 in:'<path d="M20 12H8M12 7l-5 5 5 5"/>',out:'<path d="M4 12h12M12 7l5 5-5 5"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M20 11a8 8 0 0 0-14.6-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.6 4.5L20 16"/><path d="M20 20v-4h-4"/>',
 info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
 branch:'<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
-play:'<path d="M7 5v14l11-7z"/>',pause:'<path d="M8 5v14M16 5v14"/>'
+play:'<path d="M7 5v14l11-7z"/>',dns:'<path d="M4 6h16v5H4zM4 13h16v5H4z"/><path d="M7 8.5h.01M7 15.5h.01"/>',integrations:'<path d="M7 18a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.5A3.8 3.8 0 0 1 17.5 18Z"/>',cluster:'<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/><path d="M10 7.5h4a3 3 0 0 1 3 3V13M14 16.5h-4a3 3 0 0 1-3-3V11"/>',rocket:'<path d="M5 15c-1 1-1.5 3.5-1.5 5.5 2 0 4.5-.5 5.5-1.5M9 15l-3-3c1.5-4 5-8 11-9 0 6-4 9.5-9 11Z"/><circle cx="14.5" cy="9.5" r="1.5"/>',pause:'<path d="M8 5v14M16 5v14"/>'
 };
 function ic(n,extra){return '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '+(extra||"")+'>'+(IC[n]||"")+'</svg>'}
 
@@ -537,7 +585,8 @@ var RELAYS=[
  {ip:"203.0.113.40",desc:"webshop-01 Bakkerij De Kroon",cust:"Bakkerij De Kroon",last:"23:29",sent:"842",tls:true},
  {ip:"52.101.68.0/24",desc:"Microsoft 365 outbound (Vos)",cust:"Vos Installatietechniek",last:"23:14",sent:"2.981",tls:true},
  {ip:"10.10.0.5",desc:"mail.rhis.nl (eigen mailserver)",cust:"RHIS",last:"23:40",sent:"3.517",tls:false},
- {ip:"10.10.0.0/28",desc:"Monitoring en printers kantoor",cust:"RHIS",last:"22:10",sent:"38",tls:false}
+ {ip:"10.10.0.0/28",desc:"Monitoring en printers kantoor",cust:"RHIS",last:"22:10",sent:"38",tls:false},
+ {ip:"2a02:58:1f:42::/64",desc:"Webservers Vos (IPv6)",cust:"Vos Installatietechniek",last:"23:02",sent:"417",tls:true}
 ];
 var THROTTLE=[
  {d:"webshop-01 (203.0.113.40)",m:30,h:1000,day:8000,use:84,act:"defer"},
@@ -559,14 +608,14 @@ var QUEUES=[
 var NAV=[
  {g:"g_overview",items:[["dashboard","n_dashboard"]]},
  {g:"g_mail",items:[["trace","n_trace"],["quarantine","n_quarantine",6],["queues","n_queues"],["logs","n_logs"]]},
- {g:"g_config",items:[["domains","n_domains"],["relay","n_relay"],["throttle","n_throttle"],["rules","n_rules"],["customers","n_customers"]]},
- {g:"g_system",items:[["security","n_security"],["mailserver","n_mailserver"],["backup","n_backup"],["import","n_import"]]}
+ {g:"g_config",items:[["domains","n_domains"],["dns","n_dns","!"],["relay","n_relay"],["throttle","n_throttle"],["rules","n_rules"],["customers","n_customers"]]},
+ {g:"g_system",items:[["security","n_security"],["mailserver","n_mailserver"],["integrations","n_integrations"],["cluster","n_cluster"],["backup","n_backup"],["import","n_import"]]}
 ];
 function route(){var h=(location.hash||"").replace("#","");return VIEWS[h]?h:"dashboard"}
 function renderNav(){
  var cur=route(),h="";
  NAV.forEach(function(g){h+='<div class="group">'+t(g.g)+'</div>';g.items.forEach(function(it){
-  h+='<a href="#'+it[0]+'" class="'+(cur===it[0]?"active":"")+'" '+(cur===it[0]?'aria-current="page"':"")+'>'+ic(it[0])+'<span>'+t(it[1])+'</span>'+(it[2]?'<span class="count num">'+it[2]+'</span>':"")+'</a>'})});
+  h+='<a href="#'+it[0]+'" class="'+(cur===it[0]?"active":"")+'" '+(cur===it[0]?'aria-current="page"':"")+'>'+ic(it[0])+'<span>'+t(it[1])+'</span>'+(it[2]?'<span class="count num"'+(it[2]==="!"?' style="background:var(--bad);color:#fff"':'')+'>'+it[2]+'</span>':"")+'</a>'})});
  document.getElementById("nav").innerHTML=h;
 }
 function head(title,sub,actions){return '<div class="page-head"><div><h1 class="display">'+t(title)+'</h1><p>'+t(sub)+'</p></div><div class="actions"><span class="sample">'+t("sample")+'</span>'+(actions||"")+'</div></div>'}
@@ -592,6 +641,7 @@ VIEWS.dashboard=function(){
  var hl=[["h_postfix","running"],["h_rspamd","running"],["h_clam","sigs"],["h_cert","certok"],["h_fw","fwok"],["h_disk","disk"]].map(function(a){return '<div class="list-row"><span class="dot" style="background:var(--ok)"></span><span class="grow"><b style="font-weight:600">'+t(a[0])+'</b><br><span class="cell-sub">'+t(a[1])+'</span></span></div>'}).join("");
  var ts=[["webshop@bakkerijdekroon.nl",842,84],["planning@vosinstallatie.nl",611,31],["noreply@campingzeezicht.nl",590,100],["facturen@rhis.nl",214,12]].map(function(r){return '<tr><td class="cell-main">'+r[0]+'</td><td class="num nowrap">'+r[1]+'</td><td style="width:40%"><div class="bar"><i class="'+(r[2]>=100?"b":r[2]>80?"w":"")+'" style="width:'+r[2]+'%"></i></div></td></tr>'}).join("");
  return head("dash_title","dash_sub")+
+ '<div class="alert-bl" role="alert">'+ic("ban")+'<div class="grow"><b>'+t("bl_alert")+'</b><span>'+t("bl_alert_d")+'</span></div><a class="btn" href="#dns" data-tbtab-go="bl">'+t("bl_open")+'</a></div>'+
  '<div class="grid kpis">'+kp+'</div>'+
  '<div class="grid two"><div class="card"><div class="card-head"><h2>'+t("flow")+'</h2><div class="right legend"><span><i style="background:var(--ok)"></i>'+t("l_delivered")+'</span><span><i style="background:var(--koraal)"></i>'+t("l_spam")+'</span><span><i style="background:var(--warn)"></i>'+t("l_deferred")+'</span></div></div><div class="card-body">'+chart+'</div></div>'+
  '<div class="card"><div class="card-head"><h2>'+t("attention")+'</h2></div><div class="card-body" style="padding-block:6px">'+att+'</div></div></div>'+
@@ -652,7 +702,7 @@ VIEWS.domains=function(){
  return head("dom_title","dom_sub",'<button class="btn primary" type="button" data-dom="new">'+ic("plus")+t("add_domain")+'</button>')+
  '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>'+t("c_domain")+'</th><th>'+t("c_dest")+'</th><th>'+t("c_dkim")+'</th><th>'+t("c_spf")+'</th><th>'+t("c_dmarc")+'</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>';
 };
-function ipCheck(v){v=v.trim();if(!v)return null;var m=v.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/);if(!m)return {ok:false};for(var i=1;i<5;i++)if(+m[i]>255)return {ok:false};if(m[5]!==undefined){var p=+m[5];if(p<8||p>32)return {ok:false};return {ok:true,net:true,hosts:Math.pow(2,32-p)}}return {ok:true,net:false}}
+function ipCheck(v){v=v.trim();if(!v)return null;if(v.indexOf(":")>=0){var mm=v.match(/^([0-9a-fA-F:]+)(?:\/(\d{1,3}))?$/);if(!mm||mm[1].split("::").length>2||!/^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$/.test(mm[1]))return {ok:false};if(mm[2]!==undefined){var q=+mm[2];if(q<16||q>128)return {ok:false};return {ok:true,net:true,v6:true,prefix:q}}return {ok:true,net:false,v6:true}}var m=v.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/);if(!m)return {ok:false};for(var i=1;i<5;i++)if(+m[i]>255)return {ok:false};if(m[5]!==undefined){var p=+m[5];if(p<8||p>32)return {ok:false};return {ok:true,net:true,hosts:Math.pow(2,32-p)}}return {ok:true,net:false}}
 VIEWS.relay=function(){
  var tab=state.relayTab;
  var tabs='<button type="button" role="tab" data-rtab="ip" aria-selected="'+(tab==="ip")+'">'+t("r_tab_ip")+' <span class="num muted">'+RELAYS.length+'</span></button><button type="button" role="tab" data-rtab="auth" aria-selected="'+(tab==="auth")+'">'+t("r_tab_auth")+' <span class="num muted">2</span></button>';
@@ -695,9 +745,9 @@ VIEWS.customers=function(){
 VIEWS.security=function(){
  var ports=[["25","port_smtp","open_world"],["587","port_subm","open_world"],["465","port_smtps","open_world"],["443","port_https","open_world"],["22","port_ssh","ssh_from"]].map(function(p){return '<tr><td class="mono">'+p[0]+'/tcp</td><td>'+t(p[1])+'</td><td>'+(p[0]==="22"?'<span class="status s-info">'+ic("security")+t(p[2])+'</span>':'<span class="status s-mute">'+ic("domains")+t(p[2])+'</span>')+'</td></tr>'}).join("");
  return head("sec_title","sec_sub")+
- '<div class="grid halves"><div class="card"><div class="card-head"><h2>'+t("cert")+'</h2><div class="right"><span class="status s-ok">'+ic("check")+'Let\'s Encrypt</span></div></div><div class="card-body"><p class="muted" style="margin:0 0 14px">'+t("cert_d")+'</p><dl class="kv"><dt>Domain</dt><dd class="mono">mailfilter.rhis.nl</dd><dt>'+(state.lang==="nl"?"Geldig tot":"Valid until")+'</dt><dd>9 feb 2027 (90 '+(state.lang==="nl"?"dagen":"days")+')</dd><dt>'+(state.lang==="nl"?"Verlengen":"Renewal")+'</dt><dd>'+(state.lang==="nl"?"Automatisch, 30 dagen voor afloop":"Automatic, 30 days before expiry")+'</dd><dt>TLS</dt><dd>TLS 1.2, TLS 1.3, HSTS</dd></dl><div style="margin-top:14px"><button class="btn" type="button" data-toast="saved">'+ic("refresh")+t("renew")+'</button></div></div></div>'+
+ '<div class="grid halves"><div class="card"><div class="card-head"><h2>'+t("cert")+'</h2><div class="right"><span class="status s-ok">'+ic("check")+'Let\'s Encrypt</span></div></div><div class="card-body"><p class="muted" style="margin:0 0 14px">'+t("cert_d")+'</p><dl class="kv"><dt>Domain</dt><dd class="mono">mailfilter01.rhis.nl</dd><dt>'+(state.lang==="nl"?"Geldig tot":"Valid until")+'</dt><dd>9 feb 2027 (90 '+(state.lang==="nl"?"dagen":"days")+')</dd><dt>'+(state.lang==="nl"?"Verlengen":"Renewal")+'</dt><dd>'+(state.lang==="nl"?"Automatisch, 30 dagen voor afloop":"Automatic, 30 days before expiry")+'</dd><dt>TLS</dt><dd>TLS 1.2, TLS 1.3, HSTS</dd></dl><div style="margin-top:14px"><button class="btn" type="button" data-toast="saved">'+ic("refresh")+t("renew")+'</button></div></div></div>'+
  '<div class="card"><div class="card-head"><h2>'+t("cs")+'</h2><div class="right"><span class="status s-ok">'+ic("check")+t("running")+'</span></div></div><div class="card-body"><p class="muted" style="margin:0 0 14px">'+t("cs_d")+'</p><div class="kpi" style="padding:0"><span class="value">27</span><span class="delta">IP\'s '+t("blocked_today")+'</span></div><div style="margin-top:10px" class="mono muted">185.220.101.47 · 45.95.168.201 · 193.32.162.0/24 …</div></div></div></div>'+
- '<div class="card"><div class="card-head"><h2>'+t("fw")+'</h2><div class="right"><span class="tag">nftables</span></div></div><p class="muted" style="margin:0;padding:14px 18px 0">'+t("fw_d")+'</p><div class="tbl-wrap"><table><tbody>'+ports+'</tbody></table></div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("fw")+'</h2><div class="right"><span class="tag">nftables</span> <span class="tag lucht">IPv4 + IPv6</span></div></div><p class="muted" style="margin:0;padding:14px 18px 0">'+t("fw_d")+'</p><div class="tbl-wrap"><table><tbody>'+ports+'</tbody></table></div></div>'+
  '<div class="card"><div class="card-body" style="padding-block:4px"><div class="setting"><div class="txt"><b>'+t("twofa")+'</b><span>'+t("twofa_d")+'</span></div>'+sw("s2fa",1)+'</div><div class="setting"><div class="txt"><b>'+t("autoupd")+'</b><span>'+t("autoupd_d")+'</span></div>'+sw("sau",1)+'</div></div></div>';
 };
 VIEWS.mailserver=function(){
@@ -725,6 +775,60 @@ VIEWS.import=function(){
  return head("imp_title","imp_sub")+
  '<div class="grid halves"><div class="card"><div class="card-head"><span class="status s-ok">'+ic("check")+'1</span><h2>'+t("imp_s1")+'</h2></div><div class="card-body" style="display:flex;flex-direction:column;gap:14px"><div class="field"><label for="impHost">'+t("imp_host")+'</label><input class="input mono" id="impHost" value="https://pmg.rhis.nl:8006"></div><div class="field"><label for="impUser">'+t("imp_user")+'</label><input class="input" id="impUser" value="root@pam"></div><div class="field"><label for="impPass">'+t("imp_pass")+'</label><input class="input" id="impPass" type="password" value="xxxxxxxx"></div><div><button class="btn" type="button" data-toast="saved">'+t("imp_connect")+'</button></div></div></div>'+
  '<div class="card"><div class="card-head"><span class="status s-info">2</span><h2>'+t("imp_s2")+'</h2><div class="right cell-sub">'+t("imp_found")+'</div></div><div class="card-body" style="padding-block:4px">'+items+'</div><div class="card-body" style="border-top:1px solid var(--line);display:flex;justify-content:flex-end"><button class="btn primary" type="button" data-toast="added">'+ic("import")+t("imp_go")+'</button></div></div></div>';
+};
+
+VIEWS.dns=function(){
+ var tab=state.tbTab||"check",nl=state.lang==="nl";
+ var tabs=[["check","tb_check"],["mx","tb_mxl"],["spf","tb_spf"],["dmarc","tb_dmarc"],["bl","tb_bl"]].map(function(x){return '<button type="button" role="tab" data-tbtab="'+x[0]+'" aria-selected="'+(tab===x[0])+'">'+t(x[1])+'</button>'}).join("");
+ var dsel='<select class="select inline" id="tbDomain">'+DOMAINS.map(function(d){return '<option '+(d.d===state.tbDomain?"selected":"")+'>'+d.d+'</option>'}).join("")+'</select>';
+ var body="";
+ if(tab==="check"){
+  var d=DOMAINS.filter(function(x){return x.d===(state.tbDomain||DOMAINS[0].d)})[0]||DOMAINS[0];
+  var res=[["tb_mx","ok","10 mailfilter01.rhis.nl."],["c_spf",d.spf,d.spf==="ok"?"v=spf1 include:_spf.mailfilter.rhis.nl include:spf.protection.outlook.com ~all":d.spf==="weak"?"v=spf1 a mx +all":"—"],["c_dkim",d.dkim,d.dkim==="ok"?t("dkim_match"):t("dkim_nomatch")],["c_dmarc",d.dmarc,d.dmarc==="ok"?"v=DMARC1; p=quarantine; rua=mailto:dmarc@mailfilter.rhis.nl":d.dmarc==="weak"?"v=DMARC1; p=none":"—"],["tb_ptr","ok","203.0.113.10 → mailfilter01.rhis.nl · 2a02:58:1f:10::25 → mailfilter01.rhis.nl"],["tb_mtasts","missing","—"],["tb_tlsrpt","missing","—"]];
+  body='<div class="filters">'+dsel+'<button class="btn dark" type="button" data-toast="saved">'+ic("refresh")+t("tb_run")+'</button><span class="tag lucht" style="margin-left:auto">'+ic("integrations",'style="width:13px;height:13px;vertical-align:-2px"')+' '+t("cf")+'</span></div><div class="card-body" style="padding-block:4px">'+res.map(function(r){var st=r[1]==="ok"?'<span class="status s-ok" style="padding:4px">'+ic("check")+'</span>':r[1]==="weak"?'<span class="status s-warn" style="padding:4px">'+ic("clock")+'</span>':'<span class="status s-bad" style="padding:4px">'+ic("x")+'</span>';return '<div class="list-row">'+st+'<div class="grow"><b style="font-weight:650">'+t(r[0])+'</b><div class="mono cell-sub" style="word-break:break-all">'+esc(r[2])+'</div></div>'+(r[1]!=="ok"?'<button class="btn small" type="button" data-toast="cf_published">'+ic("integrations")+t("cf_pub")+'</button>':'')+'</div>'}).join("")+'</div>';
+ } else if(tab==="mx"){
+  var q=state.mxq||"bouwbedrijf-hoorn.nl";
+  var mx=[[10,"mx1.bouwbedrijf-hoorn.nl","192.0.2.120","2001:db8:120::25",1,1,"ok"],[20,"mx2.bouwbedrijf-hoorn.nl","192.0.2.121","—",1,0,"bad"]];
+  body='<form class="filters" id="mxForm"><label class="search" style="max-width:none;flex:1 1 260px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mxQ" value="'+esc(q)+'" placeholder="'+t("mx_any")+'" aria-label="'+t("mx_any")+'"></label><button class="btn dark" type="submit">'+t("tb_run")+'</button></form>'+
+  '<div class="tbl-wrap"><table><thead><tr><th>'+t("mx_prio")+'</th><th>'+t("mx_host")+'</th><th>'+t("mx_ips")+'</th><th>'+t("mx_smtp")+'</th><th>'+t("mx_tls")+'</th><th>'+t("mx_ptr")+'</th></tr></thead><tbody>'+mx.map(function(r){function y(v){return v?'<span class="status s-ok" style="padding:3px">'+ic("check")+'</span>':'<span class="status s-bad" style="padding:3px">'+ic("x")+'</span>'}return '<tr><td class="num">'+r[0]+'</td><td class="mono">'+r[1]+'</td><td class="mono cell-sub">'+r[2]+'<br>'+r[3]+'</td><td>'+y(r[4])+'</td><td>'+y(r[5])+'</td><td>'+y(r[6]==="ok")+'</td></tr>'}).join("")+'</tbody></table></div>'+
+  '<div class="card-body" style="border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px"><div class="list-row" style="padding:4px 0;border:0"><span class="status s-ok" style="padding:3px">'+ic("check")+'</span><span>SPF: <span class="mono">v=spf1 mx include:spf.transip.email ~all</span></span></div><div class="list-row" style="padding:4px 0;border:0"><span class="status s-warn" style="padding:3px">'+ic("clock")+'</span><span>DMARC: <span class="mono">v=DMARC1; p=none</span> '+(nl?"(alleen monitoren)":"(monitor only)")+'</span></div><div class="list-row" style="padding:4px 0;border:0"><span class="status s-bad" style="padding:3px">'+ic("x")+'</span><span>'+(nl?"mx2 heeft geen STARTTLS en geen PTR-record. Mail naar mx2 gaat onversleuteld.":"mx2 has no STARTTLS and no PTR record. Mail to mx2 travels unencrypted.")+'</span></div></div>';
+ } else if(tab==="bl"){
+  var lists=[["Spamhaus ZEN","zen.spamhaus.org",0],["Barracuda","b.barracudacentral.org",1],["SpamCop","bl.spamcop.net",0],["UCEPROTECT L1","dnsbl-1.uceprotect.net",0],["Mailspike","bl.mailspike.net",0],["PSBL","psbl.surriel.com",0],["Spamhaus (IPv6)","zen.spamhaus.org",0]];
+  body='<div class="card-body" style="display:flex;flex-direction:column;gap:6px"><b style="font-weight:700">'+t("bl_title")+'</b><span class="cell-sub">'+t("bl_sub")+'</span><span class="mono cell-sub">203.0.113.10 · 2a02:58:1f:10::25 · '+t("bl_lastcheck")+' 23:45</span></div><div class="tbl-wrap"><table><tbody>'+lists.map(function(l){return '<tr><td class="cell-main">'+l[0]+'</td><td class="mono cell-sub">'+l[1]+(l[0].indexOf("IPv6")>0?' · 2a02:58:1f:10::25':' · 203.0.113.10')+'</td><td>'+(l[2]?'<span class="status s-bad">'+ic("x")+t("bl_listed")+'</span>':'<span class="status s-ok">'+ic("check")+t("bl_clean")+'</span>')+'</td><td>'+(l[2]?'<a class="btn small" href="https://www.barracudacentral.org/rbl/removal-request" target="_blank" rel="noopener">'+t("bl_delist")+'</a>':'')+'</td></tr>'}).join("")+'</tbody></table></div><div class="card-body" style="border-top:1px solid var(--line)"><button class="btn dark" type="button" data-toast="saved">'+ic("refresh")+t("bl_checknow")+'</button></div>';
+ } else if(tab==="spf"){
+  body='<div class="card-body grid halves"><div style="display:flex;flex-direction:column;gap:14px"><div class="field"><label for="tbDomain">'+t("c_domain")+'</label>'+dsel.replace('inline','')+'</div>'+
+  [["spfMf","spf_inc_mf",1],["spfM365","spf_inc_m365",1],["spfG","spf_inc_google",0]].map(function(x){return '<label class="check"><input type="checkbox" id="'+x[0]+'" data-spf '+(x[2]?"checked":"")+'><span>'+t(x[1])+'</span></label>'}).join("")+
+  '<div class="field"><label for="spfIp4">'+t("spf_ip4")+'</label><input class="input mono" id="spfIp4" data-spf placeholder="203.0.113.25 198.51.100.0/24"></div>'+
+  '<div class="field"><label for="spfIp6">'+t("spf_ip6")+'</label><input class="input mono" id="spfIp6" data-spf placeholder="2a02:58:1f:42::/64"></div>'+
+  '<div class="field"><label for="spfAll">'+t("spf_all")+'</label><select class="select" id="spfAll" data-spf><option value="~all">'+t("spf_soft")+'</option><option value="-all">'+t("spf_hard")+'</option></select></div></div>'+
+  '<div style="display:flex;flex-direction:column;gap:14px;min-width:0"><div class="field"><label>'+t("result")+'</label><code class="mono" id="spfOut" style="display:block;background:var(--surface-sunk);padding:12px;border-radius:var(--r-sm);word-break:break-all"></code><span class="hint" id="spfLook"></span></div>'+
+  '<div class="callout">'+ic("info")+'<div><b>'+t("spf_merge")+'</b><br><span class="cell-sub">'+t("spf_merge_d")+'</span><dl class="kv" style="margin-top:10px;grid-template-columns:110px minmax(0,1fr)"><dt>'+t("dns_cur")+'</dt><dd class="mono" style="font-size:12px">v=spf1 include:spf.protection.outlook.com -all</dd><dt>'+t("dns_new")+'</dt><dd class="mono" style="font-size:12px">v=spf1 <b style="color:var(--ok)">include:_spf.mailfilter.rhis.nl</b> include:spf.protection.outlook.com -all</dd></dl></div></div>'+
+  '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" data-toast="cf_published">'+ic("integrations")+t("cf_pub")+'</button><button class="btn" type="button" data-copyspf>'+ic("copy")+t("copy")+'</button></div></div></div>';
+ } else {
+  body='<div class="card-body grid halves"><div style="display:flex;flex-direction:column;gap:14px"><div class="field"><label for="tbDomain">'+t("c_domain")+'</label>'+dsel.replace('inline','')+'</div>'+
+  '<div class="field"><label for="dmP">'+t("dm_policy")+'</label><select class="select" id="dmP" data-dm><option value="none">'+t("dm_none")+'</option><option value="quarantine" selected>'+t("dm_quar")+'</option><option value="reject">'+t("dm_reject")+'</option></select></div>'+
+  '<div class="field"><label for="dmPct">'+t("dm_pct")+' <output id="dmPctO">100</output>%</label><input type="range" id="dmPct" data-dm min="10" max="100" step="10" value="100" style="accent-color:var(--koraal)"></div>'+
+  '<div class="field"><label for="dmRua">'+t("dm_rua")+'</label><input class="input" id="dmRua" data-dm value="dmarc@mailfilter01.rhis.nl"></div>'+
+  '<div class="form-grid"><div class="field"><label for="dmA">'+t("dm_adkim")+'</label><select class="select" id="dmA" data-dm><option value="r">'+t("relaxed")+'</option><option value="s">'+t("strict")+'</option></select></div><div class="field"><label for="dmS">'+t("dm_aspf")+'</label><select class="select" id="dmS" data-dm><option value="r">'+t("relaxed")+'</option><option value="s">'+t("strict")+'</option></select></div></div></div>'+
+  '<div style="display:flex;flex-direction:column;gap:14px;min-width:0"><div class="field"><label>'+t("result")+' <span class="mono muted">_dmarc.'+esc(state.tbDomain||DOMAINS[0].d)+'</span></label><code class="mono" id="dmOut" style="display:block;background:var(--surface-sunk);padding:12px;border-radius:var(--r-sm);word-break:break-all"></code></div>'+
+  '<div class="callout">'+ic("info")+'<div>'+(nl?"Tip: begin met <b>none</b> en bekijk twee weken de rapporten. Mailfilter verwerkt ze zelf en toont welke servers namens je domein mailen. Ga daarna naar quarantaine en later naar weigeren.":"Tip: start with <b>none</b> and watch the reports for two weeks. Mailfilter processes them itself and shows which servers send mail for your domain. Then move to quarantine, and later to reject.")+'</div></div>'+
+  '<div><button class="btn primary" type="button" data-toast="cf_published">'+ic("integrations")+t("cf_pub")+'</button></div></div></div>';
+ }
+ return head("tb_title","tb_sub")+'<div class="card"><div class="tabs" role="tablist">'+tabs+'</div>'+body+'</div>';
+};
+VIEWS.integrations=function(){
+ var zones=DOMAINS.map(function(d){return '<div class="list-row"><span class="status s-ok" style="padding:4px">'+ic("check")+'</span><span class="grow">'+d.d+'</span><span class="cell-sub">DNS:Edit</span></div>'}).join("");
+ return head("int_title","int_sub")+
+ '<div class="card"><div class="card-head"><h2>'+t("cf")+'</h2><div class="right"><span class="status s-ok">'+ic("check")+t("cf_conn")+'</span></div></div><div class="card-body grid halves"><div style="display:flex;flex-direction:column;gap:14px"><div class="field"><label for="cfTok">'+t("cf_token")+'</label><input class="input mono" id="cfTok" type="password" value="xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off"><span class="hint">'+t("cf_token_d")+'</span></div><div style="display:flex;gap:8px"><button class="btn" type="button" data-toast="cf_conn">'+t("cf_test")+'</button><button class="btn primary" type="button" data-save>'+t("save")+'</button></div></div><div><div class="cell-sub" style="font-weight:650;margin-bottom:4px">'+t("cf_zones")+' · '+DOMAINS.length+'</div>'+zones+'</div></div></div>';
+};
+VIEWS.cluster=function(){
+ var nl=state.lang==="nl";
+ return head("cl_title","cl_sub")+
+ '<div class="callout warn">'+ic("info")+'<div>'+(nl?"<b>Latere versie.</b> Zo gaat het eruitzien; in versie 1 draait Mailfilter op één server.":"<b>Later version.</b> This is how it will look; version 1 runs on a single server.")+'</div></div>'+
+ '<div class="card"><div class="card-head"><h2>'+t("cl_title")+'</h2><div class="right"><button class="btn small" type="button">'+ic("plus")+t("cl_add")+'</button></div></div><div class="tbl-wrap"><table><thead><tr><th>'+t("cl_node")+'</th><th>'+t("cl_role")+'</th><th>'+t("c_status")+'</th><th>'+t("cl_sync")+'</th></tr></thead><tbody>'+
+ '<tr><td><span class="cell-main">mailfilter01.rhis.nl</span><div class="cell-sub mono">203.0.113.10 · 2a02:58:1f:10::25</div></td><td>'+t("cl_this")+'</td><td><span class="status s-ok">'+ic("check")+t("running")+'</span></td><td class="num">—</td></tr>'+
+ '<tr><td><span class="cell-main">mailfilter02.rhis.nl</span><div class="cell-sub mono">198.51.100.10 · 2a02:58:2e:10::25</div></td><td>'+t("cl_peer")+'</td><td><span class="status s-ok">'+ic("check")+t("running")+'</span></td><td class="num">23:41 (12 s)</td></tr>'+
+ '</tbody></table></div><div class="card-body" style="border-top:1px solid var(--line)"><dl class="kv"><dt>'+t("cl_what")+'</dt><dd>'+t("cl_what_v")+'</dd></dl></div></div>';
 };
 
 /* ---------- overlays ---------- */
@@ -763,12 +867,15 @@ function mailDrawer(id){
 function domainDrawer(i){
  var r=i==="new"?{d:"nieuwklant.nl",dest:"",cust:"",dkim:"missing",spf:"missing",dmarc:"missing"}:DOMAINS[+i];
  var nl=state.lang==="nl";
- var recs=[["TXT","mf2026._domainkey."+r.d,"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx3R…",r.dkim],["TXT",r.d,"v=spf1 include:_spf.mailfilter.rhis.nl ~all",r.spf],["TXT","_dmarc."+r.d,"v=DMARC1; p=quarantine; rua=mailto:dmarc@mailfilter.rhis.nl",r.dmarc],["MX",r.d,"10 mailfilter.rhis.nl.","ok"]];
- var dns=recs.map(function(x){return '<span class="tag">'+x[0]+'</span><div style="min-width:0"><div class="cell-sub mono" style="margin-bottom:4px">'+x[1]+'</div><code>'+x[2]+'</code></div><div style="display:flex;gap:6px;align-items:center">'+(x[3]==="ok"?'<span class="status s-ok" style="padding:3px">'+ic("check")+'</span>':'<span class="status s-bad" style="padding:3px">'+ic("x")+'</span>')+'<button class="btn small" type="button" data-copy="'+esc(x[2])+'" aria-label="'+t("copy")+'">'+ic("copy")+'</button></div>'}).join("");
+ var recs=[["TXT","mf2026._domainkey."+r.d,"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx3R…",r.dkim],["TXT",r.d,"v=spf1 include:_spf.mailfilter.rhis.nl ~all",r.spf],["TXT","_dmarc."+r.d,"v=DMARC1; p=quarantine; rua=mailto:dmarc@mailfilter.rhis.nl",r.dmarc],["MX",r.d,"10 mailfilter01.rhis.nl.","ok"]];
+ var dns=recs.map(function(x){var ok=x[3]==="ok";return '<span class="tag">'+x[0]+'</span><div style="min-width:0"><div class="cell-sub mono" style="margin-bottom:4px">'+x[1]+'</div><code>'+x[2]+'</code>'+(x[0]==="TXT"&&x[1].indexOf("_domainkey")>0?'<div class="cell-sub" style="margin-top:4px;color:'+(ok?"var(--ok)":"var(--bad)")+'">'+t(ok?"dkim_match":"dkim_nomatch")+'</div>':'')+'</div><div style="display:flex;gap:6px;align-items:center">'+(ok?'<span class="status s-ok" style="padding:3px">'+ic("check")+'</span>':'<button class="btn small" type="button" data-toast="cf_published">'+ic("integrations")+t("cf_pub")+'</button>')+'<button class="btn small" type="button" data-copy="'+esc(x[2])+'" aria-label="'+t("copy")+'">'+ic("copy")+'</button></div>'}).join("");
+ var gl=[["gl_c1",1],["gl_c2",1],["gl_c3",r.spf==="ok"],["gl_c4",r.dkim==="ok"],["gl_c5",1]];var allok=gl.every(function(g){return g[1]});
+ var golive='<div class="card" style="border-color:var(--accent)"><div class="card-head"><span class="status s-info" style="padding:4px">'+ic("rocket")+'</span><h2>'+t("golive")+'</h2></div><div class="card-body" style="display:flex;flex-direction:column;gap:12px"><p class="cell-sub" style="margin:0">'+t("golive_d")+'</p><div class="cell-sub" style="font-weight:650">'+t("golive_checks")+'</div>'+gl.map(function(g){return '<div style="display:flex;gap:8px;align-items:center">'+(g[1]?'<span class="status s-ok" style="padding:2px">'+ic("check")+'</span>':'<span class="status s-bad" style="padding:2px">'+ic("x")+'</span>')+'<span>'+t(g[0])+'</span></div>'}).join("")+'<dl class="kv" style="margin-top:4px"><dt>MX '+t("dns_cur")+'</dt><dd class="mono">10 pmg.rhis.nl.</dd><dt>MX '+t("dns_new")+'</dt><dd class="mono">10 mailfilter01.rhis.nl.</dd></dl><div><button class="btn primary" type="button" id="goLive" '+(allok?"":"disabled style=\"opacity:.5;cursor:not-allowed\"")+'>'+ic("rocket")+t("golive_btn")+'</button></div></div></div>';
  openDrawer('<div class="drawer-head"><div><div class="cell-sub">'+t("n_domains")+'</div><h2>'+(i==="new"?t("add_domain"):r.d)+'</h2></div>'+closeBtn()+'</div><div class="drawer-body">'+
  '<div class="form-grid"><div class="field"><label for="dName">'+t("c_domain")+'</label><input class="input" id="dName" value="'+r.d+'"></div><div class="field"><label for="dCust">'+t("c_customer")+'</label><select class="select" id="dCust">'+CUSTOMERS.map(function(c){return '<option '+(c.name===r.cust?"selected":"")+'>'+c.name+'</option>'}).join("")+'</select></div><div class="field full"><label for="dDest">'+t("c_dest")+'</label><input class="input mono" id="dDest" value="'+r.dest+'" placeholder="mail.klant.nl:25"><span class="hint">'+(nl?"De mailserver waar Mailfilter schone mail voor dit domein aflevert.":"The mail server Mailfilter delivers clean mail for this domain to.")+'</span></div></div>'+
- '<div><h3 style="margin:0 0 6px;font-size:14px">'+t("dns_title")+'</h3><p class="cell-sub" style="margin:0 0 12px">'+t("dns_help")+'</p><div class="dns">'+dns+'</div></div>'+
- '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" type="button" data-close>'+t("cancel")+'</button><button class="btn primary" type="button" data-toast="saved" data-close>'+t("save")+'</button></div></div>');
+ '<div><h3 style="margin:0 0 6px;font-size:14px;display:flex;gap:8px;align-items:center">'+t("dns_title")+' <span class="tag lucht">'+t("cf_zone")+'</span></h3><p class="cell-sub" style="margin:0 0 12px">'+t("dns_help")+'</p><div class="dns">'+dns+'</div></div>'+
+ (i==="new"?'':golive)+'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" type="button" data-close>'+t("cancel")+'</button><button class="btn primary" type="button" data-toast="saved" data-close>'+t("save")+'</button></div></div>');
+ var gb=document.getElementById("goLive");if(gb)gb.addEventListener("click",function(){if(this.disabled)return;this.outerHTML='<div class="callout">'+ic("check")+'<div><b>'+t("golive_done")+'</b><br><button class="btn small" type="button" data-toast="saved" style="margin-top:8px">'+t("rollback")+'</button></div></div>'});
 }
 function infoModal(){
  var nl=state.lang==="nl";
@@ -811,15 +918,24 @@ function render(){
 function bindView(){
  var ts=document.getElementById("traceSearch");if(ts){ts.addEventListener("input",function(){state.q=this.value;var pos=this.selectionStart;render();var n=document.getElementById("traceSearch");n.focus();n.setSelectionRange(pos,pos)})}
  var td=document.getElementById("traceDir");if(td)td.addEventListener("change",function(){state.traceDir=this.value;render()});
- var ip=document.getElementById("rIp");if(ip)ip.addEventListener("input",function(){var r=ipCheck(this.value),h=document.getElementById("rIpHint");this.classList.remove("ok","bad");if(!r){h.textContent=t("r_ip_hint");h.style.color=""}else if(r.ok){this.classList.add("ok");h.style.color="var(--ok)";h.textContent=r.net?t("r_valid_net")+" · "+r.hosts.toLocaleString(state.lang)+" "+t("r_hosts"):t("r_valid_ip")}else{this.classList.add("bad");h.style.color="var(--bad)";h.textContent=t("r_invalid")}});
+ var ip=document.getElementById("rIp");if(ip)ip.addEventListener("input",function(){var r=ipCheck(this.value),h=document.getElementById("rIpHint");this.classList.remove("ok","bad");if(!r){h.textContent=t("r_ip_hint");h.style.color=""}else if(r.ok){this.classList.add("ok");h.style.color="var(--ok)";h.textContent=r.v6?(r.net?t("r_valid_net")+" · IPv6 /"+r.prefix:(state.lang==="nl"?"Geldig IPv6-adres":"Valid IPv6 address")):r.net?t("r_valid_net")+" · "+r.hosts.toLocaleString(state.lang)+" "+t("r_hosts"):t("r_valid_ip")}else{this.classList.add("bad");h.style.color="var(--bad)";h.textContent=t("r_invalid")}});
  var rf=document.getElementById("relayForm");if(rf)rf.addEventListener("submit",function(e){e.preventDefault();var v=document.getElementById("rIp").value,r=ipCheck(v);if(!r||!r.ok){var i=document.getElementById("rIp");i.classList.add("bad");i.focus();document.getElementById("rIpHint").textContent=t("r_invalid");document.getElementById("rIpHint").style.color="var(--bad)";return}RELAYS.unshift({ip:v.trim(),desc:document.getElementById("rDesc").value||"—",cust:document.getElementById("rCust").value,last:"",sent:"0",tls:document.getElementById("rTls").checked});state.relayTab="ip";render();toast(t("added")+": "+v.trim())});
  var ms=document.getElementById("msForm");if(ms)ms.addEventListener("submit",function(e){e.preventDefault();toast(t("saved"))});
  document.querySelectorAll("input[type=range][data-out]").forEach(function(r){r.addEventListener("input",function(){document.getElementById(this.getAttribute("data-out")).textContent=this.value})});
+ function spfBuild(){var o=document.getElementById("spfOut");if(!o)return;var parts=["v=spf1"],look=0;if(document.getElementById("spfMf").checked){parts.push("include:_spf.mailfilter.rhis.nl");look+=1}if(document.getElementById("spfM365").checked){parts.push("include:spf.protection.outlook.com");look+=2}if(document.getElementById("spfG").checked){parts.push("include:_spf.google.com");look+=4}document.getElementById("spfIp4").value.split(/[\s,]+/).filter(Boolean).forEach(function(x){parts.push("ip4:"+x)});document.getElementById("spfIp6").value.split(/[\s,]+/).filter(Boolean).forEach(function(x){parts.push("ip6:"+x)});parts.push(document.getElementById("spfAll").value);o.textContent=parts.join(" ");var lk=document.getElementById("spfLook");lk.textContent=t("spf_lookups")+": "+look+" / 10";lk.style.color=look>10?"var(--bad)":""}
+ function dmBuild(){var o=document.getElementById("dmOut");if(!o)return;var pct=document.getElementById("dmPct").value;document.getElementById("dmPctO").textContent=pct;var r="v=DMARC1; p="+document.getElementById("dmP").value+(pct!=="100"?"; pct="+pct:"")+"; rua=mailto:"+document.getElementById("dmRua").value+"; adkim="+document.getElementById("dmA").value+"; aspf="+document.getElementById("dmS").value;o.textContent=r}
+ document.querySelectorAll("[data-spf]").forEach(function(e){e.addEventListener("input",spfBuild);e.addEventListener("change",spfBuild)});spfBuild();
+ document.querySelectorAll("[data-dm]").forEach(function(e){e.addEventListener("input",dmBuild);e.addEventListener("change",dmBuild)});dmBuild();
+ var mf=document.getElementById("mxForm");if(mf)mf.addEventListener("submit",function(e){e.preventDefault();state.mxq=document.getElementById("mxQ").value;render()});
+ var tbd=document.getElementById("tbDomain");if(tbd)tbd.addEventListener("change",function(){state.tbDomain=this.value;render()});
  var lp=document.getElementById("logPause");if(lp)lp.addEventListener("click",function(){state.logPaused=!state.logPaused;render()});
 }
 document.addEventListener("click",function(e){
- var el=e.target.closest("[data-mail],[data-tf],[data-qtab],[data-rtab],[data-q],[data-dom],[data-close],[data-toast],[data-copy],[data-flush],[data-save],[data-restore],[data-rdel],[data-lang]");if(!el)return;
+ var el=e.target.closest("[data-tbtab-go],[data-tbtab],[data-copyspf],[data-mail],[data-tf],[data-qtab],[data-rtab],[data-q],[data-dom],[data-close],[data-toast],[data-copy],[data-flush],[data-save],[data-restore],[data-rdel],[data-lang]");if(!el)return;
  if(el.hasAttribute("data-lang")){state.lang=el.getAttribute("data-lang");store.set("mf-lang",state.lang);closeOverlay();render();return}
+ if(el.hasAttribute("data-tbtab-go")){state.tbTab=el.getAttribute("data-tbtab-go");return}
+ if(el.hasAttribute("data-tbtab")){state.tbTab=el.getAttribute("data-tbtab");return render()}
+ if(el.hasAttribute("data-copyspf")){var sv=document.getElementById("spfOut").textContent;try{navigator.clipboard.writeText(sv).then(function(){toast(t("copied"))},function(){toast(sv)})}catch(_){toast(sv)}return}
  if(el.hasAttribute("data-mail"))return mailDrawer(el.getAttribute("data-mail"));
  if(el.hasAttribute("data-tf")){state.traceFilter=el.getAttribute("data-tf");return render()}
  if(el.hasAttribute("data-qtab")){state.qTab=el.getAttribute("data-qtab");return render()}
