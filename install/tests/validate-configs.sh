@@ -52,6 +52,21 @@ check "rspamd quarantine action known" bash -c 'rspamadm configdump actions 2>/d
 
 render "$TPL/dovecot/dovecot.conf" /etc/dovecot/dovecot.conf
 check "doveconf -n" doveconf -n
+# Start Dovecot for real: some errors only show at start-up, not in doveconf
+install -d /etc/mailfilter /var/spool/postfix/private
+printf 'web01@example.nl:%s\n' "$(doveadm pw -s SHA512-CRYPT -p secret)" >/etc/mailfilter/smtp-users
+chown root:dovecot /etc/mailfilter/smtp-users; chmod 0640 /etc/mailfilter/smtp-users
+# shellcheck disable=SC2329  # called through check()
+dovecot_runs() {
+  dovecot -F -o log_path=/dev/stderr >/tmp/dovecot.log 2>&1 &
+  local pid=$! ok=1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -S /var/spool/postfix/private/auth ]] && { ok=0; break; }; sleep 0.5; done
+  kill -0 "$pid" 2>/dev/null || ok=1
+  cat /tmp/dovecot.log
+  kill "$pid" 2>/dev/null || true
+  return "$ok"
+}
+check "dovecot starts and opens the Postfix auth socket" dovecot_runs
 
 render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.conf
 install -d /var/lib/unbound
