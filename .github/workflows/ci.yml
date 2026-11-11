@@ -44,3 +44,13 @@ jobs:
         run: bash install/tests/validate-configs.sh
       - name: Apply a sample gateway configuration
         run: bash backend/mailfilter_config/tests/integration.sh
+  pmg-import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Proxmox Mail Gateway import tests
+        working-directory: backend
+        run: python3 -m unittest discover -s mailfilter_pmg/tests -t . -v

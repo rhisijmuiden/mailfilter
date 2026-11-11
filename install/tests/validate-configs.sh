@@ -22,7 +22,7 @@ check() { local name=$1; shift; if "$@" >/tmp/check.out 2>&1; then echo "PASS $n
 
 HOSTNAME=mailfilter01.example.nl
 EXTRA_RELAY_LISTENERS="2525      inet  n       -       y       -       -       smtpd
-  -o syslog_name=postfix/relay-2525
+  -o syslog_name=postfix/port-2525
   -o smtpd_sasl_auth_enable=yes
   -o smtpd_client_restrictions=permit_mynetworks,permit_sasl_authenticated,reject"
 install -d /etc/mailfilter/postfix /etc/mailfilter/rspamd /var/lib/rspamd/dkim
