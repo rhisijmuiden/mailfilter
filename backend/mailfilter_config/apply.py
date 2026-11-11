@@ -8,12 +8,14 @@ a bad change never reaches the running mail flow.
 from __future__ import annotations
 
 import fcntl
+import shutil
 import json
 import os
 import subprocess
 import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Callable, Sequence
 
 from .model import GatewayConfig
@@ -21,6 +23,8 @@ from .render import MANAGED_PARAM_PREFIXES, render, splice_master_cf
 from .validate import check
 
 STATE_FILE = "/etc/mailfilter/gateway.json"
+DKIM_DIR = "/var/lib/rspamd/dkim"
+DKIM_MAP = "/etc/mailfilter/rspamd/dkim_selectors.map"
 MASTER_CF = "/etc/postfix/master.cf"
 LOCK_FILE = "/run/mailfilter-config.lock"
 
@@ -130,14 +134,15 @@ class Applier:
             res = self.run_cmd(("postconf", "-h", "myhostname"))
             if res.returncode == 0:
                 cfg.hostname = res.stdout.strip()
-        if not cfg.own_addresses:
-            res = self.run_cmd(("ip", "-j", "addr", "show"))
-            if res.returncode == 0:
-                try:
-                    cfg.own_addresses = [a["local"] for i in json.loads(res.stdout)
-                                         for a in i.get("addr_info", []) if a.get("local")]
-                except (ValueError, KeyError, TypeError):
-                    pass
+        # Always add this server's own addresses, also when the caller gave some.
+        res = self.run_cmd(("ip", "-j", "addr", "show"))
+        if res.returncode == 0:
+            try:
+                local = [a["local"] for i in json.loads(res.stdout)
+                         for a in i.get("addr_info", []) if a.get("local")]
+            except (ValueError, KeyError, TypeError):
+                local = []
+            cfg.own_addresses = list(dict.fromkeys([*cfg.own_addresses, *local]))
 
     # ---- main entry --------------------------------------------------------------
     def apply(self, cfg: GatewayConfig, save_state: bool = True) -> Report:
@@ -179,9 +184,40 @@ class Applier:
                 raise
 
             report.changed, report.params_set, report.params_removed = changed, to_set, to_remove
+            self._ensure_dkim_keys(cfg, report)
             if self.reload:
                 self._reload(r.relay_ports, changed, report)
         return report
+
+    def _ensure_dkim_keys(self, cfg: GatewayConfig, report: Report) -> None:
+        """Give every domain a DKIM key, like the installer does for the first one.
+
+        Key: /var/lib/rspamd/dkim/<domain>.<selector>.key (owner _rspamd, 0640),
+        selector in dkim_selectors.map, DNS record in /etc/mailfilter/dkim-<domain>.<selector>.txt
+        (group mailfilter, for the DNS toolbox). Existing keys are never replaced;
+        a failure is a warning, it does not stop mail routing."""
+        current = self.read(DKIM_MAP) or ""
+        have = {ln.split()[0] for ln in current.splitlines() if ln.strip() and not ln.startswith("#")}
+        selector = f"mf{datetime.now(timezone.utc).year}"
+        added = []
+        for d in cfg.domains:
+            if not d.enabled or d.name in have:
+                continue
+            key = f"{DKIM_DIR}/{d.name}.{selector}.key"
+            txt = f"/etc/mailfilter/dkim-{d.name}.{selector}.txt"
+            if not os.path.exists(self.path(key)):
+                res = self.run_cmd(("rspamadm", "dkim_keygen", "-b", "2048", "-s", selector, "-d", d.name,
+                                    "-k", self.path(key)))
+                if res.returncode != 0:
+                    report.warnings.append(f"DKIM key for {d.name} could not be created: {(res.stderr or '').strip()}")
+                    continue
+                self.write(txt, res.stdout or "")
+                _chown(self.path(key), "_rspamd", "_rspamd", 0o640)
+                _chown(self.path(txt), "root", "mailfilter", 0o640)
+            added.append(f"{d.name} {selector}\n")
+        if added:
+            self.write(DKIM_MAP, current + ("" if not current or current.endswith("\n") else "\n") + "".join(added))
+            report.changed.append(DKIM_MAP)
 
     def _postconf_warnings(self) -> set[str]:
         res = self.run_cmd(("postconf", "-n"))
@@ -220,6 +256,15 @@ class Applier:
                 report.warnings.append(
                     "The firewall has no relay_ports set yet; re-run the installer to open "
                     + ", ".join(map(str, ports)) + ".")
+
+
+def _chown(path: str, user: str, group: str, mode: int) -> None:
+    try:
+        os.chmod(path, mode)
+        if os.geteuid() == 0:
+            shutil.chown(path, user, group)
+    except (OSError, LookupError):
+        pass
 
 
 def load_state(path: str = STATE_FILE) -> GatewayConfig:

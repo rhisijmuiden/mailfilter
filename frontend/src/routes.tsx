@@ -4,9 +4,12 @@ import type { Me } from "./lib/auth";
 import Account from "./pages/Account";
 import Backups from "./pages/Backups";
 import Dashboard from "./pages/Dashboard";
+import Domains from "./pages/Domains";
 import Dns from "./pages/Dns";
 import MailSending from "./pages/MailSending";
 import Quarantine from "./pages/Quarantine";
+import RelayAccess from "./pages/RelayAccess";
+import Throttling from "./pages/Throttling";
 import Trace from "./pages/Trace";
 import Users from "./pages/Users";
 
@@ -17,6 +20,9 @@ export const ROUTES: AppRoute[] = [
   { path: "/trace", element: () => <Trace /> },
   { path: "/quarantine", element: (me) => <Quarantine me={me} /> },
   { path: "/account", element: (me) => <Account me={me} /> },
+  { path: "/domains", element: (me) => <Domains me={me} /> },
+  { path: "/relay", element: (me) => <RelayAccess me={me} /> },
+  { path: "/throttling", element: () => <Throttling />, adminOnly: true },
   { path: "/users", element: () => <Users />, adminOnly: true },
   { path: "/dns", element: () => <Dns />, adminOnly: true },
   { path: "/system/mail", element: () => <MailSending />, adminOnly: true },

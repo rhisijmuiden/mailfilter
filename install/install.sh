@@ -74,7 +74,7 @@ printf '%sInstalls an inbound and outbound mail filter gateway on this server.%s
 # ---------------------------------------------------------------------------
 step "Checking this server"
 [[ $EUID -eq 0 ]] || die "Run this installer as root (sudo)."
-install -d -m 0750 "$MF_ETC"; : >>"$MF_LOG"; chmod 0600 "$MF_LOG"
+install -d -m 0751 "$MF_ETC"; : >>"$MF_LOG"; chmod 0600 "$MF_LOG"
 # shellcheck disable=SC1091
 source /etc/os-release
 [[ ${ID:-} == debian && ${VERSION_ID:-} == 13 ]] || die "This installer needs Debian 13 (trixie). Found: ${PRETTY_NAME:-unknown}."
