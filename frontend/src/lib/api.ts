@@ -1,7 +1,8 @@
 // Small fetch wrapper. Every state-changing request carries X-Requested-With,
 // which the backend requires (CSRF protection on top of SameSite cookies).
 export class ApiError extends Error {
-  constructor(public status: number, public code: string) {
+  // info: the structured detail some endpoints return, e.g. { code, problems: [...] }
+  constructor(public status: number, public code: string, public info?: any) {
     super(code);
   }
 }
@@ -19,9 +20,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const detail = typeof data?.detail === "string" ? data.detail : res.status === 422 ? "invalid_input" : "error";
+    const structured = data?.detail && typeof data.detail === "object" && typeof data.detail.code === "string" ? data.detail : undefined;
+    const detail = typeof data?.detail === "string" ? data.detail : structured ? structured.code : res.status === 422 ? "invalid_input" : "error";
     if (res.status === 401 && path !== "/auth/login" && path !== "/auth/me") window.dispatchEvent(new Event("mf:logged-out"));
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, structured);
   }
   return data as T;
 }

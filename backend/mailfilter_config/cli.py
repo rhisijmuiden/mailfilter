@@ -1,7 +1,7 @@
 """mailfilter-config: apply domains, relay access and throttling to this server.
 
-  mailfilter-config apply   [--state FILE] [--no-reload] [--json]
-  mailfilter-config check   [--state FILE] [--json]
+  mailfilter-config apply   [--state FILE | --stdin] [--no-reload] [--json]
+  mailfilter-config check   [--state FILE | --stdin] [--json]
   mailfilter-config render  [--state FILE] --out DIR
   mailfilter-config seed    [--relay-net CIDR]... [--relay-port PORT]...
                             [--domain NAME --destination HOST[:PORT]] [--no-reload]
@@ -85,6 +85,8 @@ def main(argv: list[str] | None = None) -> int:
         sp = sub.add_parser(name)
         sp.add_argument("--state", default=STATE_FILE)
         sp.add_argument("--json", action="store_true")
+        if name in ("apply", "check"):
+            sp.add_argument("--stdin", action="store_true", help="read the configuration as JSON from stdin")
         if name in ("apply", "seed"):
             sp.add_argument("--no-reload", action="store_true", help="write and check, but do not reload services")
         if name == "render":
@@ -110,6 +112,19 @@ def main(argv: list[str] | None = None) -> int:
             if not args.destination:
                 ap.error("--domain needs --destination")
             cfg.domains.append(Domain(name=args.domain, destinations=[parse_destination(args.destination)]))
+    elif getattr(args, "stdin", False):
+        raw = sys.stdin.read(4_000_001)
+        if len(raw) > 4_000_000:
+            print("✗ Configuration is too large", file=sys.stderr)
+            return 1
+        try:
+            cfg = GatewayConfig.from_json(raw)
+        except (ValueError, TypeError, KeyError) as e:
+            if args.json:
+                print(json.dumps({"ok": False, "step": "input", "output": str(e)}))
+            else:
+                print(f"✗ Not a valid configuration: {e}", file=sys.stderr)
+            return 1
     else:
         cfg = load_state(args.state)
 
@@ -143,6 +158,12 @@ def main(argv: list[str] | None = None) -> int:
         report = applier.apply(cfg)
     except ConfigError as e:
         _print_problems(e.problems, args.json)
+        return 1
+    except (ValueError, TypeError) as e:
+        if args.json:
+            print(json.dumps({"ok": False, "step": "input", "output": str(e)}))
+        else:
+            print(f"✗ Not a valid configuration: {e}", file=sys.stderr)
         return 1
     except ApplyError as e:
         if args.json:
