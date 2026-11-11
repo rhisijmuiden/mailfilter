@@ -21,6 +21,7 @@ fail=0
 check() { local name=$1; shift; if "$@" >/tmp/check.out 2>&1; then echo "PASS $name"; else echo "FAIL $name"; sed 's/^/     /' /tmp/check.out | head -40; fail=1; fi; }
 
 HOSTNAME=mailfilter01.example.nl
+MF_SRC=$SRC
 install -d /etc/mailfilter/postfix /etc/mailfilter/rspamd /etc/mailfilter/nftables /var/lib/rspamd/dkim
 # The same empty files the installer creates; mailfilter-config fills them further down
 touch /etc/mailfilter/relay_networks.list /etc/mailfilter/nftables/relay_ports.nft /etc/mailfilter/rspamd/local_addrs.map

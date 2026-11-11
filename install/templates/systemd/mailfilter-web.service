@@ -1,0 +1,22 @@
+# Managed by Mailfilter. The web app API; Caddy serves the frontend and proxies /api here.
+[Unit]
+Description=Mailfilter web app
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/var/lib/mailfilter/venv/bin/uvicorn mailfilter.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header
+Restart=on-failure
+RestartSec=3
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,72 @@
+{
+  "app": { "product": "Mailfilter", "skip": "Naar inhoud" },
+  "nav": {
+    "group": { "overview": "Overzicht", "mail": "Mailverkeer", "config": "Configuratie", "system": "Systeem" },
+    "dashboard": "Dashboard",
+    "users": "Gebruikers",
+    "account": "Mijn account",
+    "menu": "Menu"
+  },
+  "common": {
+    "save": "Opslaan", "cancel": "Annuleren", "delete": "Verwijderen", "edit": "Bewerken", "close": "Sluiten", "add": "Toevoegen",
+    "loading": "Laden…", "saved": "Opgeslagen", "error": "Er ging iets mis. Probeer het opnieuw.", "yes": "Ja", "no": "Nee",
+    "never": "Nooit", "search": "Zoeken", "copy": "Kopiëren", "copied": "Gekopieerd", "theme": "Licht of donker", "language": "Taal",
+    "logout": "Uitloggen", "none": "Geen", "back": "Terug", "refresh": "Vernieuwen"
+  },
+  "errors": {
+    "bad_credentials": "E-mailadres of wachtwoord klopt niet.",
+    "too_many_attempts": "Te veel pogingen. Wacht 15 minuten en probeer het opnieuw.",
+    "wrong_current_password": "Je huidige wachtwoord klopt niet.",
+    "email_exists": "Er bestaat al een gebruiker met dit e-mailadres.",
+    "cannot_demote_self": "Je kunt je eigen beheerrechten niet afnemen of jezelf uitschakelen.",
+    "cannot_delete_self": "Je kunt je eigen account niet verwijderen.",
+    "admin_only": "Alleen beheerders kunnen dit doen.",
+    "invalid_input": "Niet alle velden zijn goed ingevuld.",
+    "not_found": "Niet gevonden.",
+    "unknown_domain": "Onbekend domein: {{value}}",
+    "error": "Er ging iets mis. Probeer het opnieuw."
+  },
+  "login": {
+    "title": "Inloggen",
+    "sub": "Log in om mailverkeer, quarantaine en instellingen te beheren.",
+    "email": "E-mailadres", "password": "Wachtwoord", "submit": "Inloggen", "busy": "Bezig met inloggen…",
+    "forgot": "Wachtwoord vergeten? Vraag je beheerder om een nieuw wachtwoord."
+  },
+  "info": {
+    "title": "Over Mailfilter", "version": "Versie", "branch": "Kanaal", "host": "Server", "app": "Web app",
+    "production": "Productie", "test": "Test",
+    "updates_soon": "Controleren op updates en updaten vanuit dit scherm komt in de volgende release."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welkom, {{name}}",
+    "sub_admin": "Alles wat door de gateway ging. Mailtrace en quarantaine vullen zich zodra er mail binnenkomt.",
+    "sub_customer": "Mail voor jouw domeinen: {{domains}}.",
+    "next": "Aan de slag",
+    "next_users": "Voeg gebruikers toe en koppel klanten aan hun domeinen",
+    "next_trace": "Zoek elk bericht op in Mailtrace",
+    "next_quarantine": "Geef berichten vrij of blokkeer ze in Quarantaine"
+  },
+  "account": {
+    "title": "Mijn account", "sub": "Je naam, taal en wachtwoord.",
+    "profile": "Profiel", "name": "Naam", "email": "E-mailadres", "language": "Taal",
+    "password": "Wachtwoord wijzigen", "current": "Huidig wachtwoord", "new": "Nieuw wachtwoord", "repeat": "Herhaal nieuw wachtwoord",
+    "mismatch": "De nieuwe wachtwoorden zijn niet gelijk.", "min": "Minimaal 10 tekens.", "changed": "Wachtwoord gewijzigd. Andere sessies zijn uitgelogd.",
+    "domains": "Jouw domeinen", "role": "Rol"
+  },
+  "users": {
+    "title": "Gebruikers", "sub": "Beheerders beheren alles. Klanten zien alleen mail van de domeinen die aan hen gekoppeld zijn.",
+    "add": "Gebruiker toevoegen", "edit": "Gebruiker bewerken", "email": "E-mailadres", "name": "Naam", "role": "Rol",
+    "admin": "Beheerder", "customer": "Klant", "domains": "Domeinen", "all_domains": "Alle domeinen", "last_login": "Laatst ingelogd",
+    "active": "Actief", "inactive": "Uitgeschakeld", "language": "Taal",
+    "password": "Wachtwoord", "password_hint": "Laat leeg om er een te laten maken. Minimaal 10 tekens.",
+    "password_keep": "Laat leeg om het huidige wachtwoord te houden.",
+    "generated": "Gebruiker aangemaakt. Geef dit wachtwoord door; het wordt maar één keer getoond:",
+    "delete_confirm": "{{email}} verwijderen? Deze gebruiker kan dan niet meer inloggen.",
+    "domains_hint": "Klanten zien alleen mail van en naar deze domeinen.",
+    "no_domains": "Nog geen domeinen. Voeg eerst domeinen toe onder Domeinen.",
+    "empty": "Nog geen gebruikers."
+  },
+  "lang": { "en": "English", "nl": "Nederlands" },
+  "notfound": { "title": "Pagina niet gevonden", "home": "Naar dashboard" }
+}
