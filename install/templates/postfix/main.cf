@@ -100,3 +100,13 @@ bounce_queue_lifetime = 5d
 minimal_backoff_time = 300s
 maximal_backoff_time = 1800s
 queue_run_delay = 300s
+
+# Friendly bounce messages (English and Dutch)
+bounce_template_file = /etc/mailfilter/postfix/bounce.cf
+delay_warning_time = 4h
+
+# Backscatter and loop protection: reject at the door instead of bouncing later
+# (see reject_unverified_recipient above), and stop mail that loops between servers.
+hopcount_limit = 30
+smtpd_reject_unlisted_recipient = yes
+notify_classes = resource, software

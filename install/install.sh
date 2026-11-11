@@ -169,6 +169,7 @@ fi
 { echo "# Generated from $NETS_FILE"; grep -v '^\s*\(#\|$\)' "$NETS_FILE" | awk '{print $1" OK"}'; } >"$MF_ETC/postfix/relay_networks.cidr"
 { echo "# Generated from $NETS_FILE"; echo "127.0.0.0/8"; echo "::1"; grep -v '^\s*\(#\|$\)' "$NETS_FILE"; } >"$MF_ETC/rspamd/local_addrs.map"
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
+cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
 ok "$(grep -vc '^\s*\(#\|$\)' "$NETS_FILE" || true) relay network(s), $(grep -c . "$MF_ETC/postfix/relay_domains" || true) domain(s)"
 
 # ---------------------------------------------------------------------------
