@@ -3,11 +3,13 @@
 // shown as "current / new" first and can be undone from the change log.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, Lock, Pencil, Plus, RefreshCw, Rocket, Save, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { Card, ErrorText, Field, Loading, Modal, PageHead, formatDate, useToast } from "../components/ui";
 import { ApiError, api } from "../lib/api";
+
+const BimiTab = lazy(() => import("./DnsBimi"));
 
 // --- types -----------------------------------------------------------------
 
@@ -21,7 +23,7 @@ type MxRow = { priority: number; host: string };
 type MxCloudflare = { domain: string; zone: string; managed: boolean; hostname: string; mx_priority: number; golive: GoLiveState; records: MxRow[] };
 type Server = { hostname: string; addresses: string[]; spf_name: string; spf_include: string; domains: string[] };
 export type CfStatus = { configured: boolean; status: string | null; zones: string[] };
-export type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx" | "mta_sts" | "tls_rpt" | "tlsa" | "dmarc_rua" | "dmarc_policy" | "dmarc_auth";
+export type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx" | "mta_sts" | "tls_rpt" | "tlsa" | "dmarc_rua" | "dmarc_policy" | "dmarc_auth" | "bimi";
 type Smtp = { reachable: boolean; starttls: boolean; tls_ok: boolean; error: string; cert: { matches: boolean; days_left: number | null } | null } | null;
 type MxResult = {
   domain: string; null_mx: boolean; implicit: boolean; error: string;
@@ -36,7 +38,7 @@ export type Blacklist = {
 };
 type Journal = { time: string; batch: string; actor: string; domain: string; action: string; reason: string; before: Rec | null; after: Rec | null; undo?: string }[];
 
-const TABS = ["check", "mx", "spf", "dmarc", "tls", "blacklist", "cloudflare", "journal"] as const;
+const TABS = ["check", "mx", "spf", "dmarc", "tls", "bimi", "blacklist", "cloudflare", "journal"] as const;
 type Tab = (typeof TABS)[number];
 
 // --- small parts -------------------------------------------------------------
@@ -120,6 +122,7 @@ export default function Dns() {
           {tab === "spf" && <SpfTab />}
           {tab === "dmarc" && <DmarcTab />}
           {tab === "tls" && <TlsTab />}
+          {tab === "bimi" && <Suspense fallback={<Loading />}><BimiTab /></Suspense>}
           {tab === "blacklist" && <BlacklistTab />}
           {tab === "cloudflare" && <CloudflareTab />}
           {tab === "journal" && <JournalTab />}

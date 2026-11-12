@@ -15,7 +15,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from mailfilter_dns import blacklist, dkim, dmarc, domaincheck, golive, lookup, publish, spf, tlssec
+from mailfilter_dns import bimi, blacklist, dkim, dmarc, domaincheck, golive, lookup, publish, spf, tlssec
 from mailfilter_dns.cloudflare import Cloudflare, CloudflareError
 from mailfilter_dns.config import ServerConfig, relay_domains
 from mailfilter_dns.resolver import DnsError, DnsResolver, FreshTxt, Resolver, norm
@@ -304,7 +304,7 @@ class MxIn(BaseModel):
 
 
 class PublishIn(BaseModel):
-    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf", "mx", "mta_sts", "tls_rpt", "tlsa", "dmarc_rua", "dmarc_policy", "dmarc_auth"]
+    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf", "mx", "mta_sts", "tls_rpt", "tlsa", "dmarc_rua", "dmarc_policy", "dmarc_auth", "bimi"]
     domain: str | None = None
     value: str | None = Field(default=None, max_length=2000)
     mx: list[MxIn] = Field(default=[], max_length=10)
@@ -354,6 +354,11 @@ def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
             plan.changes.append(publish.plan_dmarc_merge(cf, zone, target, policy=body.value))
         elif body.kind == "dmarc_auth":
             plan.changes.append(publish.plan_report_auth(cf, zone, server.hostname))
+        elif body.kind == "bimi":
+            if bimi.read_file(target, "svg") is None:
+                raise HTTPException(status.HTTP_409_CONFLICT, "no_bimi_logo")
+            value = bimi.record_value(server.hostname, target, bimi.read_file(target, "pem") is not None)
+            plan.changes.extend(publish.plan_bimi(cf, zone, target, value))
         elif body.kind == "mx":
             if not body.mx:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "no_mx")
@@ -390,6 +395,8 @@ def _warnings(body: PublishIn, plan: publish.Plan) -> list[str]:
     server = get_server()
     if body.kind == "tlsa":
         return [] if tlssec.signed(server.hostname, get_resolver()) is not False else ["dnssec_off_host"]
+    if body.kind == "bimi":
+        return [f"bimi_{p.split(':')[0]}" for p in bimi.dmarc_check(plan.domain, get_resolver())["problems"][:1]]
     if body.kind != "mx":
         return []
     hosts = [norm(m.host) for m in body.mx]

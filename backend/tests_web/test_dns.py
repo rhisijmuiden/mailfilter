@@ -281,3 +281,53 @@ def test_dane_tlsa_publish_and_dnssec_warning(admin, env):
     assert admin.post("/api/dns/publish/plan", json=body).json()["warnings"] == []
     item = {i["code"]: i for i in admin.get("/api/dns/check/rhis.nl").json()["items"]}["dane"]
     assert item["status"] == "ok" and item["problems"] == []
+
+
+# --- BIMI ---------------------------------------------------------------------------------
+
+BIMI_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny-ps" viewBox="0 0 10 10">'
+            '<title>RHIS</title><rect width="10" height="10" fill="#123"/></svg>')
+
+
+@pytest.fixture
+def bimi_env(env, tmp_path, monkeypatch):
+    from mailfilter_dns import bimi
+
+    monkeypatch.setattr(bimi, "BIMI_DIR", tmp_path / "bimi")
+    env_resolver[0].records[("_dmarc.rhis.nl", "TXT")] = ["v=DMARC1; p=none"]
+    return env
+
+
+def test_bimi_logo_record_and_public_files(admin, customer, client, bimi_env):
+    assert customer.get("/api/bimi/status/rhis.nl").status_code == 403
+    assert admin.get("/api/bimi/status/example.org").json()["detail"] == "unknown_domain"
+    st = admin.get("/api/bimi/status/rhis.nl").json()
+    assert st["logo"] is None and st["dmarc"]["problems"] == ["dmarc_not_enforced:none"]
+
+    # An ordinary logo is refused, the converted version is accepted
+    plain = BIMI_SVG.replace(' version="1.2" baseProfile="tiny-ps"', "").replace("<title>RHIS</title>", "")
+    r = admin.put("/api/bimi/logo/rhis.nl", json={"svg": plain})
+    assert r.status_code == 400 and r.json()["detail"]["code"] == "svg_invalid"
+    chk = admin.post("/api/bimi/logo/rhis.nl/check", json={"svg": plain, "convert": True, "title": "RHIS"}).json()
+    assert chk["report"]["ok"] and "set_profile" in chk["changes"] and chk["svg"].startswith("<?xml")
+    st = admin.put("/api/bimi/logo/rhis.nl", json={"svg": plain, "convert": True, "title": "RHIS"}).json()
+    assert st["logo"]["report"]["ok"] and st["expected"] == "v=BIMI1; l=https://mailfilter.rhis.nl/api/bimi/rhis.nl.svg;"
+    assert admin.get("/api/bimi/domains").json()[0] == {"domain": "klant.nl", "logo": False, "cert": False}
+
+    # Public: no login, served as an image
+    r = client.get("/api/bimi/rhis.nl.svg")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/svg+xml" and b"tiny-ps" in r.content
+    assert client.get("/api/bimi/rhis.nl.pem").status_code == 404
+    assert client.get("/api/bimi/..%2Fetc.svg").status_code == 404
+
+    # Publish through the DNS toolbox, with a warning while DMARC is not enforced
+    admin.put("/api/dns/cloudflare", json={"token": TOKEN})
+    plan = admin.post("/api/dns/publish/plan", json={"kind": "bimi", "domain": "rhis.nl"}).json()
+    assert plan["warnings"] == ["bimi_dmarc_not_enforced"]
+    assert plan["changes"][0]["after"]["content"] == st["expected"] and plan["changes"][0]["name"] == "default._bimi.rhis.nl"
+    assert admin.post("/api/dns/publish/apply", json={"kind": "bimi", "domain": "rhis.nl"}).status_code == 200
+    assert bimi_env.find("default._bimi.rhis.nl", "TXT")[0]["content"].strip('"') == st["expected"]
+
+    assert admin.delete("/api/bimi/logo/rhis.nl").json()["logo"] is None
+    assert admin.post("/api/dns/publish/plan", json={"kind": "bimi", "domain": "rhis.nl"}).json()["detail"] == "no_bimi_logo"
+    assert admin.put("/api/bimi/cert/rhis.nl", json={"pem": "nope"}).json()["detail"] == {"code": "cert_invalid", "problems": ["not_pem"]}
