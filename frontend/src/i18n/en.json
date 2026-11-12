@@ -13,6 +13,7 @@
     "dashboard": "Dashboard",
     "users": "Users",
     "account": "My account",
+    "import_pmg": "Import from PMG",
     "menu": "Menu",
     "trace": "Mail trace",
     "quarantine": "Quarantine",
@@ -57,6 +58,11 @@
     "invalid_input": "Some fields are not filled in correctly.",
     "not_found": "Not found.",
     "unknown_domain": "Unknown domain: {{value}}",
+    "pmg_bad_backup": "This is not a PMG backup Mailfilter can read: {{value}}",
+    "pmg_too_large": "The file is too large.",
+    "pmg_empty": "The file is empty.",
+    "pmg_nothing_selected": "Select at least one item.",
+    "pmg_job_failed": "The import job did not run: {{value}}",
     "error": "Something went wrong. Try again.",
     "cloudflare_not_configured": "Connect Cloudflare first (DNS toolbox, Cloudflare tab).",
     "cloudflare_denied": "Cloudflare refused the request. Check the token's permissions.",
@@ -826,5 +832,112 @@
     "modern_auth": "SMTP AUTH; the password is stored encrypted",
     "modern_headers": "Date, Message-ID and Auto-Submitted headers, so autoresponders do not reply",
     "modern_local": "Default route through the gateway itself, with DKIM signing"
+  },
+  "pmg": {
+    "list": {
+      "welcome": "Allow",
+      "block": "Block"
+    },
+    "kind": {
+      "email": "address",
+      "domain": "domain",
+      "ip": "IP address",
+      "network": "network",
+      "regex": "pattern",
+      "receiver": "recipient",
+      "receiver_domain": "recipient domain",
+      "receiver_regex": "recipient pattern"
+    },
+    "scope_smtp": "before filtering",
+    "scope_user": "personal list of {{user}}",
+    "title": "Import from Proxmox Mail Gateway",
+    "sub": "Take over domains, relay access, allow and block lists and DKIM from your PMG. You see everything first and choose what to import.",
+    "step1": "1. Make a backup in PMG",
+    "how1": "Open the PMG web interface and go to Administration → Backup/Restore.",
+    "how2": "Click \"Backup now\" (statistics are not needed).",
+    "how3": "Download the new pmg-backup_….tgz file.",
+    "how_cli": "Or on the PMG server:",
+    "step2": "2. Upload the backup",
+    "drop": "Drop the backup file here or click to choose",
+    "read": "Read backup",
+    "reading": "Reading…",
+    "nothing_changes": "Reading changes nothing yet.",
+    "found": "{{product}} {{version}}, backup made {{time}}.",
+    "kpi": {
+      "domains": "Domains",
+      "relay_networks": "Relay networks",
+      "welcomelist": "Allow list",
+      "blocklist": "Block list",
+      "dkim_domains": "DKIM domains",
+      "rules_to_review": "Rules to check"
+    },
+    "warnings": "Not taken over automatically",
+    "tab": {
+      "domains": "Domains",
+      "relay_networks": "May relay",
+      "address_routes": "Address routes",
+      "tls_policies": "TLS",
+      "lists": "Allow and block",
+      "dkim": "DKIM",
+      "rules": "PMG rules",
+      "settings": "Settings"
+    },
+    "help": {
+      "domains": "Domains Mailfilter accepts mail for, with the server mail is delivered to.",
+      "relay_networks": "IP addresses and networks that may send mail out through Mailfilter (PMG: Trusted Networks).",
+      "address_routes": "Single addresses or other domains that go to their own server.",
+      "tls_policies": "Destinations that require an encrypted connection.",
+      "lists": "Senders that are always let through (allow) or always refused (block).",
+      "dkim": "PMG's DKIM key. Taking it over keeps the DKIM records in your DNS valid.",
+      "rules": "PMG filter rules are not converted. Mailfilter does the standard ones itself; check the others and rebuild them if you still need them.",
+      "settings": "Settings from PMG, for reference. Set them under Settings where you want the same values."
+    },
+    "col": {
+      "domains": "Domain",
+      "relay_networks": "Network",
+      "address_routes": "Address",
+      "tls_policies": "Destination",
+      "lists": "Entry",
+      "dkim": "Domain",
+      "detail": "Details",
+      "status": "Status",
+      "rule": "Rule",
+      "conditions": "Conditions and actions",
+      "mailfilter": "In Mailfilter"
+    },
+    "status": {
+      "new": "New",
+      "exists": "Already there",
+      "unsupported": "Not possible",
+      "problem": "Check"
+    },
+    "all_new": "Select all new",
+    "none": "Select none",
+    "import": "Import",
+    "priority": "priority",
+    "active": "active",
+    "inactive": "not active",
+    "dir": {
+      "in": "incoming",
+      "out": "outgoing",
+      "both": "in and out"
+    },
+    "cond": {
+      "from": "From",
+      "to": "To",
+      "what": "What",
+      "when": "When",
+      "action": "Action"
+    },
+    "manual": "Check by hand",
+    "apply": "Import {{count}} selected",
+    "applying": "Importing…",
+    "confirm": "Import {{count}} items into this Mailfilter? Postfix and Rspamd are checked before anything goes live.",
+    "discard": "Discard upload",
+    "safe": "Everything is checked first; if a check fails, nothing is changed.",
+    "done": "Import finished",
+    "done_toast": "Imported",
+    "failed": "Import not done, nothing was changed",
+    "nothing_new": "Nothing new to import."
   }
 }

@@ -1,0 +1,11 @@
+# Managed by Mailfilter. Applies Proxmox Mail Gateway imports queued by the web
+# interface (/var/lib/mailfilter/pmg-import). Runs as root outside the web app's
+# sandbox, because it writes Postfix and Rspamd configuration.
+[Unit]
+Description=Mailfilter: apply Proxmox Mail Gateway import
+After=postfix.service rspamd.service
+
+[Service]
+Type=oneshot
+ExecStart={{MF_SRC}}/backend/bin/mailfilter-pmg-import run-pending
+TimeoutStartSec=300

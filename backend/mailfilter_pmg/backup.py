@@ -43,11 +43,16 @@ CHECKSUMS = "proxmox_backup_v1.md5"
 
 # Files in /etc/pmg we know about but do not take over, with the reason shown to the admin
 NOT_IMPORTED = {
-    "user.conf": "PMG user accounts are not imported; create the accounts in Mailfilter (Users).",
-    "ldap.conf": "LDAP profiles are not supported by Mailfilter and were skipped.",
-    "fetchmailrc": "Fetchmail (POP3/IMAP fetching) is not supported by Mailfilter and was skipped.",
-    "pbs.conf": "Proxmox Backup Server targets are not imported; set up backups in Mailfilter (Backups).",
-    "cluster.conf": "PMG cluster settings are not imported; Mailfilter clustering is set up separately.",
+    "user.conf": ("PMG user accounts are not imported; create the accounts in Mailfilter (Users).",
+                  "Gebruikers uit PMG worden niet overgenomen; maak de accounts aan in Mailfilter (Gebruikers)."),
+    "ldap.conf": ("LDAP profiles are not supported by Mailfilter and were skipped.",
+                  "LDAP-profielen worden niet ondersteund door Mailfilter en zijn overgeslagen."),
+    "fetchmailrc": ("Fetchmail (POP3/IMAP fetching) is not supported by Mailfilter and was skipped.",
+                    "Fetchmail (ophalen via POP3/IMAP) wordt niet ondersteund door Mailfilter en is overgeslagen."),
+    "pbs.conf": ("Proxmox Backup Server targets are not imported; set up backups in Mailfilter (Backups).",
+                 "Proxmox Backup Server-doelen worden niet overgenomen; stel backups in Mailfilter in (Backups)."),
+    "cluster.conf": ("PMG cluster settings are not imported; Mailfilter clustering is set up separately.",
+                     "PMG-clusterinstellingen worden niet overgenomen; clustering van Mailfilter stel je apart in."),
 }
 
 
@@ -215,11 +220,13 @@ def read_backup(source: str | os.PathLike | BinaryIO) -> ImportPlan:
     for line in _text(outer.get(CHECKSUMS)).splitlines():
         parts = line.split()
         if len(parts) == 2 and parts[1] in outer and hashlib.md5(outer[parts[1]]).hexdigest() != parts[0]:
-            plan.warn("checksum", f"{parts[1]} does not match the checksum in the backup; the file may be damaged.")
+            plan.warn("checksum", f"{parts[1]} does not match the checksum in the backup; the file may be damaged.",
+                      f"{parts[1]} klopt niet met de controlesom in de backup; het bestand is mogelijk beschadigd.")
 
     files = _config_files(outer[CONFIG_TAR]) if CONFIG_TAR in outer else {}
     if not files:
-        plan.warn("no_config", "The backup has no /etc/pmg configuration; only the rule database was read.")
+        plan.warn("no_config", "The backup has no /etc/pmg configuration; only the rule database was read.",
+                  "De backup bevat geen configuratie uit /etc/pmg; alleen de regeldatabase is gelezen.")
 
     conf = parse_pmg_conf(_text(files.get("pmg.conf")))
     plan.raw_config = conf
@@ -229,7 +236,8 @@ def read_backup(source: str | os.PathLike | BinaryIO) -> ImportPlan:
 
     def bad_lines(fname: str, errors: list[str]) -> None:
         for line in errors:
-            plan.warn("parse_error", f"Line in {fname} could not be read and was skipped: {line!r}")
+            plan.warn("parse_error", f"Line in {fname} could not be read and was skipped: {line!r}",
+                      f"Regel in {fname} kon niet worden gelezen en is overgeslagen: {line!r}")
 
     # Relay domains + transports
     domains, errors = parse_domains(_text(files.get("domains")))
@@ -260,7 +268,8 @@ def read_backup(source: str | os.PathLike | BinaryIO) -> ImportPlan:
         seen.add(name)
         transport = by_match.pop(name, None) or default_transport
         if transport is None:
-            plan.warn("no_transport", f"Domain {name} has no transport and PMG has no default relay; set one after import.")
+            plan.warn("no_transport", f"Domain {name} has no transport and PMG has no default relay; set one after import.",
+                      f"Domein {name} heeft geen transport en PMG heeft geen standaard-relay; stel er een in na de import.")
         plan.domains.append(
             Domain(
                 name=name,
@@ -294,24 +303,28 @@ def read_backup(source: str | os.PathLike | BinaryIO) -> ImportPlan:
             domains=dkim_domains,
         )
         if not _flag(admin, "dkim_sign", False):
-            plan.warn("dkim_off", "DKIM signing was switched off in PMG; the key is imported but signing stays off.")
+            plan.warn("dkim_off", "DKIM signing was switched off in PMG; check DKIM after importing the key.",
+                      "DKIM-ondertekening stond uit in PMG; controleer DKIM nadat je de sleutel hebt overgenomen.")
         if selector and not key:
-            plan.warn("dkim_key_missing", f"The DKIM key for selector '{selector}' is not in the backup; a new key is needed.")
+            plan.warn("dkim_key_missing", f"The DKIM key for selector '{selector}' is not in the backup; a new key is needed.",
+                      f"De DKIM-sleutel voor selector '{selector}' zit niet in de backup; er is een nieuwe sleutel nodig.")
 
     # Rule database
     if RULEDB in outer:
         apply_ruledb(plan, parse_copy_dump(_text(outer[RULEDB])))
     else:
-        plan.warn("no_ruledb", "The backup has no rule database; welcome/blocklists were not imported.")
+        plan.warn("no_ruledb", "The backup has no rule database; welcome/blocklists were not imported.",
+                  "De backup bevat geen regeldatabase; welcome- en blocklists zijn niet overgenomen.")
 
-    for fname, reason in NOT_IMPORTED.items():
+    for fname, (reason, reason_nl) in NOT_IMPORTED.items():
         if files.get(fname, b"").strip():
-            plan.warn(f"skipped_{fname.split('.')[0]}", reason)
+            plan.warn(f"skipped_{fname.split('.')[0]}", reason, reason_nl)
     custom_sa = _text(files.get("spamassassin/custom.cf"))
     if any(line.strip() and not line.lstrip().startswith("#") for line in custom_sa.splitlines()):
         plan.warn(
             "custom_spamassassin",
             "PMG has custom SpamAssassin rules (custom.cf). Mailfilter uses Rspamd; these were not converted.",
+            "PMG heeft eigen SpamAssassin-regels (custom.cf). Mailfilter gebruikt Rspamd; deze zijn niet omgezet.",
         )
 
     return plan

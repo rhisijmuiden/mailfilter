@@ -1,6 +1,6 @@
 // The left menu. Each feature adds its entries here; `group` decides the section.
 import type { LucideIcon } from "lucide-react";
-import { AtSign, DatabaseBackup, Gauge, Globe, LayoutDashboard, Network, Search, Send, ShieldAlert, Users } from "lucide-react";
+import { AtSign, DatabaseBackup, FileInput, Gauge, Globe, LayoutDashboard, Network, Search, Send, ShieldAlert, Users } from "lucide-react";
 
 export type NavGroup = "overview" | "mail" | "config" | "system";
 
@@ -27,4 +27,5 @@ export const NAV: NavItem[] = [
   { to: "/users", label: "nav.users", icon: Users, group: "system", adminOnly: true },
   { to: "/system/mail", label: "nav.mail_sending", icon: Send, group: "system", adminOnly: true },
   { to: "/system/backups", label: "nav.backups", icon: DatabaseBackup, group: "system", adminOnly: true },
+  { to: "/system/import-pmg", label: "nav.import_pmg", icon: FileInput, group: "system", adminOnly: true },
 ];

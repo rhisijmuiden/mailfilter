@@ -13,6 +13,7 @@
     "dashboard": "Dashboard",
     "users": "Gebruikers",
     "account": "Mijn account",
+    "import_pmg": "Import uit PMG",
     "menu": "Menu",
     "trace": "Mailtrace",
     "quarantine": "Quarantaine",
@@ -57,6 +58,11 @@
     "invalid_input": "Niet alle velden zijn goed ingevuld.",
     "not_found": "Niet gevonden.",
     "unknown_domain": "Onbekend domein: {{value}}",
+    "pmg_bad_backup": "Dit is geen PMG-backup die Mailfilter kan lezen: {{value}}",
+    "pmg_too_large": "Het bestand is te groot.",
+    "pmg_empty": "Het bestand is leeg.",
+    "pmg_nothing_selected": "Kies minstens één item.",
+    "pmg_job_failed": "De importjob is niet gelukt: {{value}}",
     "error": "Er ging iets mis. Probeer het opnieuw.",
     "cloudflare_not_configured": "Koppel eerst Cloudflare (DNS-toolbox, tabblad Cloudflare).",
     "cloudflare_denied": "Cloudflare weigerde het verzoek. Controleer de rechten van het token.",
@@ -826,5 +832,112 @@
     "modern_auth": "SMTP AUTH; het wachtwoord wordt versleuteld opgeslagen",
     "modern_headers": "Date-, Message-ID- en Auto-Submitted-headers, zodat autoreplies niet terugschrijven",
     "modern_local": "Standaard via de gateway zelf, met DKIM-ondertekening"
+  },
+  "pmg": {
+    "list": {
+      "welcome": "Toestaan",
+      "block": "Blokkeren"
+    },
+    "kind": {
+      "email": "adres",
+      "domain": "domein",
+      "ip": "IP-adres",
+      "network": "netwerk",
+      "regex": "patroon",
+      "receiver": "ontvanger",
+      "receiver_domain": "ontvangerdomein",
+      "receiver_regex": "ontvangerpatroon"
+    },
+    "scope_smtp": "vóór het filteren",
+    "scope_user": "persoonlijke lijst van {{user}}",
+    "title": "Importeren uit Proxmox Mail Gateway",
+    "sub": "Neem domeinen, relay-toegang, allow- en blocklists en DKIM over uit je PMG. Je ziet eerst alles en kiest zelf wat je importeert.",
+    "step1": "1. Maak een backup in PMG",
+    "how1": "Open de webinterface van PMG en ga naar Administration → Backup/Restore.",
+    "how2": "Klik op \"Backup now\" (statistieken zijn niet nodig).",
+    "how3": "Download het nieuwe bestand pmg-backup_….tgz.",
+    "how_cli": "Of op de PMG-server:",
+    "step2": "2. Upload de backup",
+    "drop": "Sleep het backupbestand hierheen of klik om te kiezen",
+    "read": "Backup inlezen",
+    "reading": "Inlezen…",
+    "nothing_changes": "Inlezen verandert nog niets.",
+    "found": "{{product}} {{version}}, backup gemaakt op {{time}}.",
+    "kpi": {
+      "domains": "Domeinen",
+      "relay_networks": "Relay-netwerken",
+      "welcomelist": "Allowlist",
+      "blocklist": "Blocklist",
+      "dkim_domains": "DKIM-domeinen",
+      "rules_to_review": "Regels nalopen"
+    },
+    "warnings": "Wordt niet automatisch overgenomen",
+    "tab": {
+      "domains": "Domeinen",
+      "relay_networks": "Mag relayen",
+      "address_routes": "Adresroutes",
+      "tls_policies": "TLS",
+      "lists": "Allow en block",
+      "dkim": "DKIM",
+      "rules": "PMG-regels",
+      "settings": "Instellingen"
+    },
+    "help": {
+      "domains": "Domeinen waarvoor Mailfilter mail aanneemt, met de server waar de mail heen gaat.",
+      "relay_networks": "IP-adressen en netwerken die mail via Mailfilter naar buiten mogen sturen (PMG: Trusted Networks).",
+      "address_routes": "Losse adressen of andere domeinen die naar een eigen server gaan.",
+      "tls_policies": "Bestemmingen die een versleutelde verbinding eisen.",
+      "lists": "Afzenders die altijd worden doorgelaten (allow) of altijd geweigerd (block).",
+      "dkim": "De DKIM-sleutel uit PMG. Als je die overneemt, blijven de DKIM-records in je DNS geldig.",
+      "rules": "Filterregels uit PMG worden niet omgezet. Mailfilter doet de standaardregels zelf; loop de andere na en bouw ze opnieuw als je ze nog nodig hebt.",
+      "settings": "Instellingen uit PMG, ter info. Stel ze in onder Instellingen als je dezelfde waarden wilt."
+    },
+    "col": {
+      "domains": "Domein",
+      "relay_networks": "Netwerk",
+      "address_routes": "Adres",
+      "tls_policies": "Bestemming",
+      "lists": "Regel",
+      "dkim": "Domein",
+      "detail": "Details",
+      "status": "Status",
+      "rule": "Regel",
+      "conditions": "Voorwaarden en acties",
+      "mailfilter": "In Mailfilter"
+    },
+    "status": {
+      "new": "Nieuw",
+      "exists": "Bestaat al",
+      "unsupported": "Niet mogelijk",
+      "problem": "Nakijken"
+    },
+    "all_new": "Alle nieuwe kiezen",
+    "none": "Niets kiezen",
+    "import": "Importeren",
+    "priority": "prioriteit",
+    "active": "actief",
+    "inactive": "niet actief",
+    "dir": {
+      "in": "inkomend",
+      "out": "uitgaand",
+      "both": "in en uit"
+    },
+    "cond": {
+      "from": "Van",
+      "to": "Aan",
+      "what": "Wat",
+      "when": "Wanneer",
+      "action": "Actie"
+    },
+    "manual": "Met de hand nalopen",
+    "apply": "{{count}} gekozen items importeren",
+    "applying": "Importeren…",
+    "confirm": "{{count}} items in deze Mailfilter importeren? Postfix en Rspamd worden eerst gecontroleerd voordat iets live gaat.",
+    "discard": "Upload weggooien",
+    "safe": "Alles wordt eerst gecontroleerd; als een controle faalt, verandert er niets.",
+    "done": "Import klaar",
+    "done_toast": "Geïmporteerd",
+    "failed": "Import niet uitgevoerd, er is niets veranderd",
+    "nothing_new": "Niets nieuws om te importeren."
   }
 }
