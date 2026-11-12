@@ -59,6 +59,15 @@
     "refresh": "Vernieuwen"
   },
   "errors": {
+    "svg_invalid": "Dit logo is nog geen geldige SVG Tiny PS.",
+    "cert_invalid": "Dit certificaat is niet bruikbaar voor BIMI.",
+    "no_bimi_logo": "Upload eerst een logo.",
+    "no_logo_in_cert": "Er zit geen logo in het certificaat.",
+    "cannot_convert": "Dit logo kan niet automatisch worden omgezet ({{value}}). Vraag een ontwerper om een \"SVG Tiny PS\"-versie.",
+    "not_svg": "Dit bestand is geen SVG-afbeelding.",
+    "doctype": "Het bestand bevat een DOCTYPE of entities; dat mag niet.",
+    "not_xml": "Dit is geen geldig SVG-bestand (XML).",
+    "not_pem": "Dit is geen certificaatbestand (PEM).",
     "bad_code": "Die code klopt niet. Controleer de tijd op je telefoon en probeer het opnieuw.",
     "challenge_expired": "Het inloggen duurde te lang. Vul je wachtwoord opnieuw in.",
     "two_factor_already_enabled": "Tweestapsverificatie staat al aan.",
@@ -586,6 +595,7 @@
     "title": "DNS-toolbox",
     "sub": "Controleer de mail-DNS van een domein, maak SPF en DMARC, publiceer direct in Cloudflare en zet domeinen over naar Mailfilter.",
     "tab": {
+      "bimi": "BIMI-logo",
       "check": "Domein controleren",
       "mx": "MX-lookup",
       "spf": "SPF-generator",
@@ -642,6 +652,7 @@
       "none": "Geen wijziging"
     },
     "publish_title": {
+      "bimi": "BIMI-record publiceren",
       "spf": "Mailfilter toevoegen aan SPF",
       "spf_value": "SPF-record publiceren",
       "dkim": "DKIM-sleutel publiceren",
@@ -656,6 +667,7 @@
       "dmarc_auth": "Rapporten voor alle domeinen toestaan"
     },
     "publish_help": {
+      "bimi": "Schrijft default._bimi.<domein>: het record dat mailproviders vertelt waar je logo (en certificaat) staat. Mailfilter host beide bestanden zelf. Je kunt dit ongedaan maken in het wijzigingslog.",
       "spf": "Je huidige SPF-waarde blijft staan; Mailfilter voegt alleen zichzelf toe. Verder verandert er niets.",
       "spf_value": "Dit vervangt het SPF-record van het domein door de gemaakte waarde.",
       "dkim": "Publiceert de publieke sleutel waarmee Mailfilter uitgaande mail ondertekent.",
@@ -834,6 +846,11 @@
       "open": "Blacklistcontrole openen"
     },
     "warn": {
+      "bimi_dmarc_not_enforced": "DMARC van {{domain}} staat nog niet op quarantine of reject. Mailprogramma's negeren het BIMI-record tot dat wel zo is.",
+      "bimi_dmarc_missing": "{{domain}} heeft geen DMARC-record. Mailprogramma's negeren het BIMI-record tot DMARC op quarantine of reject staat.",
+      "bimi_dmarc_pct": "DMARC van {{domain}} geldt maar voor een deel van de mail (pct). BIMI heeft pct=100 nodig.",
+      "bimi_dmarc_sp_none": "DMARC van {{domain}} heeft sp=none voor subdomeinen. Voor BIMI moet dat ook quarantine of reject zijn.",
+      "bimi_dmarc_invalid": "Het DMARC-record van {{domain}} bevat een fout, dus BIMI werkt niet.",
       "not_relay_domain": "{{domain}} is nog geen relay-domein in Mailfilter, dus Mailfilter zou de mail weigeren. Voeg het domein eerst toe onder Domeinen.",
       "mx_leaves_mailfilter": "{{domain}} is live op Mailfilter, maar deze lijst wijst niet meer naar Mailfilter. Mail gaat dan langs het filter heen.",
       "dnssec_off_host": "De zone van de hostnaam van Mailfilter is niet ondertekend met DNSSEC. Verzenders negeren dit record tot DNSSEC aan staat."
@@ -890,6 +907,7 @@
       "publish_tlsa": "TLSA-record publiceren"
     }
   },
+  "bimi": {"help": "Met BIMI staat je logo naast je mail in Gmail, Apple Mail, Yahoo en andere. Mailfilter controleert wat er nog ontbreekt, zet je logo om, host de bestanden en publiceert het DNS-record.", "domain": "Domein", "no_domains": "Voeg eerst een domein toe.", "ready": {"title": "Wat is er nodig", "dmarc": "DMARC op quarantine of reject", "dmarc_help": "Mailprogramma's vertrouwen het logo alleen als DMARC nepmail tegenhoudt.", "logo": "Logo in SVG Tiny PS", "logo_help": "Een vierkante SVG in een speciaal, veilig formaat. Mailfilter kan de meeste logo's omzetten.", "record": "BIMI-record in DNS", "record_help": "default._bimi.<domein> vertelt mailprogramma's waar het logo staat.", "cert": "Merkcertificaat (VMC of CMC)", "cert_help": "Alleen nodig voor Gmail en Apple Mail. Je koopt het bij DigiCert, Sectigo, GlobalSign of Entrust.", "level_full": "Klaar voor iedereen", "level_basic": "Klaar, behalve Gmail/Apple", "level_none": "Nog niet klaar", "level_full_help": "Alles staat goed. Het kan een paar dagen duren voordat mailprogramma's het logo tonen.", "level_basic_help": "Yahoo, Fastmail en andere kunnen het logo nu tonen. Gmail en Apple Mail hebben ook een VMC of CMC nodig.", "level_none_help": "Loop de stappen hierboven door. Stap 1 tot en met 3 zijn gratis."}, "dmarc": {"title": "DMARC", "help": "BIMI vereist DMARC met p=quarantine of p=reject voor alle mail (pct=100). Zonder dat negeren mailprogramma's je logo.", "set_quarantine": "Op quarantine zetten", "set_reject": "Op reject zetten", "careful": "Zet DMARC pas strenger als alle echte afzenders (website, nieuwsbrief, facturatie) slagen. Kijk eerst op de pagina DMARC-rapporten.", "p": {"dmarc_missing": "Er is geen DMARC-record.", "dmarc_invalid": "Het DMARC-record bevat een fout.", "dmarc_not_enforced": "Het beleid is {{value}}; dat moet quarantine of reject zijn.", "dmarc_pct": "Maar {{value}}% van de mail valt onder het beleid; dat moet 100% zijn.", "dmarc_sp_none": "Subdomeinen hebben sp=none; haal dat weg of zet het op quarantine of reject."}}, "logo": {"title": "Logo", "help": "Upload je logo als SVG. Gebruik een vierkante versie met een effen achtergrondkleur: mailprogramma's tonen het in een cirkel. Mailfilter controleert het bestand en kan een gewone SVG omzetten naar SVG Tiny PS.", "square": "Bericht", "round": "Inbox", "small": "Klein", "name": "Naam in het logo", "size": "Grootte", "updated": "Bijgewerkt", "url": "Openbaar adres", "upload": "SVG uploaden", "replace": "Nieuwe SVG uploaden", "convert": "Automatisch omzetten", "save": "Logo opslaan", "remove": "Verwijderen", "remove_confirm": "Logo verwijderen? Als het BIMI-record gepubliceerd is, tonen mailprogramma's dan geen logo meer.", "removed": "Logo verwijderd", "valid": "Dit logo is een geldige SVG Tiny PS.", "converted_ok": "Omgezet. Kijk naar het voorbeeld: ziet het logo er nog goed uit?", "invalid": "Dit logo voldoet nog niet aan SVG Tiny PS:", "changes": "Wat er is aangepast", "title_field": "Bedrijfsnaam", "title_hint": "Komt als titel in het logo. Leeg: de domeinnaam."}, "svg": {"too_large": "Het bestand is {{value}} KB; maximaal 32 KB mag.", "doctype": "Bevat een DOCTYPE of entities.", "not_xml": "Geen geldig SVG-bestand.", "not_svg": "Geen SVG-afbeelding.", "version": "version=\"1.2\" ontbreekt op het svg-element.", "base_profile": "baseProfile=\"tiny-ps\" ontbreekt op het svg-element.", "root_xy": "Het svg-element mag geen x of y hebben.", "no_title": "Een <title> met de bedrijfsnaam ontbreekt.", "no_viewbox": "Een viewBox ontbreekt.", "not_square": "Het logo is niet vierkant.", "element": "Niet toegestaan: <{{value}}>.", "foreign_element": "Gegevens van een tekenprogramma (<{{value}}>) zijn niet toegestaan.", "script_attr": "Bevat script (on...-attributen).", "external_ref": "Verwijst naar bestanden elders op internet.", "style_attr": "Gebruikt style=\"...\" in plaats van gewone attributen.", "foreign_attr": "Bevat gegevens van Illustrator/Inkscape."}, "change": {"inlined_css": "CSS-stijlen omgezet naar gewone attributen", "dropped_css": "CSS die SVG Tiny niet kent verwijderd", "removed_editor_data": "Illustrator/Inkscape-gegevens verwijderd", "removed_script": "Scripts verwijderd", "removed_animation": "Animatie verwijderd", "removed_link": "Links verwijderd", "removed_root_xy": "Positie (x/y) verwijderd", "set_profile": "Gemarkeerd als SVG Tiny PS", "added_viewbox": "viewBox toegevoegd", "made_square": "Vierkant gemaakt (ruimte aan de zijkanten; een effen achtergrond oogt beter)", "added_title": "Titel toegevoegd"}, "cert": {"title": "Merkcertificaat (VMC of CMC)", "help": "Gmail en Apple Mail tonen je logo alleen met een merkcertificaat. Dat bewijst dat het logo van jou is en bevat het logo zelf. Upload het .pem-bestand dat je van de uitgever krijgt (met de volledige keten).", "vmc": "VMC (Verified Mark Certificate): voor een geregistreerd merk (beeldmerk) van je logo. Gmail toont een blauw vinkje.", "cmc": "CMC (Common Mark Certificate): geen merkregistratie nodig; het logo moet al minstens een jaar op je website staan. Gmail toont het logo zonder vinkje.", "none": "Geen", "kind": "Soort", "kind_vmc": "VMC", "kind_cmc": "CMC", "kind_unknown": "Onbekend", "org": "Organisatie", "issuer": "Uitgegeven door", "names": "Domeinen", "valid_until": "Geldig tot", "days_left": "nog {{n}} dagen", "upload": "Certificaat uploaden", "replace": "Nieuw certificaat uploaden", "save": "Certificaat opslaan", "remove": "Verwijderen", "remove_confirm": "Certificaat verwijderen? Gmail en Apple Mail tonen het logo dan niet meer.", "removed": "Certificaat verwijderd", "use_logo": "Logo uit certificaat gebruiken", "logo_used": "Het logo uit het certificaat wordt nu gebruikt"}, "certp": {"too_large": "Het bestand is te groot.", "not_pem": "Geen PEM-certificaatbestand.", "expired": "Het certificaat is verlopen.", "not_yet_valid": "Het certificaat is nog niet geldig.", "expires_soon": "Verloopt over {{value}} dagen; vernieuw het op tijd.", "no_bimi_eku": "Dit is geen BIMI-certificaat (het BIMI-gebruik ontbreekt).", "domain_mismatch": "Het certificaat is niet voor dit domein (maar voor {{value}}).", "no_logo": "Er zit geen logo in het certificaat.", "logo_differs": "Het logo in het certificaat wijkt af van het geüploade logo. Gmail wil dat ze gelijk zijn: gebruik het logo uit het certificaat.", "no_chain": "Alleen het certificaat zelf, zonder tussencertificaat. Download de volledige keten bij de uitgever."}, "record": {"title": "BIMI-record", "help": "Dit DNS-record vertelt mailprogramma's waar je logo en certificaat staan. Mailfilter serveert beide bestanden via HTTPS.", "expected": "Te publiceren record", "published": "Nu in DNS", "need_logo": "Upload eerst een geldig logo; dan staat het record klaar.", "status_ok": "Gepubliceerd", "status_missing": "Niet gepubliceerd", "status_different": "Wijkt af", "status_bad": "Meerdere records"}},
   "dmarc": {
     "title": "DMARC-rapporten",
     "sub_admin": "Wie er mailt namens je domeinen, of die mail DMARC doorstaat, en de volgende veilige stap richting p=reject.",
