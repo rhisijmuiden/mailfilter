@@ -70,6 +70,16 @@ def test_explanations_in_users_language(admin, customer, trace):
     assert en["explanation"]["title"] == "The mailbox does not exist."
 
 
+def test_spam_report(admin, customer, trace):
+    r = admin.get("/api/trace/CCC333").json()["report"]
+    g = {x["id"]: x for x in r["groups"]}
+    assert r["score"] == 11.2
+    assert g["content"]["status"] == "bad" and g["reputation"]["status"] == "bad" and g["auth"]["status"] == "ok"
+    nl = customer.get("/api/trace/CCC333").json()["report"]
+    assert next(x for x in nl["groups"] if x["id"] == "content")["items"][0]["label"].startswith("Lijkt op mail")
+    assert admin.get("/api/trace/BBB222").json()["report"] is None
+
+
 def test_route(admin, trace):
     route = admin.get("/api/trace/AAA111").json()["route"]
     assert [n["kind"] for n in route] == ["source", "filter", "destination"]

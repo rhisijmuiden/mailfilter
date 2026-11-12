@@ -3,6 +3,7 @@ import { Copy, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
+import { SpamReport } from "../components/SpamReport";
 import { Direction, Reason, RoutePicture, StatusPill } from "../components/TraceBits";
 import { Card, Drawer, Loading, PageHead, formatDate, useToast } from "../components/ui";
 import { api, qs } from "../lib/api";
@@ -139,7 +140,6 @@ export default function Trace() {
 function TraceDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const toast = useToast();
-  const [showTech, setShowTech] = useState(false);
   const d = useQuery({ queryKey: ["trace-detail", id], queryFn: () => api.get<Detail>(`/trace/${encodeURIComponent(id)}`) });
   const m = d.data;
   const copy = (v: string) => navigator.clipboard?.writeText(v).then(() => toast(t("common.copied")));
@@ -169,6 +169,7 @@ function TraceDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               </span>
             </div>
           ))}
+          <SpamReport m={m} />
           <div>
             <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>{t("trace.recipients")}</h3>
             {m.recipients.map((r) => (
@@ -207,28 +208,6 @@ function TraceDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             {m.parent && (<><dt>{t("trace.bounce_of")}</dt><dd><Link className="mono" to={`/trace?id=${m.parent}`}>{m.parent}</Link></dd></>)}
             {m.bounces.length > 0 && (<><dt>{t("trace.bounces")}</dt><dd>{m.bounces.map((b) => <Link key={b} className="mono" to={`/trace?id=${b}`} style={{ marginRight: 8 }}>{b}</Link>)}</dd></>)}
           </dl>
-          {m.symbols.length > 0 && (
-            <div>
-              <button className="btn small" onClick={() => setShowTech(!showTech)} aria-expanded={showTech}>
-                {showTech ? t("trace.hide_tech") : t("trace.show_tech")}
-              </button>
-              {showTech && (
-                <div className="tbl-wrap" style={{ marginTop: 10 }}>
-                  <table>
-                    <thead><tr><th>{t("trace.rule")}</th><th style={{ textAlign: "right" }}>{t("trace.score")}</th></tr></thead>
-                    <tbody>
-                      {m.symbols.map((s) => (
-                        <tr key={s.name}>
-                          <td className="mono">{s.name}</td>
-                          <td className="num" style={{ textAlign: "right", color: s.score > 0 ? "var(--bad)" : s.score < 0 ? "var(--ok)" : undefined }}>{Number(s.score).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </Drawer>
