@@ -180,13 +180,29 @@ class Cloudflare:
     def records(self, zone: Zone, *, name: str | None = None, type: str | None = None) -> list[DnsRecord]:
         params: dict[str, Any] = {}
         if name:
-            params["name"] = norm(name)
+            params["name.exact"] = norm(name)
         if type:
             params["type"] = type
-        return [DnsRecord.from_api(d) for d in self._paged(f"/zones/{zone.id}/dns_records", params)]
+        recs = [DnsRecord.from_api(d) for d in self._paged(f"/zones/{zone.id}/dns_records", params)]
+        # Filter here as well, so the result is right whatever the API does with the name filter
+        if name:
+            recs = [r for r in recs if r.name == norm(name)]
+        if type:
+            recs = [r for r in recs if r.type == type]
+        return recs
 
     def create(self, zone: Zone, rec: DnsRecord) -> DnsRecord:
-        return DnsRecord.from_api(self._req("POST", f"/zones/{zone.id}/dns_records", json=rec.body())["result"])
+        try:
+            return DnsRecord.from_api(self._req("POST", f"/zones/{zone.id}/dns_records", json=rec.body())["result"])
+        except CloudflareError as exc:
+            # 81057/81058: the record is already there. That is the result we wanted.
+            if not {81057, 81058} & set(exc.codes):
+                raise
+            same = [r for r in self.records(zone, name=rec.name, type=rec.type)
+                    if r.content == rec.content and (rec.priority is None or r.priority == rec.priority)]
+            if not same:
+                raise
+            return same[0]
 
     def update(self, zone: Zone, rec: DnsRecord) -> DnsRecord:
         if not rec.id:

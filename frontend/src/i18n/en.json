@@ -111,7 +111,8 @@
     "smtp_tls_certificate": "The server's certificate is not valid: {{value}}",
     "smtp_tls_failed": "Encrypted connection failed: {{value}}",
     "smtp_timeout": "The SMTP server did not answer in time.",
-    "smtp_connect_failed": "Could not connect to the SMTP server: {{value}}"
+    "smtp_connect_failed": "Could not connect to the SMTP server: {{value}}",
+    "golive_error": "The go-live checks failed: {{value}}"
   },
   "login": {
     "title": "Sign in",
@@ -432,6 +433,7 @@
       "tls_rpt": "TLS reporting (TLS-RPT)"
     },
     "status": {
+      "pending": "Published, waiting for DNS",
       "ok": "OK",
       "weak": "Weak",
       "missing": "Missing",
@@ -473,6 +475,7 @@
       "server_spf": "The shared record that lists all Mailfilter addresses. Domains include this name."
     },
     "problem": {
+      "waiting_for_dns": "Cloudflare already has this record. DNS servers can take up to 30 minutes to show it; nothing more to do.",
       "missing": "No record found.",
       "syntax": "The record has a syntax error.",
       "multiple_spf": "The domain has more than one SPF record; receivers treat that as an error. Remove all but one.",

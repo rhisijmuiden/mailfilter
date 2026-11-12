@@ -149,3 +149,23 @@ def test_blacklist_check_now(admin, customer, env):
 
 def test_cloudflare_class_is_real():
     assert dns_api.Cloudflare is Cloudflare
+
+
+def test_published_record_shows_as_waiting_for_dns(admin, env):
+    admin.put("/api/dns/cloudflare", json={"token": TOKEN})
+    value = "v=DMARC1; p=quarantine; rua=mailto:dmarc@rhis.nl"
+    assert admin.post("/api/dns/publish/apply", json={"kind": "dmarc", "domain": "rhis.nl", "value": value}).status_code == 200
+    # DNS (the resolver) does not have it yet; Cloudflare does
+    item = {i["code"]: i for i in admin.get("/api/dns/check/rhis.nl").json()["items"]}["dmarc"]
+    assert item["status"] == "pending" and item["value"] == value and item["problems"] == ["waiting_for_dns"]
+    # Publishing again is a no-op, not an error
+    plan = admin.post("/api/dns/publish/plan", json={"kind": "dmarc", "domain": "rhis.nl", "value": value}).json()
+    assert [c["action"] for c in plan["changes"]] == ["none"]
+
+
+def test_golive_status_error_shows_reason(admin, env, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("probe exploded: badly")
+    monkeypatch.setattr(golive, "preflight", boom)
+    r = admin.get("/api/dns/golive/rhis.nl")
+    assert r.status_code == 500 and r.json()["detail"].startswith("golive_error:RuntimeError probe exploded badly")

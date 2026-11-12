@@ -60,10 +60,14 @@ class FakeCloudflare:
             zid = parts[1]
             if req.method == "GET":
                 rs = [r for r in self.records.values() if r["zone_id"] == zid
-                      and (not q.get("name") or r["name"] == q["name"]) and (not q.get("type") or r["type"] == q["type"])]
+                      and (not q.get("name.exact") or r["name"] == q["name.exact"]) and (not q.get("type") or r["type"] == q["type"])]
                 return self._ok(rs, {"page": 1, "total_pages": 1})
             if req.method == "POST":
-                return self._ok(self.add(json.loads(req.content)))
+                new = json.loads(req.content)
+                for r in self.records.values():
+                    if r["zone_id"] == zid and r["type"] == new["type"] and r["name"] == new["name"] and r["content"] == new["content"]:
+                        return httpx.Response(400, json={"success": False, "errors": [{"code": 81058, "message": "An identical record already exists."}]})
+                return self._ok(self.add(new))
             rid = parts[3]
             if req.method == "PUT":
                 rec = {**json.loads(req.content), "id": rid, "zone_id": zid}
