@@ -47,6 +47,9 @@ class DnsRecord:
         content = d.get("content", "")
         if d.get("type") == "TXT":
             content = txt_value(content)
+        elif d.get("type") == "TLSA" and isinstance(d.get("data"), dict):
+            x = d["data"]
+            content = f"{x.get('usage')} {x.get('selector')} {x.get('matching_type')} {str(x.get('certificate', '')).lower()}"
         return cls(
             type=d["type"],
             name=norm(d["name"]),
@@ -62,6 +65,11 @@ class DnsRecord:
         b: dict[str, Any] = {"type": self.type, "name": self.name, "content": self.content, "ttl": self.ttl}
         if self.type == "TXT":
             b["content"] = txt_quote(self.content)
+        elif self.type == "TLSA":
+            usage, selector, mtype, cert = self.content.split(None, 3)
+            b.pop("content")
+            b["data"] = {"usage": int(usage), "selector": int(selector), "matching_type": int(mtype),
+                         "certificate": cert.replace(" ", "").lower()}
         if self.priority is not None:
             b["priority"] = self.priority
         if self.type in ("A", "AAAA", "CNAME"):

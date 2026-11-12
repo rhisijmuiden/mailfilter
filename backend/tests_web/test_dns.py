@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests" / "dns"))
 from fakecf import FakeCloudflare  # noqa: E402
 
 from mailfilter.api import dns as dns_api  # noqa: E402
-from mailfilter_dns import blacklist, golive, publish  # noqa: E402
+from mailfilter_dns import blacklist, golive, publish, tlssec  # noqa: E402
 from mailfilter_dns.cloudflare import Cloudflare  # noqa: E402
 from mailfilter_dns.config import ServerConfig  # noqa: E402
 from mailfilter_dns.probe import CertInfo, SmtpProbe  # noqa: E402
@@ -21,6 +21,8 @@ from mailfilter_dns.resolver import StaticResolver  # noqa: E402
 
 TOKEN = "good-token-0123456789abcdef"
 ACCOUNT_TOKEN = "account-token-0123456789abcdef"
+TLSA = "3 1 1 " + "ab" * 32
+env_resolver: list = [None]
 SERVER = ServerConfig("mailfilter.rhis.nl", ["203.0.113.10"], ["2a02:58:1f:10::25"], "_spf.mailfilter.rhis.nl")
 
 
@@ -56,6 +58,10 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(publish, "JOURNAL", tmp_path / "journal.jsonl")
     monkeypatch.setattr(golive, "GOLIVE_DIR", tmp_path / "golive")
     monkeypatch.setattr(blacklist, "STATUS_FILE", tmp_path / "blacklist.json")
+    monkeypatch.setattr(tlssec, "STS_FILE", tmp_path / "mta-sts.json")
+    monkeypatch.setattr(dns_api, "local_tlsa", lambda h: TLSA)
+    monkeypatch.setattr(dns_api, "fetch_sts_policy", lambda d: (_ for _ in ()).throw(OSError("no network in tests")))
+    env_resolver[0] = resolver
     return fake
 
 
@@ -199,3 +205,79 @@ def test_mx_editor_rejects_bad_input(admin, env, monkeypatch):
     assert plan([{"priority": 70000, "host": "a.rhis.nl"}]).status_code == 422
     monkeypatch.setattr(dns_api, "relay_domains", lambda: {})
     assert plan([{"priority": 10, "host": "mailfilter.rhis.nl"}]).json()["warnings"] == ["not_relay_domain"]
+
+
+def test_mta_sts_policy_hosting_and_publish(admin, client, env):
+    admin.put("/api/dns/cloudflare", json={"token": TOKEN})
+    st = admin.get("/api/dns/tls/rhis.nl").json()
+    assert st["policy"] is None and st["policy_default"]["mx"] == ["mailfilter.rhis.nl", "pmg.rhis.nl"]
+    # Publishing needs a saved policy first
+    assert admin.post("/api/dns/publish/plan", json={"kind": "mta_sts", "domain": "rhis.nl"}).json()["detail"] == "no_mta_sts_policy"
+    assert admin.put("/api/dns/mta-sts/example.org", json={"mx": ["mailfilter.rhis.nl"]}).json()["detail"] == "not_relay_domain"
+    assert admin.put("/api/dns/mta-sts/rhis.nl", json={"mx": ["bad host"]}).json()["detail"].startswith("invalid_mx_pattern")
+    pol = admin.put("/api/dns/mta-sts/rhis.nl", json={"mode": "testing", "mx": ["mailfilter.rhis.nl", "*.rhis.nl"]}).json()
+    # Served without login, only on mta-sts.<relay domain>
+    r = client.get("/api/mta-sts/policy", headers={"Host": "mta-sts.rhis.nl"})
+    assert r.status_code == 200 and r.text == "version: STSv1\r\nmode: testing\r\nmx: mailfilter.rhis.nl\r\nmx: *.rhis.nl\r\nmax_age: 604800\r\n"
+    assert client.get("/api/mta-sts/policy", headers={"Host": "mta-sts.example.org"}).status_code == 404
+    assert client.get("/api/mta-sts/allowed?domain=mta-sts.rhis.nl").status_code == 200
+    assert client.get("/api/mta-sts/allowed?domain=evil.example.org").status_code == 404
+    # DNS: CNAME for the policy host first, then the TXT with the id
+    body = {"kind": "mta_sts", "domain": "rhis.nl"}
+    plan = admin.post("/api/dns/publish/plan", json=body).json()
+    assert [(c["action"], c["type"]) for c in plan["changes"]] == [("create", "CNAME"), ("create", "TXT")]
+    assert admin.post("/api/dns/publish/apply", json=body).status_code == 200
+    [cname] = env.find("mta-sts.rhis.nl", "CNAME")
+    assert cname["content"] == "mailfilter.rhis.nl" and cname["proxied"] is False
+    assert env.find("_mta-sts.rhis.nl", "TXT")[0]["content"] == f'"v=STSv1; id={pol["id"]}"'
+    # Same policy: same id, nothing to publish. New mode: new id, TXT updated
+    assert admin.put("/api/dns/mta-sts/rhis.nl", json={"mode": "testing", "mx": ["mailfilter.rhis.nl", "*.rhis.nl"]}).json()["id"] == pol["id"]
+    assert {c["action"] for c in admin.post("/api/dns/publish/plan", json=body).json()["changes"]} == {"none"}
+    pol2 = admin.put("/api/dns/mta-sts/rhis.nl", json={"mode": "enforce", "mx": ["mailfilter.rhis.nl"]}).json()
+    assert pol2["id"] > pol["id"]
+    assert [c["action"] for c in admin.post("/api/dns/publish/plan", json=body).json()["changes"]] == ["none", "update"]
+
+
+def test_mta_sts_check_reads_policy(admin, env, monkeypatch):
+    r = env_resolver[0]
+    r.records[("_mta-sts.rhis.nl", "TXT")] = ["v=STSv1; id=20261112000000"]
+    monkeypatch.setattr(dns_api, "fetch_sts_policy", lambda d: "version: STSv1\nmode: testing\nmx: mailfilter.rhis.nl\nmax_age: 86400\n")
+    item = {i["code"]: i for i in admin.get("/api/dns/check/rhis.nl").json()["items"]}["mta_sts"]
+    assert item["status"] == "weak" and item["problems"] == ["mode_testing", "mx_not_in_policy:pmg.rhis.nl"]
+    monkeypatch.setattr(dns_api, "fetch_sts_policy", lambda d: (_ for _ in ()).throw(OSError("refused")))
+    item = {i["code"]: i for i in admin.get("/api/dns/check/rhis.nl").json()["items"]}["mta_sts"]
+    assert item["status"] == "bad" and item["problems"][0].startswith("policy_unreachable:OSError")
+
+
+def test_tls_rpt_publish(admin, env):
+    admin.put("/api/dns/cloudflare", json={"token": TOKEN})
+    assert admin.get("/api/dns/tls/rhis.nl").json()["tlsrpt_default"] == "tlsrpt@rhis.nl"
+    bad = admin.post("/api/dns/publish/plan", json={"kind": "tls_rpt", "domain": "rhis.nl", "value": "not-an-address"})
+    assert bad.status_code == 400 and bad.json()["detail"].startswith("invalid_email")
+    body = {"kind": "tls_rpt", "domain": "rhis.nl", "value": "tls@rhis.nl"}
+    [ch] = admin.post("/api/dns/publish/plan", json=body).json()["changes"]
+    assert ch["action"] == "create" and ch["after"]["content"] == "v=TLSRPTv1; rua=mailto:tls@rhis.nl"
+    assert admin.post("/api/dns/publish/apply", json=body).status_code == 200
+    assert env.find("_smtp._tls.rhis.nl", "TXT")
+
+
+def test_dane_tlsa_publish_and_dnssec_warning(admin, env):
+    admin.put("/api/dns/cloudflare", json={"token": TOKEN})
+    item = {i["code"]: i for i in admin.get("/api/dns/check/rhis.nl").json()["items"]}["dane"]
+    assert item["status"] == "missing" and item["fix"] == TLSA
+    assert "dnssec_off:mailfilter.rhis.nl" in item["problems"] and "dnssec_off:rhis.nl" in item["problems"]
+    env.add({"type": "TLSA", "name": "_25._tcp.mailfilter.rhis.nl", "data": {"usage": 3, "selector": 1, "matching_type": 1, "certificate": "00" * 32}})
+    body = {"kind": "tlsa"}
+    plan = admin.post("/api/dns/publish/plan", json=body).json()
+    assert plan["warnings"] == ["dnssec_off_host"]
+    assert [c["action"] for c in plan["changes"]] == ["create", "delete"]
+    assert admin.post("/api/dns/publish/apply", json=body).status_code == 200
+    assert [x["content"] for x in env.find("_25._tcp.mailfilter.rhis.nl", "TLSA")] == [TLSA]
+    # Signed zones and a published record that matches: DANE is ok
+    r = env_resolver[0]
+    r.records[("_25._tcp.mailfilter.rhis.nl", "TLSA")] = [TLSA]
+    r.records[("mailfilter.rhis.nl", "SECURE")] = True
+    r.records[("rhis.nl", "SECURE")] = True
+    assert admin.post("/api/dns/publish/plan", json=body).json()["warnings"] == []
+    item = {i["code"]: i for i in admin.get("/api/dns/check/rhis.nl").json()["items"]}["dane"]
+    assert item["status"] == "ok" and item["problems"] == []
