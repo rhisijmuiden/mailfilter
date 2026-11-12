@@ -1,0 +1,10 @@
+[Unit]
+Description=Move DKIM key rotations forward every six hours
+
+[Timer]
+OnBootSec=20min
+OnUnitActiveSec=6h
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target
