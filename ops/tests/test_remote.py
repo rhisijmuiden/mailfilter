@@ -230,14 +230,14 @@ def test_ftp_and_ftps(env, tmp_path, protocol):
             remote.test(**QUIET)
         remote.set_config({"password": "s3cret-pw"})
         assert remote.test(**QUIET)["ok"]
-        if protocol == "ftps":
-            remote.set_config({"verify_tls": True})
-            with pytest.raises(CtlError, match="certificate"):
-                remote.test(**QUIET)
-            remote.set_config({"verify_tls": False})
         _roundtrip(env)
         assert list((home / "backups/mf").iterdir())
         assert not list(home.rglob("*.part"))
+        if protocol == "ftps":
+            # last: an aborted TLS handshake can leave this small test server in a bad state
+            remote.set_config({"verify_tls": True})
+            with pytest.raises(CtlError, match="certificate"):
+                remote.test(**QUIET)
     finally:
         server.close_all()
 

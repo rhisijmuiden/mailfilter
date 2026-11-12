@@ -253,7 +253,8 @@ class FtpTransport(Transport):
         except ssl.SSLCertVerificationError as e:
             raise CtlError(f"The server's certificate is not valid: {e.verify_message}") from e
         except (OSError, ftplib.Error, EOFError) as e:
-            raise CtlError(f"Could not connect to {c['host']}:{c['port']}: {e}") from e
+            reason = str(e) or ("the server closed the connection" if isinstance(e, EOFError) else type(e).__name__)
+            raise CtlError(f"Could not connect to {c['host']}:{c['port']}: {reason}") from e
 
     def close(self):
         try:
