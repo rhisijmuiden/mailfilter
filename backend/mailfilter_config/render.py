@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 
 from .model import Domain, GatewayConfig, QueuePolicy
+from .rules import render_files as render_rule_files
 
 ETC = "/etc/mailfilter"
 PF = f"{ETC}/postfix"
@@ -186,6 +187,8 @@ def render(cfg: GatewayConfig) -> Rendered:
     # Checked at the end of every message on every listener; only listed senders match.
     out.main_cf["smtpd_end_of_data_restrictions"] = (
         f"check_client_access cidr:{PF}/outbound_hold.cidr, check_sasl_access hash:{PF}/outbound_hold_sasl")
+    # ---- custom rules (newsletter filter etc.) ------------------------------------
+    out.files.update(render_rule_files(cfg.custom_rules, {d.name for d in domains}))
     return out
 
 

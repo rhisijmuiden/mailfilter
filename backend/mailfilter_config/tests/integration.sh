@@ -71,4 +71,52 @@ check "apply smaller config" "$MFC" apply --state /tmp/less.json --no-reload
 check "queue removed from master.cf" bash -c '! postconf -M | grep -q "^mfq_rhis_nl_"'
 check "queue limit removed from main.cf" bash -c '! postconf -n | grep -q "^mfq_rhis_nl_"'
 check "postfix check after removal" postfix check
+echo "== custom rules: newsletter filter in a real Rspamd scan"
+python3 - <<'PY'
+import json; d = json.load(open("/tmp/gateway.json"))
+d["custom_rules"] = {"newsletter_no_unsubscribe": {"enabled": True, "options": {"score": 5}, "domains": {}},
+                     "newsletter_subject": {"enabled": True, "options": {"tag": "[Nieuwsbrief]"}, "domains": {}}}
+json.dump(d, open("/tmp/rules.json", "w"))
+PY
+check "apply with custom rules" "$MFC" apply --state /tmp/rules.json --no-reload
+check "rules Lua and settings written" bash -c 'test -f /etc/rspamd/lua.local.d/mailfilter_rules.lua && grep -q "\"score\": 5.0" /etc/rspamd/mailfilter_rules.json'
+check "rspamadm configtest with rules" rspamadm configtest
+# A scanning worker next to the milter proxy, only for this test.
+mkdir -p /etc/rspamd/override.d
+printf 'enabled = true;\nbind_socket = "127.0.0.1:11333";\n' >/etc/rspamd/override.d/worker-normal.inc
+printf 'dns { nameserver = ["1.1.1.1:53"]; timeout = 1s; retransmits = 1; }\n' >/etc/rspamd/override.d/options.inc
+rspamd -u _rspamd -g _rspamd
+for _ in $(seq 1 30); do rspamc -h 127.0.0.1:11333 stat >/dev/null 2>&1 && break; sleep 1; done
+cat >/tmp/nl-bad.eml <<'EML'
+From: Winkel <news@shop.example>
+To: info@rhis.nl
+Subject: Grote uitverkoop
+Precedence: bulk
+X-Mailer: MailerLite
+Message-ID: <1@shop.example>
+Date: Wed, 12 Nov 2026 10:00:00 +0100
+Content-Type: text/plain; charset=utf-8
+
+Alles moet weg! Bestel nu op https://shop.example/sale
+EML
+cat >/tmp/nl-good.eml <<'EML'
+From: Winkel <news@shop.example>
+To: info@rhis.nl
+Subject: Nieuws
+List-Unsubscribe: <https://shop.example/u/1>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+Message-ID: <2@shop.example>
+Date: Wed, 12 Nov 2026 10:00:00 +0100
+Content-Type: text/plain; charset=utf-8
+
+Ons nieuws van deze maand.
+EML
+scan() { rspamc -h 127.0.0.1:11333 -j --ip 198.51.100.7 --from news@shop.example --rcpt info@rhis.nl "$1"; }
+scan /tmp/nl-bad.eml >/tmp/scan-bad.json 2>&1 || true
+scan /tmp/nl-good.eml >/tmp/scan-good.json 2>&1 || true
+check "newsletter without unsubscribe scored" bash -c 'grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-bad.json || { cat /tmp/scan-bad.json; exit 1; }'
+check "newsletter header and subject tag added" bash -c 'grep -q "X-Mailfilter-Newsletter" /tmp/scan-bad.json && grep -q "Nieuwsbrief" /tmp/scan-bad.json || { cat /tmp/scan-bad.json; exit 1; }'
+check "newsletter with unsubscribe not scored" bash -c 'grep -q "\"MF_NEWSLETTER\"" /tmp/scan-good.json && ! grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-good.json || { cat /tmp/scan-good.json; exit 1; }'
+pkill -x rspamd || true
+rm -f /etc/rspamd/override.d/worker-normal.inc /etc/rspamd/override.d/options.inc
 exit $fail

@@ -10,6 +10,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from .rules import CustomRule, rule_from_dict
+
 TLS_MODES = ("may", "encrypt", "verify")
 ALL_TLS_MODES = ("none", "may", "encrypt", "dane", "verify", "secure")
 PROTOCOLS = ("smtp", "lmtp")
@@ -139,6 +141,8 @@ class GatewayConfig:
     tls_policies: list[TlsPolicy] = field(default_factory=list)
     holds: list[OutboundHold] = field(default_factory=list)
     defaults: Defaults = field(default_factory=Defaults)
+    # Custom rules (newsletter filter etc.) by rule id; missing rules use their default.
+    custom_rules: dict[str, CustomRule] = field(default_factory=dict)
     # Used for loop detection; filled in from the server when empty.
     hostname: str = ""
     own_addresses: list[str] = field(default_factory=list)
@@ -178,6 +182,7 @@ class GatewayConfig:
             tls_policies=[TlsPolicy(**t) for t in data.get("tls_policies", [])],
             holds=[OutboundHold(**h) for h in data.get("holds", [])],
             defaults=Defaults(**data.get("defaults", {})),
+            custom_rules={k: rule_from_dict(v) for k, v in (data.get("custom_rules") or {}).items()},
             hostname=data.get("hostname", ""),
             own_addresses=list(data.get("own_addresses", [])),
             version=data.get("version", 1),
