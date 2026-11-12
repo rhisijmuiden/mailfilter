@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Plus, Search, Trash2 } from "lucide-react";
+import { Ban, Check, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, ErrorText, Loading, PageHead, formatDate, useToast } from "../components/ui";
+import { DataTable, type Column } from "../components/DataTable";
+import { Card, ErrorText, PageHead, formatDate, useToast } from "../components/ui";
 import { api, qs } from "../lib/api";
 import type { Me } from "../lib/auth";
 
@@ -58,6 +59,34 @@ export default function Lists({ me }: { me: Me }) {
   const forLabel = (e: ListEntry) =>
     e.scope === "everyone" ? t("lists.for_everyone") : e.scope === "domain" ? t("lists.for_domain", { domain: e.recipient }) : e.recipient;
 
+  const columns: Column<ListEntry>[] = [
+    { key: "list", label: t("lists.list"), sort: (e) => e.list, nowrap: true, mobile: "aside", render: (e) => <ListBadge list={e.list} /> },
+    { key: "sender", label: t("lists.sender"), always: true, sort: (e) => e.sender, mobile: "title",
+      render: (e) => (
+        <>
+          <div className="cell-main mono" style={{ wordBreak: "break-all" }}>{e.sender}</div>
+          <div className="cell-sub">{t(e.sender_kind === "domain" ? "lists.kind_domain" : "lists.kind_address")}</div>
+        </>
+      ) },
+    { key: "for", label: t("lists.for"), sort: forLabel, mobileLabel: true,
+      render: (e) => <span style={{ wordBreak: "break-all" }}>{e.scope === "everyone" ? <span className="tag">{forLabel(e)}</span> : forLabel(e)}</span> },
+    { key: "comment", label: t("lists.comment"), sort: (e) => e.comment ?? "", render: (e) => e.comment || <span className="muted">—</span> },
+    { key: "added", label: t("lists.added"), sort: (e) => e.created_at, optional: false, mobileLabel: true,
+      render: (e) => (
+        <>
+          <div className="cell-main nowrap num">{formatDate(e.created_at, i18n.language, false)}</div>
+          {e.created_by && <div className="cell-sub" style={{ wordBreak: "break-all" }}>{e.created_by}</div>}
+        </>
+      ) },
+    { key: "del", label: "", always: true, align: "right",
+      render: (e) => (
+        <button className="icon-btn" aria-label={t("common.delete")}
+          onClick={() => window.confirm(t("lists.delete_confirm", { sender: e.sender })) && del.mutate(e.id)}>
+          <Trash2 />
+        </button>
+      ) },
+  ];
+
   return (
     <>
       <PageHead title={t("lists.title")} sub={me.role === "admin" ? t("lists.sub") : t("lists.sub_customer")} />
@@ -108,63 +137,27 @@ export default function Lists({ me }: { me: Me }) {
       </Card>
 
       <Card flush>
-        <div className="filters">
-          <div className="seg" role="group" aria-label={t("lists.show")}>
-            {(["", "allow", "block"] as const).map((l) => (
-              <button key={l || "all"} type="button" aria-pressed={filter === l} onClick={() => setFilter(l)}>
-                {t(l ? `lists.show_${l}` : "lists.show_all")}
-              </button>
-            ))}
-          </div>
-          <label className="search" style={{ flex: "1 1 240px", maxWidth: "none" }}>
-            <Search aria-hidden />
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("lists.search")} aria-label={t("lists.search")} />
-          </label>
-          {entries.data && <span className="muted">{t("lists.count", { count: entries.data.total })}</span>}
-        </div>
-        {entries.isLoading ? (
-          <Loading />
-        ) : !entries.data?.items.length ? (
-          <div className="empty">{q || filter ? t("trace.no_results") : t("lists.empty")}</div>
-        ) : (
-          <div className="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("lists.list")}</th>
-                  <th>{t("lists.sender")}</th>
-                  <th>{t("lists.for")}</th>
-                  <th>{t("lists.comment")}</th>
-                  <th>{t("lists.added")}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {entries.data.items.map((e) => (
-                  <tr key={e.id}>
-                    <td className="nowrap"><ListBadge list={e.list} /></td>
-                    <td>
-                      <div className="cell-main mono" style={{ wordBreak: "break-all" }}>{e.sender}</div>
-                      <div className="cell-sub">{t(e.sender_kind === "domain" ? "lists.kind_domain" : "lists.kind_address")}</div>
-                    </td>
-                    <td style={{ wordBreak: "break-all" }}>{e.scope === "everyone" ? <span className="tag">{forLabel(e)}</span> : forLabel(e)}</td>
-                    <td>{e.comment || <span className="muted">—</span>}</td>
-                    <td>
-                      <div className="cell-main nowrap num">{formatDate(e.created_at, i18n.language, false)}</div>
-                      {e.created_by && <div className="cell-sub" style={{ wordBreak: "break-all" }}>{e.created_by}</div>}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <button className="icon-btn" aria-label={t("common.delete")}
-                        onClick={() => window.confirm(t("lists.delete_confirm", { sender: e.sender })) && del.mutate(e.id)}>
-                        <Trash2 />
-                      </button>
-                    </td>
-                  </tr>
+        <DataTable
+          id="lists"
+          rows={entries.data?.items}
+          rowKey={(e) => e.id}
+          loading={entries.isLoading}
+          columns={columns}
+          search={{ value: q, onChange: setQ, placeholder: t("lists.search") }}
+          tools={
+            <>
+              <div className="seg" role="group" aria-label={t("lists.show")}>
+                {(["", "allow", "block"] as const).map((l) => (
+                  <button key={l || "all"} type="button" aria-pressed={filter === l} onClick={() => setFilter(l)}>
+                    {t(l ? `lists.show_${l}` : "lists.show_all")}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </div>
+              {entries.data && <span className="muted">{t("lists.count", { count: entries.data.total })}</span>}
+            </>
+          }
+          empty={q || filter ? t("trace.no_results") : t("lists.empty")}
+        />
       </Card>
     </>
   );

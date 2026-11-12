@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import BlacklistAlert from "../components/BlacklistAlert";
-import { BarList, Legend, StackedColumns, type Series } from "../components/charts";
+import { BarList, Legend, Sparkline, StackedColumns, type Series } from "../components/charts";
+import { LiveFlow } from "../components/LiveFlow";
 import { Reason, StatusPill } from "../components/TraceBits";
-import { Card, Loading, PageHead, formatDate } from "../components/ui";
+import { Card, PageHead, Skeleton, SkeletonTiles, formatDate } from "../components/ui";
 import { api, qs } from "../lib/api";
 import type { Me } from "../lib/auth";
 import type { Message } from "../lib/trace";
@@ -68,14 +69,15 @@ export default function Dashboard({ me }: { me: Me }) {
   const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "–");
   const dirQ = direction === "all" ? "" : `&direction=${direction}`;
 
+  const trend = (f: (b: Bucket) => number) => d?.series.map(f) ?? [];
   const kpis = d && [
-    { label: t("dashboard.k_total"), value: d.now.total, sub: <Delta now={d.now.total} prev={d.previous.total} range={range} />,
+    { label: t("dashboard.k_total"), value: d.now.total, spark: trend((b) => b.delivered + b.spam + b.refused + b.delayed + b.failed), color: "var(--chart-1)", sub: <Delta now={d.now.total} prev={d.previous.total} range={range} />,
       note: t("dashboard.k_split", { inbound: d.now.inbound, outbound: d.now.outbound }), to: `/trace?hours=${hours}${dirQ}` },
-    { label: t("dashboard.k_delivered"), value: d.now.delivered, sub: t("dashboard.k_of_total", { pct: pct(d.now.delivered, d.now.total) }),
+    { label: t("dashboard.k_delivered"), value: d.now.delivered, spark: trend((b) => b.delivered), color: "var(--chart-3)", sub: t("dashboard.k_of_total", { pct: pct(d.now.delivered, d.now.total) }),
       note: null, to: `/trace?hours=${hours}&status=delivered${dirQ}` },
-    { label: t("dashboard.k_spam"), value: d.now.spam, sub: <Delta now={d.now.spam} prev={d.previous.spam} range={range} />,
+    { label: t("dashboard.k_spam"), value: d.now.spam, spark: trend((b) => b.spam), color: "var(--chart-2)", sub: <Delta now={d.now.spam} prev={d.previous.spam} range={range} />,
       note: t("dashboard.k_of_total", { pct: pct(d.now.spam, d.now.total) }), to: `/quarantine` },
-    { label: t("dashboard.k_problems"), value: d.now.delayed + d.now.failed, sub: t("dashboard.k_problems_sub"),
+    { label: t("dashboard.k_problems"), value: d.now.delayed + d.now.failed, spark: trend((b) => b.delayed + b.failed), color: "var(--chart-4)", sub: t("dashboard.k_problems_sub"),
       note: null, to: `/trace?hours=${hours}&status=problem${dirQ}` },
   ];
 
@@ -101,7 +103,13 @@ export default function Dashboard({ me }: { me: Me }) {
         </div>
       </div>
       {!d ? (
-        <Loading />
+        <>
+          <SkeletonTiles />
+          <div className="grid two">
+            <Card><Skeleton rows={6} cols={1} /></Card>
+            <Card><Skeleton rows={6} cols={2} /></Card>
+          </div>
+        </>
       ) : (
         <div className={dash.isPlaceholderData ? "refetching" : undefined} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div className="grid kpis">
@@ -111,9 +119,11 @@ export default function Dashboard({ me }: { me: Me }) {
                 <span className="value">{k.value.toLocaleString()}</span>
                 <span className="delta">{k.sub}</span>
                 {k.note && <span className="delta">{k.note}</span>}
+                <Sparkline values={k.spark} color={k.color} />
               </Link>
             ))}
           </div>
+          <LiveFlow direction={direction} series={series} />
           <div className="grid two">
             <Card
               title={t(range === "24h" ? "dashboard.chart_24h" : "dashboard.chart_30d")}

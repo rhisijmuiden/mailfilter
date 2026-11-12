@@ -7,7 +7,13 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+type Opts = { quiet?: boolean };
+
+// A successful change (PUT/PATCH/DELETE) is announced, so the app can show a
+// "Saved" message when the page itself did not show one. See ToastProvider.
+export type SavedEvent = CustomEvent<{ method: string }>;
+
+async function request<T>(method: string, path: string, body?: unknown, opts: Opts = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
     credentials: "same-origin",
@@ -17,6 +23,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  if (res.ok && method !== "GET" && method !== "POST" && !opts.quiet) {
+    window.dispatchEvent(new CustomEvent("mf:saved", { detail: { method } }));
+  }
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -31,9 +40,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
-  put: <T>(path: string, body: unknown) => request<T>("PUT", path, body),
-  patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
-  del: <T>(path: string) => request<T>("DELETE", path),
+  put: <T>(path: string, body: unknown, opts?: Opts) => request<T>("PUT", path, body, opts),
+  patch: <T>(path: string, body: unknown, opts?: Opts) => request<T>("PATCH", path, body, opts),
+  del: <T>(path: string, opts?: Opts) => request<T>("DELETE", path, undefined, opts),
 };
 
 export function qs(params: Record<string, string | number | boolean | undefined | null>): string {

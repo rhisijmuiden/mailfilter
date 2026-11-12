@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, CheckCircle2, Globe, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
+import { DataTable, type Column } from "../components/DataTable";
 import GatewayError from "../components/GatewayError";
 import { Card, Drawer, Field, Loading, PageHead, formatDate, useToast } from "../components/ui";
 import { api } from "../lib/api";
@@ -34,6 +36,38 @@ export default function Domains({ me }: { me: Me }) {
   // Converting keeps name, limits and senders; a transport domain then still needs its mail server.
   const toTransport = (d: DomainRow) => setEditing({ kind: "transport", domain: { ...d, kind: "transport", destinations: d.destinations.length ? d.destinations : [emptyDestination()] } });
   const toRelay = (d: DomainRow) => setEditing({ kind: "relay", domain: { ...d, kind: "relay" } });
+  // Opened from the search box (Ctrl+K): /domains?open=example.nl
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const name = params.get("open");
+    const d = name && all.find((x) => x.name === name);
+    if (!d) return;
+    const isRelay = d.configured && d.kind === "relay";
+    setTab(isRelay ? "relay" : "transport");
+    setEditing({ kind: isRelay ? "relay" : "transport", domain: d });
+    setParams({}, { replace: true });
+  }, [params, all, setParams]);
+  const status = (d: DomainRow) => (!d.configured ? "not_configured" : d.enabled ? "active" : "paused");
+  const columns: Column<DomainRow>[] = [
+    { key: "name", label: t("domains.name"), always: true, sort: (d) => d.name, mobile: "title",
+      render: (d) => (
+        <>
+          <div className="cell-main">{d.name}</div>
+          {d.users.length > 0 && <div className="cell-sub">{t("domains.users_count", { count: d.users.length })}</div>}
+        </>
+      ) },
+    { key: "dest", label: t("domains.delivers_to"), sort: (d) => (d.destinations[0] ? describeDestination(d.destinations[0]) : ""),
+      text: (d) => d.destinations.map(describeDestination).join(" "),
+      render: (d) => (
+        <span className="mono">
+          {d.configured ? d.destinations.map((x, i) => <div key={i}>{i > 0 && <span className="muted">{t("domains.backup")} </span>}{describeDestination(x)}</div>) : <span className="muted">—</span>}
+        </span>
+      ) },
+    { key: "queue", label: t("domains.queue"), nowrap: true, optional: false, mobile: "hide",
+      render: (d) => <span className="muted">{d.configured && (d.rate_delay ? t("domains.queue_delay", { s: d.rate_delay }) : t("domains.queue_conc", { n: d.concurrency ?? t("domains.default") }))}</span> },
+    { key: "status", label: t("domains.status"), sort: status, text: (d) => t(`domains.${status(d)}`), nowrap: true, mobile: "aside",
+      render: (d) => <span className={`status ${{ not_configured: "s-warn", active: "s-ok", paused: "s-mute" }[status(d)]}`}>{t(`domains.${status(d)}`)}</span> },
+  ];
   return (
     <>
       <PageHead
@@ -59,46 +93,16 @@ export default function Domains({ me }: { me: Me }) {
           <Loading />
         ) : tab === "relay" ? (
           <RelayTable domains={relay} admin={admin} onOpen={(d) => setEditing({ kind: "relay", domain: d })} />
-        ) : !list.length ? (
-          <div className="empty">{t("domains.empty")}</div>
         ) : (
-          <div className="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("domains.name")}</th>
-                  <th>{t("domains.delivers_to")}</th>
-                  <th>{t("domains.queue")}</th>
-                  <th>{t("domains.status")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((d) => (
-                  <tr key={d.id} className="click" tabIndex={0} onClick={() => setEditing({ kind: "transport", domain: d })} onKeyDown={(e) => e.key === "Enter" && setEditing({ kind: "transport", domain: d })}>
-                    <td>
-                      <div className="cell-main">{d.name}</div>
-                      {d.users.length > 0 && <div className="cell-sub">{t("domains.users_count", { count: d.users.length })}</div>}
-                    </td>
-                    <td className="mono">
-                      {d.configured ? d.destinations.map((x, i) => <div key={i}>{i > 0 && <span className="muted">{t("domains.backup")} </span>}{describeDestination(x)}</div>) : <span className="muted">—</span>}
-                    </td>
-                    <td className="nowrap muted">
-                      {d.configured && (d.rate_delay ? t("domains.queue_delay", { s: d.rate_delay }) : t("domains.queue_conc", { n: d.concurrency ?? t("domains.default") }))}
-                    </td>
-                    <td className="nowrap">
-                      {!d.configured ? (
-                        <span className="status s-warn">{t("domains.not_configured")}</span>
-                      ) : d.enabled ? (
-                        <span className="status s-ok">{t("domains.active")}</span>
-                      ) : (
-                        <span className="status s-mute">{t("domains.paused")}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            id="domains"
+            rows={list}
+            rowKey={(d) => d.id}
+            columns={columns}
+            defaultSort={{ key: "name", dir: 1 }}
+            empty={t("domains.empty")}
+            onRowClick={(d) => setEditing({ kind: "transport", domain: d })}
+          />
         )}
       </Card>
       {tab === "relay" && <div className="callout"><Globe aria-hidden /><span>{t("relaydom.explain")}</span></div>}

@@ -16,7 +16,8 @@ from ..deps import DB, CurrentUser
 from ..models import OutboundHold, TraceMessage, TraceRecipient
 from ..queuectl import QueueError, summary
 from ..settings import get_settings
-from .trace import scope
+from ..explain import text
+from .trace import scope, visible_recipients
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -257,3 +258,70 @@ def dashboard(
         queue=queue,
         alerts=alerts(db, user, now, queue),
     )
+
+
+# Live view: the last hour per minute plus the newest events, polled every few seconds.
+
+class LiveBucket(BaseModel):
+    t: datetime
+    delivered: int = 0
+    spam: int = 0
+    refused: int = 0
+    delayed: int = 0
+    failed: int = 0
+
+
+class LiveEvent(BaseModel):
+    queue_id: str
+    at: datetime
+    direction: str | None
+    sender: str | None
+    recipients: list[str]
+    status: str
+    category: str
+    reason: str | None = None
+
+
+class LiveOut(BaseModel):
+    now: datetime
+    minutes: list[LiveBucket]
+    events: list[LiveEvent]
+
+
+LIVE_MINUTES = 60
+
+
+@router.get("/live", response_model=LiveOut)
+def live(
+    user: CurrentUser,
+    db: DB,
+    direction: Literal["all", "inbound", "outbound"] = "all",
+    limit: int = Query(25, ge=1, le=100),
+) -> LiveOut:
+    now = datetime.now(timezone.utc)
+    start = now.replace(second=0, microsecond=0) - timedelta(minutes=LIVE_MINUTES - 1)
+    minute = func.date_trunc("minute", func.timezone("UTC", TraceMessage.first_seen))
+    sub = _window(user, start, now + timedelta(minutes=1), direction) \
+        .with_only_columns(minute.label("b"), category().label("cat")).subquery()
+    buckets = {start + timedelta(minutes=i): LiveBucket(t=start + timedelta(minutes=i)) for i in range(LIVE_MINUTES)}
+    for b, cat, n in db.execute(select(sub.c.b, sub.c.cat, func.count()).group_by(sub.c.b, sub.c.cat)):
+        key = b.replace(tzinfo=timezone.utc)
+        if key in buckets:
+            setattr(buckets[key], cat, n)
+
+    # Newest activity first: a message moves to the top again when its status changes.
+    stmt = select(TraceMessage, category().label("cat")).where(TraceMessage.last_seen >= now - timedelta(hours=24))
+    if direction != "all":
+        stmt = stmt.where(TraceMessage.direction == direction)
+    stmt = scope(stmt, user).order_by(TraceMessage.last_seen.desc(), TraceMessage.queue_id).limit(limit)
+    events: list[LiveEvent] = []
+    for m, cat in db.execute(stmt):
+        rcpts = visible_recipients(m, user)
+        problem = next((r for r in rcpts if r.status != "sent" and r.explain), None)
+        reason = text(problem.explain, user.language) if problem else None
+        events.append(LiveEvent(
+            queue_id=m.queue_id, at=m.last_seen, direction=m.direction, sender=m.sender,
+            recipients=[r.address for r in rcpts], status=m.status, category=cat,
+            reason=reason["title"] if reason else None,
+        ))
+    return LiveOut(now=now, minutes=list(buckets.values()), events=events)

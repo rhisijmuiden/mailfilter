@@ -30,7 +30,11 @@ def test_rfc6238_vector():
     assert twofactor.totp(secret, 1111111109) == "081804"
 
 
-def test_login_with_totp_and_no_replay(admin, users):
+def test_login_with_totp_and_no_replay(admin, users, monkeypatch):
+    # Freeze the clock: the replay check below must stay in the 30-second step the
+    # code was used in, also when the test happens to run across a step boundary.
+    frozen = time.time()
+    monkeypatch.setattr(time, "time", lambda: frozen)
     secret, codes = enable(admin)
     assert len(codes) == 10
     assert admin.get("/api/auth/me").json()["two_factor_enabled"] is True

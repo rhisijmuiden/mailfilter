@@ -261,7 +261,7 @@ pre.log{margin:0;background:var(--code-bg);color:var(--code-ink);font-family:var
   .halves,.form-grid{grid-template-columns:minmax(0,1fr)}
   .top-actions .hide-sm{display:none}
 }
-@media (max-width:520px){.kpis{grid-template-columns:minmax(0,1fr)}.kv{grid-template-columns:minmax(0,1fr)}.page-head h1{font-size:24px}.search{display:none}}
+@media (max-width:520px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.kpi .value{font-size:22px}.kv{grid-template-columns:minmax(0,1fr)}.page-head h1{font-size:24px}.topbar .search{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 /* Spam check report in the mail trace drawer */

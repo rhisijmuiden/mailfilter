@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Bug, Check, MailCheck, Paperclip, RefreshCw, Search } from "lucide-react";
+import { Ban, Bug, Check, MailCheck, Paperclip, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
+import { DataTable, type Column } from "../components/DataTable";
 import { Card, Drawer, ErrorText, Loading, PageHead, formatDate, useToast } from "../components/ui";
 import { api, qs } from "../lib/api";
 import type { Message } from "../lib/trace";
@@ -29,6 +30,32 @@ export default function Quarantine({ me }: { me: Me }) {
     setParams(p);
   };
   const current = list.data?.items.find((i) => i.queue_id === open);
+  const reasons = (m: Item) => m.reasons.map((r) => t(`symbols.${r}`, { defaultValue: r })).join(" · ");
+  const columns: Column<Item>[] = [
+    { key: "time", label: t("trace.time"), sort: (m) => m.first_seen, nowrap: true, mobile: "aside",
+      render: (m) => <span className="num">{formatDate(m.first_seen, i18n.language)}</span> },
+    { key: "from", label: t("quarantine.col_from"), sort: (m) => m.sender ?? "", text: (m) => m.sender ?? "", mobile: "title",
+      render: (m) => <div className="cell-main" style={{ wordBreak: "break-all" }}>{m.sender || t("trace.empty_sender")}</div> },
+    { key: "to", label: t("quarantine.col_to"), sort: (m) => m.recipients[0]?.address ?? "", text: (m) => m.recipients.map((r) => r.address).join(" "),
+      render: (m) => <div className="cell-sub" style={{ wordBreak: "break-all" }}>→ {m.recipients.map((r) => r.address).join(", ")}</div> },
+    { key: "why", label: t("quarantine.why"), sort: (m) => (m.virus ? 1000 : m.spam_score ?? 0), text: reasons,
+      render: (m) => (
+        <>
+          {m.virus ? (
+            <span className="status s-bad"><Bug aria-hidden />{t("quarantine.virus")}</span>
+          ) : (
+            <span className="status s-info">{t("quarantine.score", { score: m.spam_score?.toFixed(1) ?? "?" })}</span>
+          )}
+          <span className="reason">{reasons(m)}</span>
+        </>
+      ) },
+    { key: "client", label: t("quarantine.col_client"), optional: true, sort: (m) => m.client_ip ?? "", text: (m) => `${m.client_host ?? ""} ${m.client_ip ?? ""}`,
+      render: (m) => <span className="mono" style={{ wordBreak: "break-all" }}>{m.client_host || m.client_ip || "–"}</span> },
+    { key: "size", label: t("trace.size"), optional: true, sort: (m) => m.size ?? 0, align: "right", nowrap: true,
+      render: (m) => <span className="num">{m.size != null ? formatSize(m.size) : "–"}</span> },
+    { key: "open", label: "", always: true, align: "right", nowrap: true, mobile: "hide",
+      render: () => <span className="btn small">{t("quarantine.view")}</span> },
+  ];
 
   return (
     <>
@@ -52,53 +79,19 @@ export default function Quarantine({ me }: { me: Me }) {
         </div>
       )}
       <Card flush>
-        <div className="filters">
-          <label className="search" style={{ flex: "1 1 280px", maxWidth: "none" }}>
-            <Search aria-hidden />
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("quarantine.search")} aria-label={t("quarantine.search")} />
-          </label>
-          {list.data && <span className="muted">{t("quarantine.count", { count: list.data.total })}</span>}
-        </div>
-        {list.isLoading ? (
-          <Loading />
-        ) : !list.data?.items.length ? (
-          <div className="empty">{q ? t("trace.no_results") : t("quarantine.empty")}</div>
-        ) : (
-          <div className="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("trace.time")}</th>
-                  <th>{t("trace.from_to")}</th>
-                  <th>{t("quarantine.why")}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((m) => (
-                  <tr key={m.queue_id} className="click" tabIndex={0} onClick={() => setOpen(m.queue_id)} onKeyDown={(e) => e.key === "Enter" && setOpen(m.queue_id)}>
-                    <td className="nowrap num">{formatDate(m.first_seen, i18n.language)}</td>
-                    <td>
-                      <div className="cell-main" style={{ wordBreak: "break-all" }}>{m.sender || t("trace.empty_sender")}</div>
-                      <div className="cell-sub" style={{ wordBreak: "break-all" }}>→ {m.recipients.map((r) => r.address).join(", ")}</div>
-                    </td>
-                    <td>
-                      {m.virus ? (
-                        <span className="status s-bad"><Bug aria-hidden />{t("quarantine.virus")}</span>
-                      ) : (
-                        <span className="status s-info">{t("quarantine.score", { score: m.spam_score?.toFixed(1) ?? "?" })}</span>
-                      )}
-                      <span className="reason">{m.reasons.map((r) => t(`symbols.${r}`, { defaultValue: r })).join(" · ")}</span>
-                    </td>
-                    <td className="nowrap" style={{ textAlign: "right" }}>
-                      <span className="btn small">{t("quarantine.view")}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          id="quarantine"
+          rows={list.data?.items}
+          rowKey={(m) => m.queue_id}
+          loading={list.isLoading}
+          columns={columns}
+          defaultSort={{ key: "time", dir: -1 }}
+          search={{ value: q, onChange: setQ, placeholder: t("quarantine.search") }}
+          tools={list.data && <span className="muted">{t("quarantine.count", { count: list.data.total })}</span>}
+          empty={q ? t("trace.no_results") : t("quarantine.empty")}
+          onRowClick={(m) => setOpen(m.queue_id)}
+          cardActions={(m) => <QuickActions item={m} />}
+        />
       </Card>
       {open && <QuarantineDrawer id={open} item={current} me={me} onClose={() => setOpen(null)} />}
     </>
@@ -129,8 +122,30 @@ function QuarantineDrawer({ id, item, me, onClose }: { id: string; item?: Item; 
   const canRelease = !virus || me.role === "admin";
   const subject = preview.data?.headers.find(([h]) => h === "Subject")?.[1];
 
+  const footer = (
+    <>
+      {/* For a virus the safe choice (block) is the prominent one. */}
+      {virus && (
+        <button className="btn primary" disabled={decide.isPending} onClick={() => decide.mutate("delete")}>
+          <Ban /> {t("quarantine.block")}
+        </button>
+      )}
+      {canRelease && (
+        <button className={`btn${virus ? " danger" : " primary"}`} disabled={decide.isPending} onClick={() => decide.mutate("release")}>
+          <Check /> {t("quarantine.release")}
+        </button>
+      )}
+      {!virus && (
+        <button className="btn" disabled={decide.isPending} onClick={() => decide.mutate("delete")}>
+          <Ban /> {t("quarantine.block")}
+        </button>
+      )}
+      <Link className="btn ghost" to={`/trace?id=${encodeURIComponent(id)}`}>{t("quarantine.open_trace")}</Link>
+    </>
+  );
+
   return (
-    <Drawer title={subject || item?.sender || t("quarantine.title")} sub={item && <>{item.sender} → {item.recipients.map((r) => r.address).join(", ")}</>} onClose={onClose}>
+    <Drawer footer={footer} title={subject || item?.sender || t("quarantine.title")} sub={item && <>{item.sender} → {item.recipients.map((r) => r.address).join(", ")}</>} onClose={onClose}>
       {virus && (
         <div className="callout warn" role="alert">
           <Bug aria-hidden />
@@ -138,25 +153,6 @@ function QuarantineDrawer({ id, item, me, onClose }: { id: string; item?: Item; 
         </div>
       )}
       <ErrorText error={decide.error} />
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {/* For a virus the safe choice (block) is the prominent one. */}
-        {virus && (
-          <button className="btn primary" disabled={decide.isPending} onClick={() => decide.mutate("delete")}>
-            <Ban /> {t("quarantine.block")}
-          </button>
-        )}
-        {canRelease && (
-          <button className={`btn${virus ? " danger" : " primary"}`} disabled={decide.isPending} onClick={() => decide.mutate("release")}>
-            <Check /> {t("quarantine.release")}
-          </button>
-        )}
-        {!virus && (
-          <button className="btn" disabled={decide.isPending} onClick={() => decide.mutate("delete")}>
-            <Ban /> {t("quarantine.block")}
-          </button>
-        )}
-        <Link className="btn ghost" to={`/trace?id=${encodeURIComponent(id)}`}>{t("quarantine.open_trace")}</Link>
-      </div>
       {item?.sender && rcpt && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="muted" style={{ fontSize: 12.5 }}>{t("quarantine.sender_list", { recipient: rcpt })}</span>
@@ -210,5 +206,39 @@ function QuarantineDrawer({ id, item, me, onClose }: { id: string; item?: Item; 
         </>
       ) : null}
     </Drawer>
+  );
+}
+
+/** Release / Block straight from a card on the phone, without opening the message. */
+function QuickActions({ item }: { item: Item }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const decide = useMutation({
+    mutationFn: (action: "release" | "delete") =>
+      api.post<{ action: string; learned: string | null }>(`/quarantine/${encodeURIComponent(item.queue_id)}/${action}`, { learn: true }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["quarantine"] });
+      qc.invalidateQueries({ queryKey: ["trace-stats"] });
+      toast(t(res.action === "released" ? "quarantine.released" : "quarantine.deleted") + (res.learned ? ` ${t("quarantine.learned")}` : ""));
+    },
+    onError: () => toast(t("errors.error"), "error"),
+  });
+  if (item.virus) {
+    return (
+      <button type="button" className="btn small primary" disabled={decide.isPending} onClick={() => decide.mutate("delete")}>
+        <Ban aria-hidden /> {t("quarantine.block")}
+      </button>
+    );
+  }
+  return (
+    <>
+      <button type="button" className="btn small primary" disabled={decide.isPending} onClick={() => decide.mutate("release")}>
+        <Check aria-hidden /> {t("quarantine.release")}
+      </button>
+      <button type="button" className="btn small" disabled={decide.isPending} onClick={() => decide.mutate("delete")}>
+        <Ban aria-hidden /> {t("quarantine.block")}
+      </button>
+    </>
   );
 }
