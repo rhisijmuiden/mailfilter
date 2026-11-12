@@ -10,10 +10,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
 from .. import twofactor
+from ..apikeys import api_key_of
 from ..audit import audit
 from ..deps import DB, AdminUser
 from ..gateway import apply_changes, customer_sender_domains, ensure_imported
-from ..models import AuthSession, Domain, RelayNetwork, User
+from ..models import AuthSession, Domain, RelayNetwork, Reseller, User
 from ..security import MIN_PASSWORD_LENGTH, generate_password, hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -29,15 +30,17 @@ class UserOut(BaseModel):
     domains: list[str]
     last_login_at: datetime | None
     two_factor_enabled: bool = False
+    reseller_id: int | None = None
 
 
 class UserIn(BaseModel):
     email: str = Field(max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     name: str = Field(default="", max_length=200)
-    role: Literal["admin", "customer"] = "customer"
+    role: Literal["admin", "customer", "reseller"] = "customer"
     language: Literal["en", "nl"] = "en"
     is_active: bool = True
     domains: list[str] = []
+    reseller_id: int | None = None  # role "reseller": which reseller's usage this login sees
     password: str | None = Field(default=None, min_length=MIN_PASSWORD_LENGTH, max_length=500)
 
 
@@ -49,7 +52,7 @@ def out(u: User) -> UserOut:
     return UserOut(
         id=u.id, email=u.email, name=u.name, role=u.role, language=u.language,
         is_active=u.is_active, domains=u.domain_names, last_login_at=u.last_login_at,
-        two_factor_enabled=u.two_factor_enabled,
+        two_factor_enabled=u.two_factor_enabled, reseller_id=u.reseller_id,
     )
 
 
@@ -73,6 +76,16 @@ def _relock(db, before: dict[str, list[str]]) -> None:
         apply_changes(db)
 
 
+def _reseller(db, body: UserIn) -> int | None:
+    """A reseller login has no domains of its own; it sees its reseller's customers' usage."""
+    if body.role != "reseller":
+        return None
+    if body.reseller_id is None or db.get(Reseller, body.reseller_id) is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "unknown_reseller")
+    body.domains = []
+    return body.reseller_id
+
+
 @router.get("/domain-options", response_model=list[str])
 def domain_options(_: AdminUser, db: DB) -> list[str]:
     return list(db.execute(select(Domain.name).order_by(Domain.name)).scalars())
@@ -83,16 +96,25 @@ def list_users(_: AdminUser, db: DB) -> list[UserOut]:
     return [out(u) for u in db.execute(select(User).order_by(User.email)).scalars()]
 
 
+def _api_customers_only(request: Request, *roles: str) -> None:
+    """Through the public API (an API key) only customer accounts can be managed,
+    so a key cannot make itself a new admin login."""
+    if api_key_of(request) is not None and "admin" in roles:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "api_customers_only")
+
+
 @router.post("", response_model=UserCreated, status_code=201)
 def create_user(body: UserIn, request: Request, admin: AdminUser, db: DB) -> UserCreated:
+    _api_customers_only(request, body.role)
     email = body.email.strip().lower()
     if db.execute(select(User).where(func.lower(User.email) == email)).scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "email_exists")
     password = body.password or generate_password()
     before = customer_sender_domains(db)
+    reseller_id = _reseller(db, body)
     u = User(
         email=email, name=body.name.strip(), role=body.role, language=body.language,
-        is_active=body.is_active, password_hash=hash_password(password),
+        is_active=body.is_active, password_hash=hash_password(password), reseller_id=reseller_id,
     )
     u.domains = _domains(db, body.domains)
     db.add(u)
@@ -108,9 +130,11 @@ def update_user(user_id: int, body: UserIn, request: Request, admin: AdminUser, 
     u = db.get(User, user_id)
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    _api_customers_only(request, u.role, body.role)
     if u.id == admin.id and (body.role != "admin" or not body.is_active):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "cannot_demote_self")
     before = customer_sender_domains(db)
+    u.reseller_id = _reseller(db, body)
     u.email = body.email.strip().lower()
     u.name = body.name.strip()
     u.role = body.role
@@ -134,6 +158,7 @@ def delete_user(user_id: int, request: Request, admin: AdminUser, db: DB) -> Non
     u = db.get(User, user_id)
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    _api_customers_only(request, u.role)
     if u.id == admin.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "cannot_delete_self")
     before = customer_sender_domains(db)

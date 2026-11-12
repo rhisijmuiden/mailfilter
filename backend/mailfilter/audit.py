@@ -29,6 +29,9 @@ def audit(
     db: Session, request: Request | None, user: User | None, action: str, target: str = "",
     *, domain: str | None = None, **detail,
 ) -> None:
+    key = getattr(request.state, "api_key", None) if request is not None else None
+    if key is not None:
+        detail = {**detail, "api_key": key.name}
     db.add(
         AuditLog(
             user_id=user.id if user else None,

@@ -9,7 +9,7 @@
   mailfilter-admin notify-check                send alerts by e-mail, Telegram and webhook (run by a timer)
   mailfilter-admin write-lists                 rewrite the allow/block list maps for Rspamd
   mailfilter-admin quarantine-report [--now]   send the daily quarantine reports when due
-  mailfilter-admin monthly-report [--now]      store last month's numbers and send the monthly reports when due
+  mailfilter-admin monthly-report [--now]      measure usage, store last month's numbers, send the monthly reports when due
   mailfilter-admin cluster-sync                exchange configuration with the other cluster nodes (timer)
   mailfilter-admin cluster-leave               take this server out of its cluster (keeps its configuration)
 """
@@ -33,6 +33,44 @@ def migrate() -> None:
     from alembic import command
 
     command.upgrade(_alembic_config(), "head")
+
+
+def _archive(db, args) -> int:
+    from datetime import datetime, timezone
+
+    from .archive import maintain
+    from .archive.verify import verify
+    from .settings_store import set_setting
+
+    rc = 0
+    if args.cmd == "archive-maintain":
+        res = maintain.run(db)
+        print(f"envelopes: {res.envelopes}, sealed: {len(res.sealed)}, purged: {sum(res.purged.values())}")
+        for s in res.sealed:
+            print(f"  sealed {s}")
+        for d, n in res.purged.items():
+            print(f"  removed {n} messages of {d} (retention passed)")
+        if res.errors:
+            for e in res.errors:
+                print(f"  {e}", file=sys.stderr)
+            # Locking needs the root helper and a file system with chattr; that alone is not an alert.
+            serious = [e for e in res.errors if not e.startswith("lock:")]
+            if serious:
+                maintain.alert_failed(db, serious)
+                rc = 1
+        files = args.full_check or datetime.now(timezone.utc).weekday() == 6
+    else:
+        files = not args.no_files
+    rep = verify(db, files=files)
+    set_setting(db, "archive.verify", {**rep.as_dict(), "running": False, "files_checked": files})
+    db.commit()
+    print(f"check: {'ok' if rep.ok else 'PROBLEMS'} ({rep.messages} messages, {rep.files} files, {rep.seals} seals)")
+    for p in rep.problems:
+        print(f"  {p['domain']} #{p['seq']}: {p['code']} {p['detail']}", file=sys.stderr)
+    if not rep.ok:
+        maintain.alert_problems(db, rep.problems)
+        rc = 1
+    return rc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -64,6 +102,10 @@ def main(argv: list[str] | None = None) -> int:
     mr.add_argument("--now", action="store_true", help="send last month's reports now, even when not due")
     sub.add_parser("dkim-rotate", help="start due DKIM key rotations and move running ones forward")
     sub.add_parser("cluster-sync")
+    am = sub.add_parser("archive-maintain", help="mail archive: recipients, day seals, locking, retention clean-up")
+    am.add_argument("--full-check", action="store_true", help="also read every archived file (done on Sundays anyway)")
+    av = sub.add_parser("archive-verify", help="check the mail archive's hash chain, seals and files")
+    av.add_argument("--no-files", action="store_true", help="skip reading the files (much faster)")
     sub.add_parser("cluster-leave")
     args = p.parse_args(argv)
 
@@ -118,6 +160,8 @@ def main(argv: list[str] | None = None) -> int:
             for name, result in peer.sync_all(db).items():
                 print(f"{name}: {result}")
             return 0
+        if args.cmd in ("archive-maintain", "archive-verify"):
+            return _archive(db, args)
         if args.cmd == "has-users":
             return 0 if db.execute(select(func.count(User.id))).scalar_one() else 1
         if args.cmd == "gateway-apply":
@@ -153,7 +197,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if res.failed else 0
         if args.cmd == "monthly-report":
             from .monthly import run as monthly_run
+            from .usage import run as usage_run
 
+            try:
+                for m in usage_run(db):
+                    print(f"stored the usage of {m}")
+            except Exception as e:  # noqa: BLE001 - the monthly report must still go out
+                db.rollback()
+                print(f"usage measurement failed: {e}", file=sys.stderr)
             res = monthly_run(db, force=args.now)
             for m in res.stored:
                 print(f"stored the numbers of {m}")

@@ -188,8 +188,8 @@ install -d -m 0755 "$MF_ETC/nftables"
 # mailfilter-config (step "Domains, relay access and throttling" below, and the
 # web interface). Here we only make sure every file exists so Postfix can start.
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
-for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients; do touch "$MF_ETC/postfix/$f"; done
-for f in relay_networks.cidr client_block.cidr postscreen_access.cidr mailtrap.cidr mailtrap_sasl; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients archive_bcc; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_networks.cidr client_block.cidr postscreen_access.cidr mailtrap.cidr mailtrap_sasl cloud_relay.cidr; do touch "$MF_ETC/postfix/$f"; done
 # Mailtrap: caught mail of test environments (filled by the web interface)
 [[ -f $MF_ETC/dovecot-mailtrap.conf ]] || echo "# Managed by Mailfilter (Mailtrap). No mailbox allows IMAP." >"$MF_ETC/dovecot-mailtrap.conf"
 for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs arc_trusted; do touch "$MF_ETC/rspamd/$f.map"; done
@@ -260,7 +260,7 @@ if [[ $HAVE_CERT == 0 ]]; then
   postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
   warn "Postfix uses a temporary self-signed certificate until Let's Encrypt succeeds."
 fi
-for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients mailtrap_sasl; do run postmap "hash:$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients mailtrap_sasl archive_bcc; do run postmap "hash:$MF_ETC/postfix/$f"; done
 # A bare install with "No configuration" has no /etc/aliases; route system mail to the admin.
 [[ -f /etc/aliases ]] || printf 'postmaster: root\nabuse: root\nroot: %s\n' "$ADMIN_EMAIL" >/etc/aliases
 run newaliases
@@ -305,6 +305,9 @@ for f in "$TPL"/rspamd/local.d/*; do
   render "$f" "/etc/rspamd/local.d/$name" 0640
   chgrp _rspamd "/etc/rspamd/local.d/$name"
 done
+install -d -m 0755 /etc/rspamd/lua.local.d
+render "$TPL/rspamd/lua.local.d/mailfilter_reports.lua" /etc/rspamd/lua.local.d/mailfilter_reports.lua 0640
+chgrp _rspamd /etc/rspamd/lua.local.d/mailfilter_reports.lua
 touch "$MF_ETC/rspamd/ratelimit_overrides.conf"
 if [[ -n $FIRST_DOMAIN ]]; then
   SEL=mf$(date +%Y)

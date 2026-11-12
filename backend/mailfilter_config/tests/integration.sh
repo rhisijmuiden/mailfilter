@@ -95,6 +95,8 @@ d["custom_rules"] = {"newsletter_no_unsubscribe": {"enabled": True, "options": {
                      "phishing_display_name": {"enabled": True, "options": {"names": ["Reinder de Directeur"]}, "domains": {}},
                      "external_banner": {"enabled": True, "options": {"language": "nl"}, "domains": {}},
                      "arc_seal_inbound": {"enabled": True, "options": {}, "domains": {}}}
+# Cloud mail: rhis.nl is a Microsoft 365 tenant that sends out through the Mailfilter.
+d["cloud_tenants"] = [{"provider": "m365", "domain": "rhis.nl", "tenant_id": "8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a"}]
 json.dump(d, open("/tmp/rules.json", "w"))
 PY
 check "apply with custom rules" "$MFC" apply --state /tmp/rules.json --no-reload
@@ -201,6 +203,19 @@ PY
 check "external banner added above the original text" bash -c "$(declare -f banner_ok); banner_ok /tmp/scan-banner.eml"
 check "external banner header added" bash -c "$(declare -f has); has /tmp/scan-banner.json X-Mailfilter-External"
 check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
+echo "== cloud mail: Microsoft 365 tenant relaying through the Mailfilter"
+check "Microsoft server may relay only for the tenant's domain" bash -c '[[ $(postmap -q 40.107.1.10 cidr:/etc/mailfilter/postfix/cloud_relay.cidr) == mfc_m365 ]] && postconf -h mfc_m365 | grep -q "rhis.nl=OK" && postconf -h smtpd_restriction_classes | grep -q mfc_m365'
+check "postfix check with cloud mail" postfix check
+m365() { # tenant id header, sender, recipient
+  printf 'From: Reinder <reinder@rhis.nl>\nTo: klant@example.org\nSubject: Offerte\nMessage-ID: <%s@rhis.nl>\nDate: Wed, 12 Nov 2026 10:00:00 +0100\nX-MS-Exchange-CrossTenant-Id: %s\nContent-Type: text/plain; charset=utf-8\n\nHierbij de offerte.\n' "$RANDOM" "$1" >/tmp/m365.eml
+  rspamc -h 127.0.0.1:11333 -j --ip 40.107.1.10 --from "$2" --rcpt "$3" /tmp/m365.eml
+}
+m365 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a reinder@rhis.nl klant@example.org >/tmp/scan-m365-ok.json 2>&1 || true
+m365 11111111-2222-3333-4444-555555555555 reinder@rhis.nl klant@example.org >/tmp/scan-m365-bad.json 2>&1 || true
+m365 11111111-2222-3333-4444-555555555555 iemand@contoso.example info@rhis.nl >/tmp/scan-m365-in.json 2>&1 || true
+check "mail from the linked tenant passes" bash -c "$(declare -f has); has /tmp/scan-m365-ok.json MF_CLOUD_TENANT_OK"
+check "mail from another tenant in our name is refused" bash -c "$(declare -f has action_is); has /tmp/scan-m365-bad.json MF_CLOUD_TENANT_FORGED && action_is /tmp/scan-m365-bad.json reject"
+check "normal inbound mail from Microsoft is left alone" bash -c '! grep -q MF_CLOUD_TENANT /tmp/scan-m365-in.json || { cat /tmp/scan-m365-in.json; exit 1; }'
 echo "== relay domain (outbound only), SMTP account and sender lock"
 python3 - <<'PY'
 import json; d = json.load(open("/tmp/gateway.json"))

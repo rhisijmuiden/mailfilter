@@ -21,12 +21,13 @@ mynetworks = 127.0.0.0/8 [::1]/128 cidr:/etc/mailfilter/postfix/relay_networks.c
 
 # Domains we accept mail for, and where we deliver it (managed in "Domains")
 relay_domains = hash:/etc/mailfilter/postfix/relay_domains
-transport_maps = inline:{ dmarc-reports@{{HOSTNAME}}=mfdmarc: }, hash:/etc/mailfilter/postfix/transport
+transport_maps = inline:{ dmarc-reports@{{HOSTNAME}}=mfdmarc:, spam@{{HOSTNAME}}=mfreport:, notspam@{{HOSTNAME}}=mfreport:, archive.mailfilter.invalid=mfarchive: }, hash:/etc/mailfilter/postfix/transport
 
-# DMARC reports that other providers send about our domains (rua=mailto:dmarc-reports@{{HOSTNAME}}).
-# Only this one address exists on the server's own name; the mfdmarc pipe in master.cf stores them.
+# DMARC reports that other providers send about our domains (rua=mailto:dmarc-reports@{{HOSTNAME}}),
+# and spam reports from end users (spam@ and notspam@, Outlook's Report button forwards there).
+# Only these addresses exist on the server's own name; the mfdmarc and mfreport pipes in master.cf handle them.
 virtual_mailbox_domains = {{HOSTNAME}}
-virtual_mailbox_maps = inline:{ dmarc-reports@{{HOSTNAME}}=dmarc }
+virtual_mailbox_maps = inline:{ dmarc-reports@{{HOSTNAME}}=dmarc, spam@{{HOSTNAME}}=report, notspam@{{HOSTNAME}}=report }
 # Check that a recipient exists before accepting (no backscatter). Chosen per domain in the web
 # interface and written by mailfilter-config: asking the destination server (recipient_verify ->
 # reject_unverified_recipient, answers cached below), an LDAP / Active Directory lookup or a fixed
@@ -46,8 +47,8 @@ strict_rfc821_envelopes = yes
 smtpd_client_restrictions = permit_mynetworks, permit_sasl_authenticated, check_client_access cidr:/etc/mailfilter/postfix/client_block.cidr
 smtpd_helo_restrictions = check_client_access cidr:/etc/mailfilter/postfix/mailtrap.cidr, permit_mynetworks, permit_sasl_authenticated, reject_invalid_helo_hostname, reject_non_fqdn_helo_hostname
 smtpd_sender_restrictions = reject_non_fqdn_sender, reject_unknown_sender_domain, check_sender_access hash:/etc/mailfilter/postfix/sender_block
-smtpd_relay_restrictions = check_client_access cidr:/etc/mailfilter/postfix/mailtrap.cidr, check_sasl_access hash:/etc/mailfilter/postfix/mailtrap_sasl, permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
-smtpd_recipient_restrictions = reject_non_fqdn_recipient, reject_unknown_recipient_domain, check_client_access cidr:/etc/mailfilter/postfix/mailtrap.cidr, check_sasl_access hash:/etc/mailfilter/postfix/mailtrap_sasl, permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination, check_recipient_access hash:/etc/mailfilter/postfix/recipient_verify
+smtpd_relay_restrictions = check_client_access cidr:/etc/mailfilter/postfix/mailtrap.cidr, check_sasl_access hash:/etc/mailfilter/postfix/mailtrap_sasl, permit_mynetworks, permit_sasl_authenticated, check_client_access cidr:/etc/mailfilter/postfix/cloud_relay.cidr, reject_unauth_destination
+smtpd_recipient_restrictions = reject_non_fqdn_recipient, reject_unknown_recipient_domain, check_client_access cidr:/etc/mailfilter/postfix/mailtrap.cidr, check_sasl_access hash:/etc/mailfilter/postfix/mailtrap_sasl, permit_mynetworks, permit_sasl_authenticated, check_client_access cidr:/etc/mailfilter/postfix/cloud_relay.cidr, reject_unauth_destination, check_recipient_access hash:/etc/mailfilter/postfix/recipient_verify
 smtpd_data_restrictions = reject_unauth_pipelining
 message_size_limit = 52428800
 mailbox_size_limit = 0
@@ -109,6 +110,16 @@ broken_sasl_auth_clients = no
 
 # Mailtrap pipe: one delivery per message with all its recipients
 mftrap_destination_recipient_limit = 1000
+# Spam report pipe: one recipient per delivery (the address says spam or not spam)
+mfreport_destination_recipient_limit = 1
+
+# Mail archive (managed in "Archive"): mail to and from an archived domain gets one
+# extra recipient, <domain>@archive.mailfilter.invalid (archive_bcc), which the
+# mfarchive pipe stores. The copy is delivered only when the message itself is, so
+# refused spam is never archived and quarantined mail only once it is released.
+sender_bcc_maps = hash:/etc/mailfilter/postfix/archive_bcc
+recipient_bcc_maps = hash:/etc/mailfilter/postfix/archive_bcc
+mfarchive_destination_recipient_limit = 1
 
 # Queues: Postfix schedules each destination domain separately, so one slow or
 # broken destination never blocks the others. Limits per destination:

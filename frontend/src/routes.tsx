@@ -4,8 +4,11 @@ import { lazy, type ReactNode } from "react";
 import type { Me } from "./lib/auth";
 
 const Account = lazy(() => import("./pages/Account"));
+const ApiAccess = lazy(() => import("./pages/ApiAccess"));
+const Archive = lazy(() => import("./pages/Archive"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Backups = lazy(() => import("./pages/Backups"));
+const CloudMail = lazy(() => import("./pages/CloudMail"));
 const Cluster = lazy(() => import("./pages/Cluster"));
 const CustomRules = lazy(() => import("./pages/CustomRules"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -21,12 +24,15 @@ const Lists = lazy(() => import("./pages/Lists"));
 const Quarantine = lazy(() => import("./pages/Quarantine"));
 const QuarantineReport = lazy(() => import("./pages/QuarantineReport"));
 const RelayAccess = lazy(() => import("./pages/RelayAccess"));
+const SpamReports = lazy(() => import("./pages/SpamReports"));
 const Security = lazy(() => import("./pages/Security"));
 const Throttling = lazy(() => import("./pages/Throttling"));
 const Trace = lazy(() => import("./pages/Trace"));
+const Usage = lazy(() => import("./pages/Usage"));
 const Users = lazy(() => import("./pages/Users"));
 
-export type AppRoute = { path: string; element: (me: Me) => ReactNode; adminOnly?: boolean };
+// reseller: also open to reseller logins, which only get these routes.
+export type AppRoute = { path: string; element: (me: Me) => ReactNode; adminOnly?: boolean; reseller?: boolean };
 
 export const ROUTES: AppRoute[] = [
   { path: "/", element: (me) => <Dashboard me={me} /> },
@@ -36,10 +42,15 @@ export const ROUTES: AppRoute[] = [
   { path: "/dmarc", element: (me) => <Dmarc me={me} /> },
   { path: "/quarantine/report", element: (me) => <QuarantineReport me={me} /> },
   { path: "/mailtrap", element: (me) => <Mailtrap me={me} /> },
+  { path: "/archive", element: (me) => <Archive me={me} /> },
   { path: "/lists", element: (me) => <Lists me={me} /> },
-  { path: "/account", element: (me) => <Account me={me} /> },
+  { path: "/spam-reports", element: (me) => <SpamReports me={me} /> },
+  { path: "/account", element: (me) => <Account me={me} />, reseller: true },
+  { path: "/usage", element: (me) => <Usage me={me} />, reseller: true },
+  { path: "/billing", element: (me) => <Usage me={me} tab="billing" />, adminOnly: true },
   { path: "/domains", element: (me) => <Domains me={me} /> },
   { path: "/relay", element: (me) => <RelayAccess me={me} /> },
+  { path: "/cloud", element: (me) => <CloudMail me={me} /> },
   { path: "/rules", element: () => <CustomRules /> },
   { path: "/throttling", element: () => <Throttling />, adminOnly: true },
   { path: "/users", element: () => <Users />, adminOnly: true },
@@ -49,6 +60,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/system/cluster", element: () => <Cluster />, adminOnly: true },
   { path: "/system/backups", element: () => <Backups />, adminOnly: true },
   { path: "/audit", element: (me) => <AuditLog me={me} /> },
+  { path: "/system/api", element: (me) => <ApiAccess me={me} /> },
   { path: "/system/security", element: (me) => <Security me={me} />, adminOnly: true },
   { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true },
 ];

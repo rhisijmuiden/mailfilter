@@ -1,0 +1,19 @@
+# Managed by Mailfilter. Nightly mail archive work: envelope recipients, signed day
+# seals, locking finished days on disk, removing mail whose retention has passed,
+# and an integrity check (every file on Sundays).
+[Unit]
+Description=Mailfilter mail archive maintenance
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+ExecStart=/var/lib/mailfilter/venv/bin/mailfilter-admin archive-maintain
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter
+Nice=10
+IOSchedulingClass=idle

@@ -38,6 +38,9 @@ const GROUPS: [string, RegExp][] = [
   ["cluster", /^cluster\./],
   ["lists", /^list_/],
   ["mailtrap", /^mailtrap_/],
+  ["archive", /^archive\./],
+  ["cloud", /^cloud_/],
+  ["api", /^api_key_/],
 ];
 
 function groupOf(action: string): string {
@@ -116,6 +119,9 @@ export default function AuditLog({ me }: { me: Me }) {
             {e.user_name && e.user_email ? e.user_email : ""}
             {e.ip && <span className="mono">{e.user_email ? " · " : ""}{e.ip}</span>}
           </div>
+          {typeof e.detail.api_key === "string" && (
+            <span className="tag lucht" style={{ marginTop: 4 }}>{t("audit.via_api", { name: e.detail.api_key })}</span>
+          )}
         </>
       ) },
     { key: "what", label: t("audit.what"), sort: (e) => actionLabel(t, e.action), mobile: "title",
@@ -134,11 +140,11 @@ export default function AuditLog({ me }: { me: Me }) {
       ) },
     { key: "details", label: t("audit.details"),
       render: (e) =>
-        Object.keys(e.detail).length === 0 ? (
+        Object.keys(e.detail).filter((k) => k !== "api_key").length === 0 ? (
           <span className="muted">–</span>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {Object.entries(e.detail).map(([k, v]) => (
+            {Object.entries(e.detail).filter(([k]) => k !== "api_key").map(([k, v]) => (
               <span key={k} className="tag" style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
                 <span className="muted">{t(`audit.fields.${k}`, { defaultValue: k.replace(/_/g, " ") })}:</span> {value(v)}
               </span>

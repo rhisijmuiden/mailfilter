@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-from . import backup, events, jobs, remote, system
+from . import archive, backup, events, jobs, remote, system
 from .util import CtlError, human_size
 
 
@@ -113,6 +113,12 @@ def build_parser() -> argparse.ArgumentParser:
     sy = rm.add_parser("sync", help="upload missing backups now and remove old ones remotely")
     sy.add_argument("--wait", action="store_true")
 
+    ar = sub.add_parser("archive", help="mail archive on disk").add_subparsers(dest="action", required=True)
+    ar.add_parser("lock", help="make finished days unchangeable (chattr +i)")
+    pu = ar.add_parser("purge", help="remove a domain's retention month after it is over")
+    pu.add_argument("domain")
+    pu.add_argument("month", help="YYYY-MM")
+
     ev = sub.add_parser("events", help="recent system events (for alerts)")
     ev.add_argument("--limit", type=int, default=50)
 
@@ -167,6 +173,10 @@ def dispatch(a) -> object:
             return backup.set_config(changes)
     if a.cmd == "remote":
         return _remote(a)
+    if a.cmd == "archive":
+        if a.action == "lock":
+            return archive.lock()
+        return archive.purge(a.domain.lower(), a.month)
     if a.cmd == "events":
         return {"events": events.recent(max(1, min(a.limit, 500)))}
     if a.cmd == "restore":

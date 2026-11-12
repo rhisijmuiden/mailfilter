@@ -37,8 +37,13 @@ submissions inet n      -       y       -       -       smtpd
 # Mailtrap: stores mail from test environments in their mailbox instead of sending it
 mftrap    unix  -       n       n       -       4       pipe
   flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-trap-deliver ${nexthop} --client=${client_address} --sasl=${sasl_username} --sender=${sender} -- ${recipient}
+# Mail archive: stores the archive copy of mail to and from archived domains (one domain per delivery)
+mfarchive unix  -       n       n       -       4       pipe
+  flags=q user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-archive-deliver ${user} --queue-id=${queue_id} --sender=${sender}
 mfdmarc   unix  -       n       n       -       2       pipe
   flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-dmarc-ingest ${sender}
+mfreport  unix  -       n       n       -       4       pipe
+  flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-spam-report --to=${user} --sender=${sender} --client=${client_address} --helo=${client_helo}
 
 pickup    unix  n       -       y       60      1       pickup
 cleanup   unix  n       -       y       -       0       cleanup

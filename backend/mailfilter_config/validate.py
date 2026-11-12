@@ -319,6 +319,12 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
                 "Het wachtwoord kon niet worden opgeslagen.")
 
     _check_mailtraps(cfg, add, own_ips)
+    _check_cloud_tenants(cfg, add)
+
+    for i, name in enumerate(cfg.archive_domains):
+        if normalise_domain(str(name)) != str(name).strip().lower():
+            add(f"archive_domains[{i}]", "archive_domain_invalid", f"'{name}' is not a valid domain name.",
+                f"'{name}' is geen geldige domeinnaam.")
 
     dft = cfg.defaults
     for attr in ("relay_ip_per_minute", "relay_ip_per_hour", "domain_per_hour", "domain_per_day",
@@ -443,6 +449,39 @@ def normalise_allow(entry: str) -> str | None:
     if not at or not ndom or (local and not EMAIL_RE.fullmatch(local)):
         return None
     return f"{local}@{ndom}"
+
+
+def _check_cloud_tenants(cfg: GatewayConfig, add) -> None:
+    from .cloud import PROVIDERS, TENANT_ID_RE
+
+    kinds = {d.name: d.kind for d in cfg.domains}
+    seen: set[str] = set()
+    for i, t in enumerate(cfg.cloud_tenants):
+        f = f"cloud_tenants[{i}]"
+        if t.provider not in PROVIDERS:
+            add(f"{f}.provider", "cloud_provider_invalid", "Choose Microsoft 365 or Google Workspace.",
+                "Kies Microsoft 365 of Google Workspace.")
+            continue
+        name = normalise_domain(t.domain or "")
+        if not name:
+            add(f"{f}.domain", "domain_invalid", f"'{t.domain}' is not a valid domain name.",
+                f"'{t.domain}' is geen geldige domeinnaam.")
+            continue
+        t.domain = name
+        if name in seen:
+            add(f"{f}.domain", "cloud_duplicate", f"{name} is already linked to a cloud mail tenant.",
+                f"{name} is al aan een cloud-mailomgeving gekoppeld.")
+        seen.add(name)
+        if name not in kinds:
+            add(f"{f}.domain", "cloud_domain_missing", f"Add {name} under Domains first.",
+                f"Voeg {name} eerst toe onder Domeinen.")
+        t.tenant_id = (t.tenant_id or "").strip().lower()
+        if t.provider == "m365" and not TENANT_ID_RE.fullmatch(t.tenant_id):
+            add(f"{f}.tenant_id", "tenant_id_invalid",
+                "A Microsoft 365 tenant ID looks like 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a.",
+                "Een Microsoft 365 tenant-ID ziet eruit als 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a.")
+        if t.provider == "google":
+            t.tenant_id = ""
 
 
 def _check_mailtraps(cfg: GatewayConfig, add, own_ips) -> None:

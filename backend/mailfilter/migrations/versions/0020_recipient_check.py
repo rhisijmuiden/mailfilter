@@ -1,15 +1,15 @@
 """Recipient check per transport domain: ask the mail server, LDAP / Active
 Directory, a fixed list, or no check.
 
-Revision ID: 0015_recipient_check
-Revises: 0014_monthly_report
+Revision ID: 0020_recipient_check
+Revises: 0019_archive
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0015_recipient_check"
-down_revision = "0014_monthly_report"
+revision = "0020_recipient_check"
+down_revision = "0019_archive"
 branch_labels = None
 depends_on = None
 
