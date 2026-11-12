@@ -150,7 +150,7 @@ local function split_org(host)
 end
 
 local own = {}          -- your domains (Domains page)
-local protected = {}    -- {host, org, label, suffix}: your domains + extra names to protect
+local protected_hosts = {} -- your domains + extra names to protect
 do
   local seen = {}
   local function add(h, is_own)
@@ -163,8 +163,7 @@ do
     end
     if not seen[h] then
       seen[h] = true
-      local org, label, suffix = split_org(h)
-      protected[#protected + 1] = { host = h, org = org, label = label, suffix = suffix }
+      protected_hosts[#protected_hosts + 1] = h
     end
   end
   for _, d in ipairs(protected_list) do
@@ -173,6 +172,20 @@ do
   for _, d in ipairs(option('phishing_lookalike', 'extra', {}) or {}) do
     add(d, false)
   end
+end
+
+-- {host, org, label, suffix} per protected domain. Built on first use: the
+-- public suffix list (get_tld) is not loaded yet while the config is read.
+local protected_cache
+local function protected()
+  if not protected_cache then
+    protected_cache = {}
+    for _, h in ipairs(protected_hosts) do
+      local org, label, suffix = split_org(h)
+      protected_cache[#protected_cache + 1] = { host = h, org = org, label = label, suffix = suffix }
+    end
+  end
+  return protected_cache
 end
 
 -- One of your own domains or a subdomain of one.
@@ -193,7 +206,7 @@ local function is_own(host)
 end
 
 local function is_protected(host)
-  for _, p in ipairs(protected) do
+  for _, p in ipairs(protected()) do
     if host == p.host or (#host > #p.host and host:sub(-(#p.host + 1)) == '.' .. p.host) or
         rspamd_util.get_tld(host) == p.org then
       return true
@@ -212,11 +225,11 @@ end
 -- Reason and the domain it imitates, or nil.
 local function lookalike(host, other_tld)
   host = clean_host(host)
-  if not host or #protected == 0 or is_protected(host) then
+  if not host or #protected_hosts == 0 or is_protected(host) then
     return nil
   end
   local _, label, _ = split_org(host)
-  for _, p in ipairs(protected) do
+  for _, p in ipairs(protected()) do
     if label == p.label then
       if other_tld then
         return 'other-extension', p.host
