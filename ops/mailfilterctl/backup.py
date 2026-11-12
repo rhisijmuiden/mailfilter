@@ -23,17 +23,20 @@ import socket
 import tempfile
 from pathlib import Path
 
-from . import paths, system
+from . import archive as archive_disk, paths, system
 from .util import CtlError, have, human_size, iso, now, parse_iso, read_json, run, sha256, write_json
 
 # Paths relative to the file system root. /var/lib/mailfilter is left out on
 # purpose: it holds the Python environment and job files, which the installer
 # recreates, and an incremental restore would delete anything not in the backup.
+# The mail archive (gzip files; its index, hash chain and seals are in the database)
+# only grows, so the incremental backups hold just each day's new mail.
 FILE_SOURCES = [
     "etc/mailfilter",
     "var/lib/rspamd/dkim",
     "etc/letsencrypt",
     "var/spool/postfix/hold",
+    "var/lib/mailfilter-archive",
 ]
 COMPONENTS = ("files", "database", "redis")
 # The only file names a backup step may contain (also checked for downloaded backups).
@@ -396,6 +399,8 @@ def restore(backup_id: str, components=None, safety_backup: bool = True, log=pri
     _systemctl("stop", SERVICES_TO_STOP, log)
     try:
         if "files" in components:
+            # Locked archive files (chattr +i) cannot be replaced or removed until unlocked.
+            archive_disk.unlock_all()
             for i in range(number + 1):
                 archive = _archive(chain / f"{i:03d}")
                 if not archive:
@@ -411,6 +416,11 @@ def restore(backup_id: str, components=None, safety_backup: bool = True, log=pri
         if "redis" in components and "redis" in target["components"]:
             step("Restoring spam filter learning data", "restore_redis")
             _restore_redis(chain / f"{number:03d}" / "redis.rdb", log)
+        if "files" in components:
+            try:
+                archive_disk.lock(force=True)
+            except CtlError as e:  # not fatal: the hash chain and seals still show any change
+                log(f"Could not lock the mail archive again: {e}")
         if "files" in components and paths.root() == Path("/") and os.environ.get("MF_NO_RECONFIGURE") != "1":
             step("Applying the restored configuration", "restore_apply")
             system.reconfigure(log)

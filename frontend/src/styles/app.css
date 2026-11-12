@@ -171,6 +171,8 @@ td.nowrap{white-space:nowrap}
 .callout{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-md);background:var(--info-soft);color:var(--ink)}
 .callout svg{width:18px;height:18px;stroke:var(--info);flex:none;margin-top:2px}
 .callout.warn{background:var(--warn-soft)} .callout.warn svg{stroke:var(--warn)}
+.callout.ok{background:var(--ok-soft)} .callout.ok svg{stroke:var(--ok)}
+.callout.bad{background:var(--bad-soft)} .callout.bad svg{stroke:var(--bad)}
 
 .dns{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 12px;align-items:center;font-size:13px}
 .dns code{font-family:var(--mono);font-size:12px;background:var(--surface-sunk);padding:6px 8px;border-radius:var(--r-sm);overflow-x:auto;white-space:nowrap;display:block}

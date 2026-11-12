@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 import mailfilter_config as mfc
 from mailfilter_config.rules import rule_from_dict
 
-from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, MailTrap, OutboundHold,
+from .models import (AddressRoute, ArchiveDomain, DestinationPolicy, Domain, DomainDestination, DomainRoute, MailTrap, OutboundHold,
                      RelayNetwork, RelayPort, SmtpAccount, TlsPolicy, User)
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
@@ -114,6 +114,8 @@ def build_config(db: Session) -> mfc.GatewayConfig:
                                 max_messages=t.max_messages, enabled=t.enabled)
                    for t in db.execute(select(MailTrap).order_by(MailTrap.slug)).scalars()],
         mailtrap_enabled=mailtrap_enabled(db),
+        archive_domains=list(db.execute(select(ArchiveDomain.name).where(ArchiveDomain.enabled.is_(True))
+                                        .order_by(ArchiveDomain.name)).scalars()),
         defaults=defaults(db),
         custom_rules=custom_rules(db),
     )

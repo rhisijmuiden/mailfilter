@@ -38,6 +38,7 @@ const GROUPS: [string, RegExp][] = [
   ["cluster", /^cluster\./],
   ["lists", /^list_/],
   ["mailtrap", /^mailtrap_/],
+  ["archive", /^archive\./],
 ];
 
 function groupOf(action: string): string {

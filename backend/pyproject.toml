@@ -30,6 +30,7 @@ mailfilter-admin = "mailfilter.cli:main"
 mailfilter-dmarc-ingest = "mailfilter.dmarc.ingest:main"
 mailfilter-trap-deliver = "mailfilter.mailtrap.deliver:main"
 mailfilter-spam-report = "mailfilter.feedback.ingest:main"
+mailfilter-archive-deliver = "mailfilter.archive.ingest:main"
 
 [tool.setuptools.packages.find]
 # mailfilter (web app) and the sibling packages mailfilter_tracer, _dns, _config, _pmg
