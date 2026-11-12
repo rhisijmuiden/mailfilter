@@ -1,14 +1,14 @@
 """API keys for the public REST API.
 
-Revision ID: 0015_api_keys
-Revises: 0014_monthly_report
+Revision ID: 0016_api_keys
+Revises: 0015_spam_feedback
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import INET, JSONB
 
-revision = "0015_api_keys"
-down_revision = "0014_monthly_report"
+revision = "0016_api_keys"
+down_revision = "0015_spam_feedback"
 branch_labels = None
 depends_on = None
 

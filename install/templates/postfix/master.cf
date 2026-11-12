@@ -39,6 +39,8 @@ mftrap    unix  -       n       n       -       4       pipe
   flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-trap-deliver ${nexthop} --client=${client_address} --sasl=${sasl_username} --sender=${sender} -- ${recipient}
 mfdmarc   unix  -       n       n       -       2       pipe
   flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-dmarc-ingest ${sender}
+mfreport  unix  -       n       n       -       4       pipe
+  flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-spam-report --to=${user} --sender=${sender} --client=${client_address} --helo=${client_helo}
 
 pickup    unix  n       -       y       60      1       pickup
 cleanup   unix  n       -       y       -       0       cleanup

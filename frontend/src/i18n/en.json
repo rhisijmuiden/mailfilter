@@ -33,7 +33,8 @@
     "quarantine_report": "Quarantine report",
     "cluster": "Cluster",
     "monthly_report": "Monthly report",
-    "api": "API"
+    "api": "API",
+    "spam_reports": "Spam reports"
   },
   "theme": {
     "light": "Light",
@@ -84,7 +85,8 @@
       "backups": "backup restore ftp ftps scp remote full incremental",
       "import_pmg": "proxmox mail gateway import migrate",
       "account": "my account password language two-factor",
-      "api": "api rest key token automation hosting panel openapi"
+      "api": "api rest key token automation hosting panel openapi",
+      "spam_reports": "report spam outlook phone forward not spam junk learn bayes"
     }
   },
   "live": {
@@ -250,7 +252,12 @@
     "nothing_held": "There is no mail in quarantine for your domains right now, so there is nothing to show in an example.",
     "not_in_quarantine": "This message is no longer in quarantine.",
     "virus_admin_only": "This message contains a virus. Only an administrator can release it.",
-    "queue_unavailable": "The mail queue cannot be reached right now. Try again in a minute."
+    "queue_unavailable": "The mail queue cannot be reached right now. Try again in a minute.",
+    "not_learnable": "This report cannot be learned (any more).",
+    "no_copy": "The copy of this message is no longer kept.",
+    "rspamd_refused": "The spam filter did not accept it. It may have learned this message already.",
+    "nothing_to_block": "There is no sender to block.",
+    "not_learned": "This report was not learned, so there is nothing to undo."
   },
   "login": {
     "twofa_title": "Enter your code",
@@ -2161,5 +2168,6 @@
       "api_customers_only": "Admin accounts cannot be created or changed through the API.",
       "rate_limited": "Too many requests. Wait the number of seconds in Retry-After."
     }
-  }
+  },
+  "sfb": {"title": "Spam reports", "sub": "Spam and wrongly blocked mail that people report from Outlook, their phone or any mail app. Mailfilter learns from every report it can trust.", "days": "Last {{count}} days", "t_spam": "Reported as spam", "t_ham": "Reported as not spam", "t_learned": "Learned", "t_waiting": "Waiting for you", "t_waiting_sub": "Reports you can check and learn by hand", "off_notice": "Spam reports are switched off. Reports are still listed, but Mailfilter does not learn from them.", "when": "When", "kind": "Report", "kind_spam": "Spam", "kind_ham": "Not spam", "all": "All", "all_statuses": "Every status", "message": "Message", "no_subject": "(no subject)", "reporter": "Reported by", "score": "Score at delivery", "status": "Status", "source_attachment": "Original attached", "source_inline": "Plain forward", "verified": "proven by {{how}}", "blocked": "Sender blocked", "handled_by": "by {{who}}", "learn": "Learn", "learn_hint": "Teach the spam filter with this message now", "undo": "Undo", "undo_confirm": "Undo this report? The filter learns the message as the opposite, and a block from this report is removed.", "block": "Block sender", "block_hint": "Refuse mail from {{sender}} to {{mailbox}} from now on", "trace": "Trace", "open_trace": "Open this message in the mail trace", "done_learn": "Learned. The filter will recognise mail like this better.", "done_undo": "Report undone.", "done_block": "{{sender}} is blocked now.", "search": "Search reporter, sender, subject or queue ID", "count_one": "{{count}} report", "count_other": "{{count}} reports", "empty": "No reports yet. As soon as someone reports a message, it shows up here.", "st_learned": "Learned", "st_learned_hint": "The spam filter learned from this message.", "st_undone": "Undone", "st_undone_hint": "Reversed: the filter learned it as the opposite.", "st_duplicate": "Already reported", "st_duplicate_hint": "This message was already learned from an earlier report.", "st_unverified": "Waiting: sender not proven", "st_unverified_hint": "The report could not be proven to come from the reporter's domain (DMARC, DKIM or SPF). Check it and click Learn.", "st_not_found": "Waiting: message not found", "st_not_found_hint": "This message was not found as delivered to the reporter's domain. You can still learn it by hand.", "st_not_learned": "Not learned", "st_not_learned_hint": "The spam filter did not take it (already learned, or not reachable). Try Learn again.", "st_not_customer": "Not a customer", "st_not_customer_hint": "The reporter's domain is not handled by Mailfilter. Nothing was learned.", "st_rate_limited": "Too many reports", "st_rate_limited_hint": "This person sent more reports per hour than allowed.", "st_no_message": "No message in it", "st_no_message_hint": "The report contained no forwarded message.", "st_disabled": "Reporting off", "st_disabled_hint": "Spam reports were switched off when this arrived.", "how_title": "How people report", "address_spam": "Spam goes to", "address_ham": "Good mail that was marked as spam goes to", "how_m365": "Outlook with Microsoft 365", "how_outlook": "Forward as attachment", "how_phone": "Phone", "how_other": "Other mail apps", "how_m365_intro": "The easiest way: everyone gets a Report button in Outlook on Windows, Mac, the web, iPhone and Android, and only has to press it. Set it up once per Microsoft 365 tenant.", "how_m365_steps": ["In the Exchange admin center, add a shared mailbox for reports, for example reportspam@yourdomain.", "Forward everything that arrives in that mailbox to {{spam}} (the mailbox > Mail flow settings > Email forwarding). If Microsoft blocks forwarding, allow automatic forwarding for this mailbox in the outbound anti-spam policy.", "In the Microsoft Defender portal, go to Settings > Email & collaboration > User reported settings. Turn on the Report button in Outlook and send reported messages to \"My reporting mailbox only\": the shared mailbox.", "\"Not junk\" reports arrive with that in the subject; Mailfilter learns those as good mail by itself.", "Turn on DKIM for your domain in Microsoft 365, so Mailfilter can prove a report really comes from you. Otherwise reports wait here until someone clicks Learn."], "how_outlook_intro": "Works in every desktop and web mail program, without any setup. Mailfilter gets the exact original.", "how_outlook_steps": ["Select the message.", "Outlook: More actions (…) > Forward as attachment (Ctrl+Alt+F). Thunderbird: Message > Forward As > Attachment. Gmail on the web: the three dots > Forward as attachment.", "Send it to {{spam}}, or to {{ham}} for good mail that was marked as spam."], "how_phone_intro": "In the Outlook app, use the Report button (see Microsoft 365). Other apps, like iPhone Mail and Gmail, simply forward the message.", "how_phone_steps": ["Open the message and tap Forward.", "Send it to {{spam}} or {{ham}}. Leave the forwarded text as it is: Mailfilter finds the original by its sender and date.", "Tip: save both addresses as contacts, for example \"Report spam\" and \"Not spam\", so they are quick to pick."], "how_other_intro": "Any mail program works.", "how_other_steps": ["Forwarding as attachment works best: Mailfilter gets the exact original.", "A normal forward works too, as long as the lines with the sender and date of the original stay in the text.", "Only mail that Mailfilter delivered to your own domain can be reported."], "how_safety": "Only mail that Mailfilter delivered to the reporter's domain can be reported, and the report has to come from that domain. Reports from anywhere else are listed here, but never learned.", "settings": "Settings", "opt_enabled": "Accept spam reports", "opt_enabled_hint": "Learn from reports sent to the two addresses above.", "opt_require_auth": "Only trust reports that are proven", "opt_require_auth_hint": "The report must pass DMARC, or carry a DKIM signature or SPF pass of the reporter's domain. Other reports wait here for a click on Learn.", "opt_auto_block": "Block the sender for the reporter", "opt_auto_block_hint": "A learned spam report also puts the sender on the block list of the mailbox that got it. Undo takes it off again.", "opt_per_hour": "Reports per person per hour", "opt_per_hour_hint": "More reports than this are listed but not learned. 0 = no limit.", "keep_hint": "A copy of each reported message is kept {{days}} days, for Learn and Undo."}
 }
