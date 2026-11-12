@@ -163,7 +163,8 @@ scan2 /tmp/att-exe.eml factuur@supplier.example >/tmp/scan-exe.json 2>&1 || true
 scan2 /tmp/att-macro.eml factuur@supplier.example >/tmp/scan-macro.json 2>&1 || true
 rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from directeur.rhis@freemail.example --rcpt info@rhis.nl /tmp/ph-name.eml >/tmp/scan-banner.eml 2>&1 || true
 has() { grep -q "$2" "$1" || { cat "$1"; exit 1; }; }
-action_is() { python3 -c 'import json,sys; a=json.load(open(sys.argv[1])).get("action"); sys.exit(a != sys.argv[2])' "$1" "$2" || { cat "$1"; exit 1; }; }
+# rspamc may print more after the JSON reply (stderr is in the same file): read the first object only.
+action_is() { python3 -c 'import json,sys; t=open(sys.argv[1]).read(); a=json.JSONDecoder().raw_decode(t[t.index("{"):])[0].get("action"); sys.exit(a != sys.argv[2])' "$1" "$2" || { head -c 4000 "$1"; exit 1; }; }
 check "lookalike domain recognised" bash -c "$(declare -f has); has /tmp/scan-ph1.json MF_LOOKALIKE_DOMAIN"
 check "link to an IP address recognised" bash -c "$(declare -f has); has /tmp/scan-ph1.json MF_SUSPICIOUS_LINK"
 check "fake sender name recognised" bash -c "$(declare -f has); has /tmp/scan-ph2.json MF_DISPLAYNAME_SPOOF"
