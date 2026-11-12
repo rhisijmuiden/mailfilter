@@ -315,7 +315,9 @@ service imap-login {{
     ssl = yes
   }}
 }}
-ssl = required
+# Not "required": Postfix's SASL socket needs auth_allow_cleartext, which Dovecot 2.4 refuses next to it.
+# There is no plain IMAP listener, so IMAP is TLS-only all the same.
+ssl = yes
 ssl_server_cert_file = {cert}
 ssl_server_key_file = {key}
 ssl_min_protocol = TLSv1.2
