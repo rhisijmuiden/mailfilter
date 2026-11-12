@@ -24,8 +24,9 @@ jobs:
           python-version: "3.13"
       - name: Tests
         run: |
-          sudo apt-get install -y -q zstd
-          pip install pytest pyflakes
+          sudo apt-get install -y -q zstd gnupg openssh-client openssh-server
+          sudo mkdir -p /run/sshd
+          pip install pytest pyflakes pyftpdlib pyopenssl
           python -m pyflakes ops
           git config --global user.name ci && git config --global user.email ci@example.org
           python -m pytest -q ops/tests
