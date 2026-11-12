@@ -187,7 +187,7 @@ def test_untrusted_hooks_are_skipped(env, tmp_path):
 # ---------------------------------------------------------------- FTP / FTPS
 
 def _ftp_server(tmp_path, tls):
-    pyftpdlib = pytest.importorskip("pyftpdlib")  # noqa: F841
+    pytest.importorskip("pyftpdlib")
     from pyftpdlib.authorizers import DummyAuthorizer
     from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
     from pyftpdlib.servers import ThreadedFTPServer
@@ -212,6 +212,7 @@ def _ftp_server(tmp_path, tls):
             pass
     Handler.authorizer = auth
     Handler.passive_ports = None
+    Handler.auth_failed_timeout = 0  # answer a wrong password at once
     server = ThreadedFTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, kwargs={"timeout": 0.2}, daemon=True).start()
     return server, home
