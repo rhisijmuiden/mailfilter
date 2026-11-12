@@ -9,7 +9,7 @@
   mailfilter-admin notify-check                send alerts by e-mail, Telegram and webhook (run by a timer)
   mailfilter-admin write-lists                 rewrite the allow/block list maps for Rspamd
   mailfilter-admin quarantine-report [--now]   send the daily quarantine reports when due
-  mailfilter-admin monthly-report [--now]      store last month's numbers and send the monthly reports when due
+  mailfilter-admin monthly-report [--now]      measure usage, store last month's numbers, send the monthly reports when due
   mailfilter-admin cluster-sync                exchange configuration with the other cluster nodes (timer)
   mailfilter-admin cluster-leave               take this server out of its cluster (keeps its configuration)
 """
@@ -197,7 +197,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if res.failed else 0
         if args.cmd == "monthly-report":
             from .monthly import run as monthly_run
+            from .usage import run as usage_run
 
+            try:
+                for m in usage_run(db):
+                    print(f"stored the usage of {m}")
+            except Exception as e:  # noqa: BLE001 - the monthly report must still go out
+                db.rollback()
+                print(f"usage measurement failed: {e}", file=sys.stderr)
             res = monthly_run(db, force=args.now)
             for m in res.stored:
                 print(f"stored the numbers of {m}")

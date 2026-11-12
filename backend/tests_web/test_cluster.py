@@ -384,3 +384,25 @@ def test_two_factor_and_policy_are_synced(nodes):
     with nodes.on("a"), session() as db:
         u = db.execute(select(User).where(User.email == "admin@rhis.nl")).scalar_one()
         assert len(u.recovery_codes) == 9
+
+
+def test_billing_customers_resellers_and_tariffs_are_synced(nodes):
+    from mailfilter.models import BillingCustomer, Reseller
+
+    make_cluster(nodes)
+    r = nodes.call("a", "post", "/api/billing/resellers", json={"name": "WebBouw Noord", "ref": "D-2001", "discount_percent": 20})
+    rid = r.json()["resellers"][0]["id"]
+    nodes.call("a", "post", "/api/billing/customers", json={"name": "RHIS", "ref": "D-1", "reseller_id": rid, "domains": ["rhis.nl"]})
+    nodes.call("a", "put", "/api/billing/tariffs", json={"per_mailbox": 0.75})
+    nodes.call("a", "post", "/api/users", json={"email": "partner@webbouw.nl", "role": "reseller", "reseller_id": rid})
+    with nodes.on("a"):
+        peer.push_all()
+    with nodes.on("b"), session() as db:
+        rs = db.execute(select(Reseller)).scalar_one()
+        c = db.execute(select(BillingCustomer)).scalar_one()
+        dom = db.execute(select(Domain).where(Domain.name == "rhis.nl")).scalar_one()
+        u = db.execute(select(User).where(User.email == "partner@webbouw.nl")).scalar_one()
+        assert (rs.name, float(rs.discount_percent), c.ref, c.reseller_id) == ("WebBouw Noord", 20.0, "D-1", rs.id)
+        assert dom.billing_customer_id == c.id and u.reseller_id == rs.id
+        from mailfilter import usage
+        assert usage.load_tariffs(db)["per_mailbox"] == 0.75

@@ -1,6 +1,6 @@
 // The left menu. Each feature adds its entries here; `group` decides the section.
 import type { LucideIcon } from "lucide-react";
-import { Archive, Flag, FileChartColumn, FlaskConical, AtSign, BellRing, Boxes, DatabaseBackup, FileInput, Gauge, Globe, KeyRound, LayoutDashboard, ListChecks, MailCheck, Network, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { Archive, Building2, Flag, FileChartColumn, FlaskConical, AtSign, BellRing, Boxes, DatabaseBackup, FileInput, Gauge, Globe, KeyRound, LayoutDashboard, ListChecks, MailCheck, Network, Receipt, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 export type NavGroup = "overview" | "mail" | "config" | "system";
 
@@ -10,6 +10,8 @@ export type NavItem = {
   icon: LucideIcon;
   group: NavGroup;
   adminOnly?: boolean;
+  // Shown to reseller logins too (they only get these entries).
+  reseller?: boolean;
   // Optional count shown next to the entry; see BADGES in components/Layout.tsx.
   badge?: "quarantine" | "mailtrap";
   // Optional module: only shown when the module says so (see MODULES in components/Layout.tsx).
@@ -21,6 +23,7 @@ export const GROUPS: NavGroup[] = ["overview", "mail", "config", "system"];
 export const NAV: NavItem[] = [
   { to: "/", label: "nav.dashboard", icon: LayoutDashboard, group: "overview" },
   { to: "/reports/monthly", label: "nav.monthly_report", icon: FileChartColumn, group: "overview" },
+  { to: "/usage", label: "nav.usage", icon: Receipt, group: "overview", reseller: true },
   { to: "/trace", label: "nav.trace", icon: Search, group: "mail" },
   { to: "/quarantine", label: "nav.quarantine", icon: ShieldAlert, group: "mail", badge: "quarantine" },
   { to: "/mailtrap", label: "nav.mailtrap", icon: FlaskConical, group: "mail", badge: "mailtrap", module: "mailtrap" },
@@ -35,6 +38,7 @@ export const NAV: NavItem[] = [
   { to: "/throttling", label: "nav.throttling", icon: Gauge, group: "config", adminOnly: true },
   { to: "/dns", label: "nav.dns", icon: Globe, group: "config", adminOnly: true },
   { to: "/users", label: "nav.users", icon: Users, group: "system", adminOnly: true },
+  { to: "/billing", label: "nav.billing", icon: Building2, group: "system", adminOnly: true },
   { to: "/system/security", label: "nav.security", icon: KeyRound, group: "system", adminOnly: true },
   { to: "/audit", label: "nav.audit", icon: ScrollText, group: "system" },
   { to: "/system/mail", label: "nav.mail_sending", icon: Send, group: "system", adminOnly: true },

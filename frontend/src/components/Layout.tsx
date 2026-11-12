@@ -47,7 +47,7 @@ export function Layout({ me }: { me: Me }) {
     qc.setQueryData(["me"], null);
   };
 
-  const items = NAV.filter((n) => (!n.adminOnly || me.role === "admin") && (!n.module || MODULES[n.module]));
+  const items = NAV.filter((n) => (me.role === "reseller" ? n.reseller : !n.adminOnly || me.role === "admin") && (!n.module || MODULES[n.module]));
   const initials = (me.name || me.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0]!.toUpperCase()).join("");
 
   return (
