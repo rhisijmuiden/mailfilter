@@ -28,6 +28,7 @@ USERS_END = "# END mailfilter-config accounts"
 # Mailtrap: where caught mail is stored (one Maildir per mailbox login), the
 # settings the mftrap pipe reads, the IMAP users and Dovecot's IMAP part.
 MAILTRAP_DIR = "/var/lib/mailfilter/mailtrap"
+ARCHIVE_HOST = "archive.mailfilter.invalid"  # same as mailfilter.archive.store.ARCHIVE_HOST
 MAILTRAP_JSON = f"{ETC}/mailtrap.json"
 MAILTRAP_USERS = f"{ETC}/mailtrap-users"
 DOVECOT_MAILTRAP = f"{ETC}/dovecot-mailtrap.conf"
@@ -173,6 +174,16 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
                         ("tls_policy", tls_policy), ("recipient_verify", verify)):
         out.files[f"{PF}/{name}"] = "".join(lines)
         out.hash_maps.append(f"{PF}/{name}")
+
+    # ---- mail archive: an extra (bcc) recipient per archived domain ----------------
+    # Used as sender_bcc_maps and recipient_bcc_maps (main.cf), so mail to and from the
+    # domain gets <domain>@archive.mailfilter.invalid, which transport_maps sends to the
+    # mfarchive pipe. The copy travels with the message: rejected mail is never archived.
+    archive = [HEADER]
+    for name in sorted({d.strip().lower() for d in cfg.archive_domains if d.strip()}):
+        archive.append(f"@{name} {name}@{ARCHIVE_HOST}\n")
+    out.files[f"{PF}/archive_bcc"] = "".join(archive)
+    out.hash_maps.append(f"{PF}/archive_bcc")
 
     # ---- relay access -----------------------------------------------------------
     nets = [n for n in cfg.relay_networks if n.enabled]

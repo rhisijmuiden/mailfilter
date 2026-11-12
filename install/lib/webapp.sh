@@ -27,6 +27,10 @@ install_webapp() {
   # Mailtrap mailboxes (Maildir per mailbox): the mftrap pipe writes, the web app and Dovecot (IMAP) read.
   install -d -o mailfilter -g mailfilter -m 0750 "$MF_VAR/mailtrap"
 
+  # Mail archive (gzip files per domain): the mfarchive pipe writes, the web app reads,
+  # the root helper locks finished days (chattr +i). Part of every backup.
+  install -d -o mailfilter -g mailfilter -m 0750 /var/lib/mailfilter-archive
+
   # Allow/block lists from the web interface, read by Rspamd (multimap.conf).
   install -d -o mailfilter -g mailfilter -m 0755 "$MF_VAR/lists"
   run runuser -u mailfilter -- "$MF_VENV/bin/mailfilter-admin" write-lists
@@ -56,6 +60,12 @@ install_webapp() {
   # Every six hours: replace DKIM keys older than the interval set on the DNS page
   run systemctl enable --now mailfilter-dkim-rotate.timer
   run systemctl restart mailfilter-web
+
+  # Every night: seal, lock and clean up the mail archive (Archive page)
+  install -m 0644 "$TPL/systemd/mailfilter-archive.service" /etc/systemd/system/mailfilter-archive.service
+  install -m 0644 "$TPL/systemd/mailfilter-archive.timer" /etc/systemd/system/mailfilter-archive.timer
+  run systemctl daemon-reload
+  run systemctl enable --now mailfilter-archive.timer
 
   # Every minute: pause relay IPs and SMTP accounts that suddenly send spam or a flood of mail
   install -m 0644 "$TPL/systemd/mailfilter-abuse.service" /etc/systemd/system/mailfilter-abuse.service

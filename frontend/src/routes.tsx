@@ -5,6 +5,7 @@ import type { Me } from "./lib/auth";
 
 const Account = lazy(() => import("./pages/Account"));
 const ApiAccess = lazy(() => import("./pages/ApiAccess"));
+const Archive = lazy(() => import("./pages/Archive"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Backups = lazy(() => import("./pages/Backups"));
 const CloudMail = lazy(() => import("./pages/CloudMail"));
@@ -41,6 +42,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/dmarc", element: (me) => <Dmarc me={me} /> },
   { path: "/quarantine/report", element: (me) => <QuarantineReport me={me} /> },
   { path: "/mailtrap", element: (me) => <Mailtrap me={me} /> },
+  { path: "/archive", element: (me) => <Archive me={me} /> },
   { path: "/lists", element: (me) => <Lists me={me} /> },
   { path: "/spam-reports", element: (me) => <SpamReports me={me} /> },
   { path: "/account", element: (me) => <Account me={me} />, reseller: true },

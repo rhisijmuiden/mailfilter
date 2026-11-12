@@ -208,6 +208,8 @@ class GatewayConfig:
     cloud_tenants: list[CloudTenant] = field(default_factory=list)
     # Main switch. Off: mail from Mailtrap senders is refused (never relayed).
     mailtrap_enabled: bool = True
+    # Domains whose mail (in and out) is copied to the mail archive (mfarchive pipe).
+    archive_domains: list[str] = field(default_factory=list)
     defaults: Defaults = field(default_factory=Defaults)
     # Custom rules (newsletter filter etc.) by rule id; missing rules use their default.
     custom_rules: dict[str, CustomRule] = field(default_factory=dict)
@@ -256,6 +258,7 @@ class GatewayConfig:
             mailtraps=[MailTrap(**t) for t in data.get("mailtraps", [])],
             cloud_tenants=[CloudTenant(**t) for t in data.get("cloud_tenants", [])],
             mailtrap_enabled=bool(data.get("mailtrap_enabled", True)),
+            archive_domains=[str(d) for d in data.get("archive_domains", [])],
             defaults=Defaults(**data.get("defaults", {})),
             custom_rules={k: rule_from_dict(v) for k, v in (data.get("custom_rules") or {}).items()},
             hostname=data.get("hostname", ""),

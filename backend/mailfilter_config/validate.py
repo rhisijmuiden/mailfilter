@@ -310,6 +310,11 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
     _check_mailtraps(cfg, add, own_ips)
     _check_cloud_tenants(cfg, add)
 
+    for i, name in enumerate(cfg.archive_domains):
+        if normalise_domain(str(name)) != str(name).strip().lower():
+            add(f"archive_domains[{i}]", "archive_domain_invalid", f"'{name}' is not a valid domain name.",
+                f"'{name}' is geen geldige domeinnaam.")
+
     dft = cfg.defaults
     for attr in ("relay_ip_per_minute", "relay_ip_per_hour", "domain_per_hour", "domain_per_day",
                  "user_per_hour", "concurrency"):

@@ -188,7 +188,7 @@ install -d -m 0755 "$MF_ETC/nftables"
 # mailfilter-config (step "Domains, relay access and throttling" below, and the
 # web interface). Here we only make sure every file exists so Postfix can start.
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
-for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify archive_bcc; do touch "$MF_ETC/postfix/$f"; done
 for f in relay_networks.cidr client_block.cidr postscreen_access.cidr mailtrap.cidr mailtrap_sasl cloud_relay.cidr; do touch "$MF_ETC/postfix/$f"; done
 # Mailtrap: caught mail of test environments (filled by the web interface)
 [[ -f $MF_ETC/dovecot-mailtrap.conf ]] || echo "# Managed by Mailfilter (Mailtrap). No mailbox allows IMAP." >"$MF_ETC/dovecot-mailtrap.conf"
@@ -260,7 +260,7 @@ if [[ $HAVE_CERT == 0 ]]; then
   postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
   warn "Postfix uses a temporary self-signed certificate until Let's Encrypt succeeds."
 fi
-for f in relay_domains transport sender_block tls_policy recipient_verify mailtrap_sasl; do run postmap "hash:$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify mailtrap_sasl archive_bcc; do run postmap "hash:$MF_ETC/postfix/$f"; done
 # A bare install with "No configuration" has no /etc/aliases; route system mail to the admin.
 [[ -f /etc/aliases ]] || printf 'postmaster: root\nabuse: root\nroot: %s\n' "$ADMIN_EMAIL" >/etc/aliases
 run newaliases

@@ -9,6 +9,8 @@ Synced (the same on every node):
     e-mail sending incl. SMTP password, Cloudflare token)
   * billing customers, resellers and tariffs (who pays for which domain)
   * DKIM keys, so every node signs with the key that is in DNS
+  * mail archive settings per domain (on/off, retention, legal hold); the
+    archived mail itself stays on the node that handled it
   * the member list and the cluster secret
 
 Per node (never synced): mail queues and quarantine, mail trace and logs,
@@ -36,7 +38,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import __version__
-from ..models import (AddressRoute, ApiKey, AppSetting, BillingCustomer, CloudTenant, ClusterNode, Reseller, DestinationPolicy, DigestDomain, Domain, DomainDestination,
+from ..models import (AddressRoute, ApiKey, AppSetting, ArchiveDomain, BillingCustomer, CloudTenant, ClusterNode, Reseller, DestinationPolicy, DigestDomain, Domain, DomainDestination,
                       DomainRoute, RelayNetwork, RelayPort, SenderListEntry, SmtpAccount, TlsPolicy, User)
 from ..settings import get_settings
 from ..settings_store import _fernet, set_secret, set_setting
@@ -49,14 +51,17 @@ SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp"
                              "quarantine_report", "security", "dkim_rotation", "billing.tariffs"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
-                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, Reseller, BillingCustomer, ApiKey, CloudTenant)
+                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, Reseller, BillingCustomer, ApiKey, CloudTenant, ArchiveDomain)
 
 # Changes to these columns alone are not configuration changes.
 LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at", "totp_last_step"}), ClusterNode: ClusterNode.LOCAL,
                  Reseller: frozenset({"created_at"}), BillingCustomer: frozenset({"created_at"}),
                  SenderListEntry: frozenset({"created_at"}), SmtpAccount: frozenset({"created_at"}),
                  ApiKey: frozenset({"created_at", "last_used_at", "last_used_ip"}),
-                 CloudTenant: frozenset({"created_at"})}
+                 CloudTenant: frozenset({"created_at"}),
+                 # The chain state changes with every archived message and is per node.
+                 ArchiveDomain: frozenset({"last_seq", "head", "retain_floor", "created_at"})}
+ARCHIVE_FIELDS = ("enabled", "retention_years", "legal_hold", "legal_hold_since", "legal_hold_note")
 ACCOUNT_FIELDS = ("password_hash", "description", "enabled")
 CLOUD_FIELDS = ("provider", "tenant_id", "enabled", "steps")
 LIST_FIELDS = ("list", "comment", "created_by")
@@ -181,6 +186,9 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
         "digest_off": digest_off,
         "billing": billing,
         "settings": settings,
+        "archive": [{**_pick(a, ARCHIVE_FIELDS), "name": a.name,
+                     "legal_hold_since": a.legal_hold_since.isoformat() if a.legal_hold_since else None}
+                    for a in db.execute(select(ArchiveDomain).order_by(ArchiveDomain.name)).scalars()],
         "dkim": dkim,
     }
 
@@ -409,6 +417,28 @@ def _import_lists(db: Session, items: list[dict] | None, digest_off: list[str] |
                 db.delete(row)
 
 
+def _import_archive(db: Session, items: list[dict] | None) -> None:
+    """Archive settings per domain. Rows are never removed here: a node keeps the
+    mail it archived (and its chain) for as long as its retention says."""
+    if items is None:  # older nodes do not send it: leave ours alone
+        return
+    have = {a.name: a for a in db.execute(select(ArchiveDomain)).scalars()}
+    for i in items:
+        name = str(i.get("name", "")).lower()
+        if not name:
+            continue
+        a = have.get(name)
+        if a is None:
+            a = ArchiveDomain(name=name, last_seq=0, head="0" * 64)
+            db.add(a)
+        _put(a, {k: v for k, v in i.items() if k != "legal_hold_since"}, ARCHIVE_FIELDS[:3] + ARCHIVE_FIELDS[4:])
+        a.legal_hold_since = datetime.fromisoformat(i["legal_hold_since"]) if i.get("legal_hold_since") else None
+    wanted = {str(i.get("name", "")).lower() for i in items}
+    for name, a in have.items():
+        if name not in wanted:
+            a.enabled = False
+
+
 def _import_settings(db: Session, items: dict[str, Any]) -> None:
     for key in SYNCED_SETTINGS:
         v = items.get(key)
@@ -487,6 +517,7 @@ def apply_snapshot(db: Session, snap: dict[str, Any], *, joining: bool = False) 
     _import_api_keys(db, snap.get("api_keys"))
     _import_lists(db, snap.get("lists"), snap.get("digest_off"), domains)
     _import_settings(db, snap.get("settings") or {})
+    _import_archive(db, snap.get("archive"))
     set_setting(db, IMPORTED_KEY, {"at": state.now().isoformat(), "from": "cluster"})
     if snap.get("revision"):
         set_setting(db, state.REVISION_KEY, snap["revision"])
