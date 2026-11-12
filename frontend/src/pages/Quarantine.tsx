@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Bug, Check, Paperclip, RefreshCw, Search } from "lucide-react";
+import { Ban, Bug, Check, MailCheck, Paperclip, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
@@ -36,9 +36,14 @@ export default function Quarantine({ me }: { me: Me }) {
         title={t("quarantine.title")}
         sub={t("quarantine.sub")}
         actions={
-          <button className="btn" onClick={() => list.refetch()}>
-            <RefreshCw /> {t("common.refresh")}
-          </button>
+          <>
+            <Link className="btn" to="/quarantine/report">
+              <MailCheck /> {t("quarantine.report_settings")}
+            </Link>
+            <button className="btn" onClick={() => list.refetch()}>
+              <RefreshCw /> {t("common.refresh")}
+            </button>
+          </>
         }
       />
       {list.data && !list.data.queue_available && (
@@ -115,6 +120,11 @@ function QuarantineDrawer({ id, item, me, onClose }: { id: string; item?: Item; 
       onClose();
     },
   });
+  const rcpt = item?.recipients[0]?.address;
+  const listIt = useMutation({
+    mutationFn: (list: "allow" | "block") => api.post<{ list: string; sender: string; recipient: string }>("/lists", { list, recipient: rcpt, sender: item?.sender }),
+    onSuccess: (e) => toast(t(e.list === "allow" ? "quarantine.listed_allow" : "quarantine.listed_block", { sender: e.sender, recipient: e.recipient })),
+  });
   const virus = item?.virus ?? false;
   const canRelease = !virus || me.role === "admin";
   const subject = preview.data?.headers.find(([h]) => h === "Subject")?.[1];
@@ -147,6 +157,15 @@ function QuarantineDrawer({ id, item, me, onClose }: { id: string; item?: Item; 
         )}
         <Link className="btn ghost" to={`/trace?id=${encodeURIComponent(id)}`}>{t("quarantine.open_trace")}</Link>
       </div>
+      {item?.sender && rcpt && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="muted" style={{ fontSize: 12.5 }}>{t("quarantine.sender_list", { recipient: rcpt })}</span>
+          <button className="btn small" disabled={listIt.isPending} onClick={() => listIt.mutate("allow")}><Check /> {t("quarantine.always_allow")}</button>
+          <button className="btn small" disabled={listIt.isPending} onClick={() => listIt.mutate("block")}><Ban /> {t("quarantine.always_block")}</button>
+          <Link className="btn small ghost" to="/lists">{t("quarantine.manage_lists")}</Link>
+        </div>
+      )}
+      <ErrorText error={listIt.error} />
       <label className="check">
         <input type="checkbox" checked={teach} onChange={(e) => setTeach(e.target.checked)} />
         <span>

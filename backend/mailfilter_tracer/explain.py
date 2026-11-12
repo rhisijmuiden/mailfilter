@@ -34,6 +34,8 @@ def explain_local(reply: str, dsn: str = "") -> str:
     r = (reply or "").lower()
     if "blocked using" in r or "service unavailable; client" in r:
         return "rejected_blocklist"
+    if "recipient's block list" in r:
+        return "rejected_sender_blocked"
     if "relay access denied" in r:
         return "rejected_relay"
     if "recipient address does not exist" in r or "user unknown" in r or dsn == "5.1.1":

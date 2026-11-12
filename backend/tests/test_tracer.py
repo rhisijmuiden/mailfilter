@@ -183,6 +183,9 @@ def test_explain_catalog():
     t = explain.text("user_unknown", "nl")
     assert t["title"] == "De mailbox bestaat niet." and t["who"] == "sender"
     assert explain.text("quarantine", "en")["title"].startswith("Held")
+    blocked = "5.7.1 Rejected: the sender is on the recipient's block list"
+    assert explain.explain_local(blocked, "5.7.1") == "rejected_sender_blocked"
+    assert explain.text("rejected_sender_blocked", "nl")["title"].startswith("Geweigerd")
 
 
 def test_every_rule_has_both_languages():

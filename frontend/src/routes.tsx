@@ -10,7 +10,9 @@ import Domains from "./pages/Domains";
 import Dns from "./pages/Dns";
 import MailSending from "./pages/MailSending";
 import ImportPmg from "./pages/ImportPmg";
+import Lists from "./pages/Lists";
 import Quarantine from "./pages/Quarantine";
+import QuarantineReport from "./pages/QuarantineReport";
 import RelayAccess from "./pages/RelayAccess";
 import Throttling from "./pages/Throttling";
 import Trace from "./pages/Trace";
@@ -23,6 +25,8 @@ export const ROUTES: AppRoute[] = [
   { path: "/trace", element: () => <Trace /> },
   { path: "/quarantine", element: (me) => <Quarantine me={me} /> },
   { path: "/dmarc", element: (me) => <Dmarc me={me} /> },
+  { path: "/quarantine/report", element: (me) => <QuarantineReport me={me} /> },
+  { path: "/lists", element: (me) => <Lists me={me} /> },
   { path: "/account", element: (me) => <Account me={me} /> },
   { path: "/domains", element: (me) => <Domains me={me} /> },
   { path: "/relay", element: (me) => <RelayAccess me={me} /> },

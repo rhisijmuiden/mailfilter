@@ -1,0 +1,11 @@
+# Managed by Mailfilter. Runs every hour; the report itself goes out once a day.
+[Unit]
+Description=Check every hour whether the quarantine report is due
+
+[Timer]
+OnCalendar=*-*-* *:02:00
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target
