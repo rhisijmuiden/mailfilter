@@ -332,3 +332,19 @@ def test_spf_lists_all_nodes(nodes, monkeypatch):
     with nodes.on("b"):
         s = dns.get_server()
     assert {"192.0.2.1", "192.0.2.2"} <= set(s.public_v4) and "2001:db8::1" in s.public_v6
+
+
+def test_lists_and_quarantine_report_are_synced(nodes):
+    from mailfilter.models import DigestDomain, SenderListEntry
+
+    make_cluster(nodes)
+    with nodes.on("a"), session() as db:
+        dom = db.execute(select(Domain).where(Domain.name == "rhis.nl")).scalar_one()
+        db.add(SenderListEntry(list="block", recipient="rhis.nl", sender="spam.example", domain_id=dom.id))
+        db.add(DigestDomain(domain_id=dom.id, enabled=False))
+        db.commit()
+        peer.push_all()
+    with nodes.on("b"), session() as db:
+        e = db.execute(select(SenderListEntry)).scalar_one()
+        assert (e.list, e.sender, e.domain.name) == ("block", "spam.example", "rhis.nl")
+        assert db.execute(select(DigestDomain)).scalar_one().enabled is False

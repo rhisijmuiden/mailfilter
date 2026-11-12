@@ -23,6 +23,7 @@ Then, in the DNS toolbox: publish the shared SPF record (`_spf.<first server>`) 
 | Users with passwords and domains | Updates and the production/test channel |
 | Custom rules, hacked-sender protection settings | Paused senders (each server watches its own mail) |
 | E-mail sending (SMTP), Cloudflare token | DMARC reports, blocklist checks, MTA-STS policy files |
+| Allow and block lists, quarantine report settings | |
 | DKIM keys | Host name, IP addresses, certificate |
 
 ## How it works

@@ -7,6 +7,7 @@ postgresql+psycopg://mailfilter:dev@127.0.0.1:5432/mailfilter_test
 from __future__ import annotations
 
 import os
+import tempfile
 
 import pytest
 
@@ -16,6 +17,7 @@ os.environ["MAILFILTER_DB_URL"] = os.environ.get(
 os.environ["MF_ETC"] = "/nonexistent"
 os.environ["MF_COOKIE_SECURE"] = "0"
 os.environ["APP_SECRET"] = "test-secret"
+os.environ.setdefault("MF_LISTS_DIR", tempfile.mkdtemp(prefix="mf-lists-"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402

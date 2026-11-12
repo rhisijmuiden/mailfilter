@@ -22,7 +22,7 @@ type Overview = {
 const STATE_CLASS: Record<NodeState, string> = {
   self: "s-info", ok: "s-ok", behind: "s-warn", unreachable: "s-bad", error: "s-bad", waiting: "s-mute",
 };
-const SYNCED = ["domains", "relay", "throttling", "users", "rules", "mail", "cloudflare", "dkim"] as const;
+const SYNCED = ["domains", "relay", "throttling", "users", "lists", "rules", "mail", "cloudflare", "dkim"] as const;
 const LOCAL = ["queues", "trace", "backups", "updates", "paused", "dmarc", "host"] as const;
 
 function ClusterError({ error }: { error: unknown }) {

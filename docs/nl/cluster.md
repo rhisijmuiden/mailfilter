@@ -23,6 +23,7 @@ Publiceer daarna in de DNS-toolbox het gedeelde SPF-record (`_spf.<eerste server
 | Gebruikers met wachtwoord en domeinen | Updates en het productie-/testkanaal |
 | Eigen regels, bescherming tegen gehackte afzenders | Gepauzeerde afzenders (elke server bewaakt zijn eigen mail) |
 | E-mail verzenden (SMTP), Cloudflare-token | DMARC-rapporten, blacklistcontroles, MTA-STS-bestanden |
+| Toegestane en geblokkeerde afzenders, instellingen quarantainerapport | |
 | DKIM-sleutels | Hostnaam, IP-adressen, certificaat |
 
 ## Hoe het werkt

@@ -54,6 +54,8 @@ class Settings:
     session_hours: int = 12
     # Used to bucket charts per hour/day in local time.
     timezone: str = "Europe/Amsterdam"
+    # Allow/block list maps the web app writes and Rspamd reads (multimap.conf).
+    lists_dir: Path = Path("/var/lib/mailfilter/lists")
 
 
 @lru_cache
@@ -80,4 +82,5 @@ def get_settings() -> Settings:
         cookie_secure=env.get("MF_COOKIE_SECURE", "1") != "0",
         session_hours=int(env.get("MF_SESSION_HOURS", "12")),
         timezone=env.get("MF_TIMEZONE", "Europe/Amsterdam"),
+        lists_dir=Path(env.get("MF_LISTS_DIR", "/var/lib/mailfilter/lists")),
     )

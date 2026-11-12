@@ -1,14 +1,14 @@
 """Cluster nodes and request nonces (config sync between Mailfilter servers).
 
-Revision ID: 0007_cluster
-Revises: 0006_dmarc
+Revision ID: 0008_cluster
+Revises: 0007
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0007_cluster"
-down_revision = "0006_dmarc"
+revision = "0008_cluster"
+down_revision = "0007"
 branch_labels = None
 depends_on = None
 
