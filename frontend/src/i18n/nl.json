@@ -22,6 +22,7 @@
     "domains": "Domeinen",
     "relay": "Relay-toegang",
     "throttling": "Throttling",
+    "custom_rules": "Eigen regels",
     "mail_sending": "E-mail verzenden",
     "backups": "Backups"
   },
@@ -422,7 +423,11 @@
     "DBL_SPAM": "Link naar bekend spamdomein",
     "SURBL_MULTI": "Link naar een geblokkeerde website",
     "FORGED_SENDER": "Vervalste afzender",
-    "HFILTER_HOSTNAME_UNKNOWN": "Verzendende server heeft geen naam"
+    "HFILTER_HOSTNAME_UNKNOWN": "Verzendende server heeft geen naam",
+    "MF_NEWSLETTER": "Nieuwsbrief",
+    "MF_NEWSLETTER_NO_UNSUB": "Nieuwsbrief zonder afmeldmogelijkheid",
+    "MF_NEWSLETTER_NO_ONECLICK": "Nieuwsbrief zonder one-click afmelden",
+    "MF_NEWSLETTER_NO_DKIM": "Nieuwsbrief niet ondertekend door het domein van de afzender"
   },
   "dns": {
     "title": "DNS-toolbox",
@@ -1264,6 +1269,34 @@
     "done_toast": "Geïmporteerd",
     "failed": "Import niet uitgevoerd, er is niets veranderd",
     "nothing_new": "Niets nieuws om te importeren."
+  },
+  "rules": {
+    "title": "Eigen regels",
+    "sub": "Extra filterregels die je aan en uit kunt zetten, voor alle domeinen of per domein.",
+    "intro": "Bij elke regel staat wat hij doet. Een regel met een spamscore telt die score op; vanaf 8 gaat een bericht in quarantaine, vanaf 15 wordt het geweigerd. Rspamd controleert elke wijziging en die werkt meteen; accepteert Rspamd hem niet, dan verandert er niets.",
+    "intro_customer": "Deze regels stelt je beheerder in. Per domein kun je die instelling volgen of een regel voor je eigen domeinen aan of uit zetten.",
+    "group": {
+      "newsletter": "Nieuwsbrieven"
+    },
+    "group_sub": {
+      "newsletter": "Nieuwsbrieven herkennen en de nieuwsbrieven die zich niet aan de regels houden tegenhouden"
+    },
+    "dir": {
+      "inbound": "Inkomende mail",
+      "outbound": "Uitgaande mail",
+      "both": "In en uit"
+    },
+    "more": "Wat doet dit?",
+    "less": "Minder",
+    "changed": "Aangepast",
+    "on": "Aan",
+    "off": "Uit",
+    "follow_default": "Standaard ({{state}})",
+    "per_domain": "Per domein",
+    "per_domain_hint": "Standaard volgt de schakelaar hierboven. Bij een bericht aan meerdere domeinen geldt de regel als hij voor minstens een ervan aan staat.",
+    "symbol": "Zichtbaar in de mailtrace als",
+    "saved": "Regel opgeslagen en toegepast",
+    "admin_only": "Alleen een beheerder kan dit wijzigen"
   },
   "holds": {
     "paused_title": "{{value}} is gepauzeerd",

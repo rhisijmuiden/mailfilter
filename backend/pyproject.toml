@@ -33,6 +33,7 @@ include = ["mailfilter*"]
 
 [tool.setuptools.package-data]
 mailfilter = ["alembic.ini", "migrations/*.mako"]
+mailfilter_config = ["rspamd/*.lua"]
 
 [tool.pytest.ini_options]
 # tests/ = log collector (runs with Debian's python3-psycopg),
