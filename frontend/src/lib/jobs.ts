@@ -5,7 +5,7 @@ import { api } from "./api";
 export type JobStep = { at: string; text: string; key?: string | null; params?: Record<string, string> };
 export type Job = {
   id: string;
-  kind: "update" | "backup" | "restore";
+  kind: "update" | "backup" | "restore" | "remote_sync";
   state: "queued" | "running" | "done" | "failed";
   created: string;
   started: string | null;

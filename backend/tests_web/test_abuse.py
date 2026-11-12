@@ -46,7 +46,7 @@ def test_spam_burst_pauses_ip_and_alerts(users, fakes):
     holds = fakes["calls"][-1]["holds"]
     assert holds == [{"kind": "ip", "value": "203.0.113.25", "reason": "15 of 40 messages were spam in 15 minutes"}]
     to, subject, text = fakes["mails"][-1]
-    assert "admin@rhis.nl" in to and "203.0.113.25" in text and "gepauzeerd" in text
+    assert "admin@rhis.nl" in to and "203.0.113.25" in text and "paused" in subject
     assert scan() == []  # already paused
 
 

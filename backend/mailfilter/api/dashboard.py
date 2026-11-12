@@ -21,7 +21,7 @@ from .trace import scope
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 CATEGORIES = ("delivered", "spam", "refused", "delayed", "failed")
-SPAM_EXPLAIN = ("rejected_spam", "rejected_blocklist")
+SPAM_EXPLAIN = ("rejected_spam", "rejected_blocklist", "rejected_sender_blocked")
 SERVICES = ("postfix", "rspamd", "clamav-daemon", "redis-server", "postgresql", "unbound", "caddy",
             "mailfilter-tracer", "crowdsec", "nftables")
 

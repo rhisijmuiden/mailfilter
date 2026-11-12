@@ -89,8 +89,17 @@ check "protection Lua and ARC config written" bash -c 'test -f /etc/rspamd/lua.l
 mkdir -p /etc/rspamd/override.d
 printf 'enabled = true;\nbind_socket = "127.0.0.1:11333";\n' >/etc/rspamd/override.d/worker-normal.inc
 printf 'dns { nameserver = ["1.1.1.1:53"]; timeout = 1s; retransmits = 1; }\n' >/etc/rspamd/override.d/options.inc
-rspamd -u _rspamd -g _rspamd
-for _ in $(seq 1 30); do rspamc -h 127.0.0.1:11333 stat >/dev/null 2>&1 && break; sleep 1; done
+# No systemd here: make the runtime directory it would create, log to a file we can show.
+install -d -o _rspamd -g _rspamd /run/rspamd /var/lib/rspamd
+# (not in /tmp: protected_regular stops root from opening a file another user owns there)
+printf 'type = "file";\nfilename = "/run/rspamd/test.log";\nlevel = "info";\n' >/etc/rspamd/override.d/logging.inc
+rspamd -f -u _rspamd -g _rspamd >/tmp/rspamd.out 2>&1 &
+up=0
+for _ in $(seq 1 60); do
+  if (exec 3<>/dev/tcp/127.0.0.1/11333) 2>/dev/null; then up=1; break; fi
+  sleep 1
+done
+check "rspamd scanner started" bash -c "[ $up = 1 ] || { cat /tmp/rspamd.out; tail -60 /run/rspamd/test.log; exit 1; }"
 cat >/tmp/nl-bad.eml <<'EML'
 From: Winkel <news@shop.example>
 To: info@rhis.nl
@@ -118,7 +127,7 @@ EML
 scan() { rspamc -h 127.0.0.1:11333 -j --ip 198.51.100.7 --from news@shop.example --rcpt info@rhis.nl "$1"; }
 scan /tmp/nl-bad.eml >/tmp/scan-bad.json 2>&1 || true
 scan /tmp/nl-good.eml >/tmp/scan-good.json 2>&1 || true
-check "newsletter without unsubscribe scored" bash -c 'grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-bad.json || { cat /tmp/scan-bad.json; exit 1; }'
+check "newsletter without unsubscribe scored" bash -c 'grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-bad.json || { cat /tmp/scan-bad.json; grep -i "mailfilter_rules\\|error" /run/rspamd/test.log | tail -30; exit 1; }'
 check "newsletter header and subject tag added" bash -c 'grep -q "X-Mailfilter-Newsletter" /tmp/scan-bad.json && grep -q "Nieuwsbrief" /tmp/scan-bad.json || { cat /tmp/scan-bad.json; exit 1; }'
 check "newsletter with unsubscribe not scored" bash -c 'grep -q "\"MF_NEWSLETTER\"" /tmp/scan-good.json && ! grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-good.json || { cat /tmp/scan-good.json; exit 1; }'
 echo "== phishing protection and attachment policy in a real Rspamd scan"
@@ -163,5 +172,5 @@ check "macro document quarantined" bash -c "$(declare -f has action_is); has /tm
 check "external banner added to the message" bash -c "$(declare -f has); has /tmp/scan-banner.eml 'Waarschuwing: dit bericht' && has /tmp/scan-banner.eml X-Mailfilter-External && has /tmp/scan-banner.eml 'Ben je even beschikbaar'"
 check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
 pkill -x rspamd || true
-rm -f /etc/rspamd/override.d/worker-normal.inc /etc/rspamd/override.d/options.inc
+rm -f /etc/rspamd/override.d/worker-normal.inc /etc/rspamd/override.d/options.inc /etc/rspamd/override.d/logging.inc
 exit $fail

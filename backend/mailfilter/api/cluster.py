@@ -1,0 +1,350 @@
+"""System > Cluster: create, join or leave a cluster, see the other nodes.
+
+/api/cluster/...        admin screens (logged in)
+/api/cluster/peer/<op>  the other nodes (no login; every body is sealed with the
+                        cluster secret, see cluster/state.py)
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+
+from .. import __version__
+from ..audit import audit
+from ..cluster import peer, state
+from ..cluster import tracking
+from ..cluster.snapshot import SYNCED_SETTINGS, export
+from ..cluster.state import ClusterError
+from ..deps import DB, AdminUser
+from ..models import ClusterNode
+from ..settings_store import get_setting, set_setting
+
+tracking.install()  # configuration changes made through the web app reach the other nodes
+
+router = APIRouter(prefix="/cluster", tags=["cluster"])
+public = APIRouter(prefix="/cluster/peer", tags=["cluster"])
+
+
+def _err(e: ClusterError, code: int = status.HTTP_400_BAD_REQUEST) -> HTTPException:
+    return HTTPException(code, {"code": f"cluster_{e.code}", "detail": e.detail})
+
+
+# ---- admin screens -----------------------------------------------------------------
+class NodeOut(BaseModel):
+    node_id: str
+    name: str
+    url: str
+    addresses: list[str]
+    is_self: bool
+    joined_at: str | None
+    last_seen_at: str | None
+    last_sync_at: str | None
+    last_error: str
+    last_error_at: str | None
+    version: str
+    in_sync: bool
+    latency_ms: int | None
+    state: str  # self, ok, behind, unreachable, error, waiting
+
+
+def _iso(v) -> str | None:
+    return v.isoformat() if v else None
+
+
+def _node_out(n: ClusterNode, mine: dict | None) -> NodeOut:
+    now = state.now()
+    in_sync = n.is_self or state.rev_key(n.revision) == state.rev_key(mine)
+    if n.is_self:
+        st = "self"
+    elif n.last_error and (not n.last_seen_at or (n.last_error_at and n.last_error_at > n.last_seen_at)):
+        st = "unreachable" if n.last_error.startswith("unreachable") else "error"
+    elif not n.last_seen_at:
+        st = "waiting"
+    elif n.last_seen_at < now - timedelta(minutes=5):
+        st = "unreachable"
+    else:
+        st = "ok" if in_sync else "behind"
+    return NodeOut(node_id=n.node_id, name=n.name, url=n.url, addresses=list(n.addresses or []), is_self=n.is_self,
+                   joined_at=_iso(n.joined_at), last_seen_at=_iso(n.last_seen_at), last_sync_at=_iso(n.last_sync_at),
+                   last_error=n.last_error or "", last_error_at=_iso(n.last_error_at),
+                   version=__version__ if n.is_self else n.version, in_sync=in_sync, latency_ms=n.latency_ms, state=st)
+
+
+def _overview(db) -> dict[str, Any]:
+    cfg = state.config(db)
+    mine = state.revision(db)
+    nodes = [_node_out(n, mine) for n in db.execute(
+        select(ClusterNode).order_by(ClusterNode.is_self.desc(), ClusterNode.name)).scalars()]
+    return {
+        "enabled": bool(cfg),
+        "cluster_id": (cfg or {}).get("cluster_id"),
+        "spf_name": (cfg or {}).get("spf_name", ""),
+        "revision": mine,
+        "last_import": get_setting(db, state.LAST_IMPORT_KEY),
+        "nodes": [n.model_dump() for n in nodes],
+        "versions_differ": len({n.version for n in nodes if n.version}) > 1,
+        "default_name": state.default_name(),
+        "own_url": state.own_url(),
+        "synced_settings": sorted(SYNCED_SETTINGS),
+    }
+
+
+@router.get("")
+def overview(_: AdminUser, db: DB) -> dict[str, Any]:
+    return _overview(db)
+
+
+class CreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=63)
+
+
+def _check_name(name: str) -> str:
+    name = name.strip()
+    if not state.NAME_RE.match(name):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, {"code": "cluster_bad_name", "detail": ""})
+    return name
+
+
+@router.post("/create")
+def create(body: CreateIn, request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    from mailfilter_dns.config import ServerConfig
+
+    if state.enabled(db):
+        raise _err(ClusterError("already_in_cluster"))
+    url = state.own_url()
+    if not url:
+        raise _err(ClusterError("no_hostname"))
+    node_id = state.new_id()
+    set_setting(db, state.CONFIG_KEY, {"cluster_id": state.new_id(), "node_id": node_id,
+                                       "spf_name": ServerConfig.load().spf_name, "created_at": state.now().isoformat()})
+    state.set_cluster_secret(db, state.new_secret())
+    db.add(ClusterNode(node_id=node_id, name=_check_name(body.name), url=url, addresses=state.own_addresses(),
+                       is_self=True))
+    state.bump_revision(db)
+    audit(db, request, admin, "cluster.create", body.name)
+    db.commit()
+    return _overview(db)
+
+
+@router.get("/join-code")
+def get_join_code(request: Request, admin: AdminUser, db: DB) -> dict[str, str]:
+    try:
+        code = state.join_code(db)
+    except ClusterError as e:
+        raise _err(e) from None
+    audit(db, request, admin, "cluster.join_code_shown")
+    db.commit()
+    return {"code": code}
+
+
+class JoinIn(BaseModel):
+    code: str = Field(min_length=10, max_length=2000)
+    name: str = Field(min_length=1, max_length=63)
+
+
+@router.post("/join")
+def join(body: JoinIn, request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    name = _check_name(body.name)
+    email = admin.email
+    try:
+        snap = peer.join(db, body.code, name)
+    except ClusterError as e:
+        raise _err(e) from None
+    audit(db, request, None, "cluster.join", name, by=email, domains=len((snap.get("gateway") or {}).get("domains", [])))
+    db.commit()
+    return _overview(db)
+
+
+@router.post("/leave")
+def leave(request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    try:
+        peer.leave(db)
+    except ClusterError as e:
+        raise _err(e) from None
+    audit(db, request, admin, "cluster.leave")
+    db.commit()
+    return _overview(db)
+
+
+class RenameIn(BaseModel):
+    name: str = Field(min_length=1, max_length=63)
+
+
+@router.put("/self")
+def rename_self(body: RenameIn, request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    me = state.self_node(db)
+    if me is None:
+        raise _err(ClusterError("not_in_cluster"))
+    me.name = _check_name(body.name)
+    me.url = state.own_url() or me.url
+    me.addresses = state.own_addresses() or me.addresses
+    audit(db, request, admin, "cluster.rename", me.name)
+    db.commit()
+    return _overview(db)
+
+
+@router.delete("/nodes/{node_id}")
+def remove_node(node_id: str, request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    """Remove another node (e.g. a server that is gone). The cluster secret is
+    replaced so the removed node cannot connect any more."""
+    n = db.get(ClusterNode, node_id)
+    if n is None or n.is_self:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    db.delete(n)
+    state.set_cluster_secret(db, state.new_secret())
+    audit(db, request, admin, "cluster.remove_node", n.name)
+    db.commit()
+    return _overview(db)
+
+
+@router.post("/sync")
+def sync_now(_: AdminUser, db: DB) -> dict[str, Any]:
+    if not state.enabled(db):
+        raise _err(ClusterError("not_in_cluster"))
+    results = peer.sync_all(db)
+    return {**_overview(db), "results": results}
+
+
+# ---- other nodes -------------------------------------------------------------------
+async def _raw(request: Request) -> bytes:
+    if int(request.headers.get("content-length") or 0) > peer.MAX_BODY:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "cluster_too_large")
+    raw = await request.body()
+    if len(raw) > peer.MAX_BODY:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "cluster_too_large")
+    return raw
+
+
+def _open(raw: bytes, db, op: str, *, member: bool = True) -> tuple[dict[str, Any], str, str]:
+    """Check and open a sealed request. Returns (data, nonce, key)."""
+    if not state.enabled(db):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "cluster_not_in_cluster")
+    key = state.secret(db)
+    try:
+        body = state.unseal(key, f"req:{op}", raw)
+        state.remember_nonce(db, body["n"])
+    except ClusterError as e:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"cluster_{e.code}") from None
+    data = body["d"]
+    if member:
+        sender = db.get(ClusterNode, str(data.get("from", "")))
+        if sender is None or sender.is_self:
+            db.commit()
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "cluster_unknown_node")
+    return data, body["n"], key
+
+
+def _answer(key: str, op: str, nonce: str, data: dict[str, Any]) -> Response:
+    return Response(state.seal(key, f"resp:{op}", data, reply_to=nonce), media_type="application/octet-stream")
+
+
+@public.post("/hello", include_in_schema=False)
+async def peer_hello(request: Request, db: DB) -> Response:
+    raw = await _raw(request)
+    # Database work and applying a configuration block: keep them off the event loop.
+    return await run_in_threadpool(_hello, raw, request, db)
+
+
+def _hello(raw: bytes, request: Request, db) -> Response:
+    data, nonce, key = _open(raw, db, "hello")
+    n = db.get(ClusterNode, data["from"])
+    n.last_seen_at = state.now()
+    n.version = str(data.get("version", ""))[:40]
+    n.revision = data.get("revision")
+    db.commit()
+    me = state.self_node(db)
+    return _answer(key, "hello", nonce, {"node": state.node_info(me), "revision": state.revision(db),
+                                         "version": __version__})
+
+
+@public.post("/snapshot", include_in_schema=False)
+async def peer_snapshot(request: Request, db: DB) -> Response:
+    raw = await _raw(request)
+    # Database work and applying a configuration block: keep them off the event loop.
+    return await run_in_threadpool(_snapshot, raw, request, db)
+
+
+def _snapshot(raw: bytes, request: Request, db) -> Response:
+    _, nonce, key = _open(raw, db, "snapshot")
+    db.commit()
+    return _answer(key, "snapshot", nonce, {"snapshot": export(db)})
+
+
+@public.post("/push", include_in_schema=False)
+async def peer_push(request: Request, db: DB) -> Response:
+    raw = await _raw(request)
+    # Database work and applying a configuration block: keep them off the event loop.
+    return await run_in_threadpool(_push, raw, request, db)
+
+
+def _push(raw: bytes, request: Request, db) -> Response:
+    data, nonce, key = _open(raw, db, "push")
+    sender = db.get(ClusterNode, data["from"])
+    sender_name = sender.name
+    db.commit()
+    snap = data.get("snapshot") or {}
+    result = peer.receive_snapshot(db, snap, sender_name)
+    sender = db.get(ClusterNode, data["from"])
+    if sender is not None:
+        sender.last_seen_at = state.now()
+        sender.version = str(snap.get("version", ""))[:40]
+        sender.revision = snap.get("revision")
+        db.commit()
+    last = get_setting(db, state.LAST_IMPORT_KEY) or {}
+    return _answer(key, "push", nonce, {"result": result, "revision": state.revision(db),
+                                        "error": last.get("error", "") if result == "failed" else ""})
+
+
+@public.post("/join", include_in_schema=False)
+async def peer_join(request: Request, db: DB) -> Response:
+    raw = await _raw(request)
+    # Database work and applying a configuration block: keep them off the event loop.
+    return await run_in_threadpool(_join, raw, request, db)
+
+
+def _join(raw: bytes, request: Request, db) -> Response:
+    data, nonce, key = _open(raw, db, "join", member=False)
+    info = data.get("node") or {}
+    try:
+        node_id = str(info["node_id"])
+        name = _check_name(str(info["name"]))
+        url = state.check_url(str(info["url"]))
+    except (KeyError, ClusterError, HTTPException):
+        db.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "cluster_bad_message") from None
+    if node_id != data.get("from") or db.get(ClusterNode, node_id) is not None:
+        db.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "cluster_bad_message")
+    if any(n.url == url for n in state.peers(db)) or url == state.own_url():
+        db.commit()
+        raise HTTPException(status.HTTP_409_CONFLICT, "cluster_url_in_use")
+    db.add(ClusterNode(node_id=node_id, name=name, url=url,
+                       addresses=[str(a)[:45] for a in info.get("addresses", [])][:4],
+                       version=str(data.get("version", ""))[:40], last_seen_at=state.now()))
+    audit(db, request, None, "cluster.node_joined", name, url=url)
+    db.commit()  # bumps the revision and pushes the new member list to the other nodes
+    return _answer(key, "join", nonce, {"snapshot": export(db)})
+
+
+@public.post("/leave", include_in_schema=False)
+async def peer_leave(request: Request, db: DB) -> Response:
+    raw = await _raw(request)
+    # Database work and applying a configuration block: keep them off the event loop.
+    return await run_in_threadpool(_leave, raw, request, db)
+
+
+def _leave(raw: bytes, request: Request, db) -> Response:
+    data, nonce, key = _open(raw, db, "leave", member=False)
+    n = db.get(ClusterNode, str(data.get("node_id", "")))
+    # A node may only take itself out.
+    if n is not None and not n.is_self and data.get("from") == n.node_id:
+        audit(db, request, None, "cluster.node_left", n.name)
+        db.delete(n)
+    db.commit()
+    return _answer(key, "leave", nonce, {"ok": True})
