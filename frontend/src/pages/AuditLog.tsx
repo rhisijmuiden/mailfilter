@@ -29,7 +29,7 @@ const GROUPS: [string, RegExp][] = [
   ["domain", /^domain_|^address_route_|^tls_policy_|^gateway_/],
   ["relay", /^relay_|^smtp_account_/],
   ["throttling", /^throttling_/],
-  ["dns", /^dns\.|^cloudflare\./],
+  ["dns", /^dns\.|^cloudflare\.|^dkim_/],
   ["backup", /^backup\./],
   ["system", /^system\.|^settings\./],
   ["pmg_import", /^pmg_import\./],

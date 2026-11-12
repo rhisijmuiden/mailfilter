@@ -42,6 +42,42 @@ class DkimSyncTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             handle({"action": "delete"}, self.ap)
 
+    def test_rotation_actions(self):
+        import subprocess
+
+        calls = []
+
+        def runner(cmd):
+            calls.append(cmd)
+            with open(cmd[cmd.index("-k") + 1], "w") as fh:
+                fh.write(KEY)
+            sel = cmd[cmd.index("-s") + 1]
+            return subprocess.CompletedProcess(cmd, 0, f'{sel}._domainkey IN TXT ( "v=DKIM1; k=rsa; " "p=NEW" ) ;\n', "")
+
+        ap = Applier(runner=runner, root=self.tmp.name)
+        ap.write(DKIM_MAP, "# selectors\nrhis.nl mf2026\n")
+        ap.write(key_path("rhis.nl", "mf2026"), KEY)
+        out = handle({"action": "generate", "domain": "rhis.nl", "selector": "mf202611"}, ap)
+        self.assertIn("p=NEW", out["txt"])
+        # A second generate does not make another key
+        handle({"action": "generate", "domain": "rhis.nl", "selector": "mf202611"}, ap)
+        self.assertEqual(len(calls), 1)
+        st = handle({"action": "status"}, ap)["domains"]
+        self.assertEqual(st[0]["active"], "mf2026")
+        self.assertEqual(sorted(k["selector"] for k in st[0]["keys"]), ["mf2026", "mf202611"])
+        # The active key cannot be retired; switching first makes it possible
+        with self.assertRaises(ValueError):
+            handle({"action": "retire", "domain": "rhis.nl", "selector": "mf2026"}, ap)
+        self.assertTrue(handle({"action": "select", "domain": "rhis.nl", "selector": "mf202611"}, ap)["changed"])
+        self.assertFalse(handle({"action": "select", "domain": "rhis.nl", "selector": "mf202611"}, ap)["changed"])
+        self.assertEqual(ap.read(DKIM_MAP), "# selectors\nrhis.nl mf202611\n")
+        self.assertTrue(handle({"action": "retire", "domain": "rhis.nl", "selector": "mf2026"}, ap)["removed"])
+        self.assertIsNone(ap.read(key_path("rhis.nl", "mf2026")))
+        with self.assertRaises(ValueError):
+            handle({"action": "select", "domain": "rhis.nl", "selector": "gone"}, ap)
+        with self.assertRaises(ValueError):
+            handle({"action": "generate", "domain": "rhis.nl", "selector": "../x"}, ap)
+
 
 if __name__ == "__main__":
     unittest.main()
