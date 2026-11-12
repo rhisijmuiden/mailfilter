@@ -9,6 +9,9 @@ if action == "list-hold":
     for q in state["hold"]:
         print(json.dumps({"queue_id": q}))
     sys.exit(0)
+if action == "summary":
+    print(json.dumps({"hold": len(state["hold"]), "deferred": 7, "active": 1}))
+    sys.exit(0)
 if qid not in state["hold"]:
     print("not_in_quarantine", file=sys.stderr)
     sys.exit(3)
