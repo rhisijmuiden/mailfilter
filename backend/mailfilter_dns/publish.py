@@ -199,6 +199,17 @@ def plan_report_auth(cf: Cloudflare, zone: Zone, rua_domain: str) -> Change:
     return _txt_change(None, name, "v=DMARC1", "dmarc_auth")
 
 
+def plan_bimi(cf: Cloudflare, zone: Zone, domain: str, value: str) -> list[Change]:
+    """``default._bimi.<domain>`` TXT. Other BIMI records on that name go."""
+    from .bimi import is_bimi, record_name
+
+    name = record_name(domain)
+    cur = [r for r in _txt_records(cf, zone, name) if is_bimi(r.content)]
+    changes = [_txt_change(cur[0] if cur else None, name, value, "bimi")]
+    changes += [Change("delete", "TXT", name, r.snapshot(), None, "bimi") for r in cur[1:]]
+    return changes
+
+
 def plan_mx(cf: Cloudflare, zone: Zone, domain: str, targets: list[tuple[int, str]]) -> list[Change]:
     """Make the domain's MX records in Cloudflare exactly ``targets``
     ((priority, host) pairs). Records whose host stays are kept or get a new

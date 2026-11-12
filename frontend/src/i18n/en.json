@@ -59,6 +59,15 @@
     "refresh": "Refresh"
   },
   "errors": {
+    "svg_invalid": "This logo is not valid SVG Tiny PS yet.",
+    "cert_invalid": "This certificate cannot be used for BIMI.",
+    "no_bimi_logo": "Upload a logo first.",
+    "no_logo_in_cert": "The certificate contains no logo.",
+    "cannot_convert": "This logo cannot be converted automatically ({{value}}). Ask a designer for an \"SVG Tiny PS\" version.",
+    "not_svg": "This file is not an SVG image.",
+    "doctype": "The file contains a DOCTYPE or entities; that is not allowed.",
+    "not_xml": "This file is not a valid SVG (XML) file.",
+    "not_pem": "This is not a certificate file (PEM).",
     "bad_code": "That code is not correct. Check the time on your phone and try again.",
     "challenge_expired": "The sign-in took too long. Enter your password again.",
     "two_factor_already_enabled": "Two-factor login is already on.",
@@ -586,6 +595,7 @@
     "title": "DNS toolbox",
     "sub": "Check a domain's mail DNS, generate SPF and DMARC, publish straight to Cloudflare and switch domains over to Mailfilter.",
     "tab": {
+      "bimi": "BIMI logo",
       "check": "Check domain",
       "mx": "MX lookup",
       "spf": "SPF generator",
@@ -642,6 +652,7 @@
       "none": "No change"
     },
     "publish_title": {
+      "bimi": "Publish BIMI record",
       "spf": "Add Mailfilter to SPF",
       "spf_value": "Publish SPF record",
       "dkim": "Publish DKIM key",
@@ -656,6 +667,7 @@
       "dmarc_auth": "Allow reports for all domains"
     },
     "publish_help": {
+      "bimi": "Writes default._bimi.<domain>: the record that tells mailbox providers where your logo (and certificate) is. Mailfilter hosts both files itself. You can undo this in the change log.",
       "spf": "Your current SPF value stays as it is; Mailfilter only adds itself. Nothing else changes.",
       "spf_value": "This replaces the domain's SPF record with the generated value.",
       "dkim": "Publishes the public key Mailfilter signs outbound mail with.",
@@ -834,6 +846,11 @@
       "open": "Open blacklist check"
     },
     "warn": {
+      "bimi_dmarc_not_enforced": "DMARC for {{domain}} is not at quarantine or reject yet. Mail apps ignore the BIMI record until it is.",
+      "bimi_dmarc_missing": "{{domain}} has no DMARC record. Mail apps ignore the BIMI record until DMARC is at quarantine or reject.",
+      "bimi_dmarc_pct": "DMARC for {{domain}} only applies to part of the mail (pct). BIMI needs pct=100.",
+      "bimi_dmarc_sp_none": "DMARC for {{domain}} has sp=none for subdomains. BIMI needs that to be quarantine or reject too.",
+      "bimi_dmarc_invalid": "The DMARC record of {{domain}} has an error, so BIMI will not work.",
       "not_relay_domain": "{{domain}} is not a relay domain in Mailfilter yet, so Mailfilter would refuse its mail. Add the domain under Domains first.",
       "mx_leaves_mailfilter": "{{domain}} is live on Mailfilter, but this list no longer points to Mailfilter. Mail will bypass the filter.",
       "dnssec_off_host": "The zone of the Mailfilter host name is not signed with DNSSEC, so senders ignore this record until DNSSEC is on."
@@ -890,6 +907,7 @@
       "publish_tlsa": "Publish TLSA record"
     }
   },
+  "bimi": {"help": "With BIMI your logo appears next to your mail in Gmail, Apple Mail, Yahoo and others. Mailfilter checks what is still missing, converts your logo, hosts the files and publishes the DNS record.", "domain": "Domain", "no_domains": "Add a domain first.", "ready": {"title": "What is needed", "dmarc": "DMARC at quarantine or reject", "dmarc_help": "Mail apps only trust the logo when DMARC blocks fake mail.", "logo": "Logo in SVG Tiny PS", "logo_help": "A square SVG in a special, safe format. Mailfilter can convert most logos.", "record": "BIMI record in DNS", "record_help": "default._bimi.<domain> tells mail apps where the logo is.", "cert": "Mark certificate (VMC or CMC)", "cert_help": "Only needed for Gmail and Apple Mail. You buy it from DigiCert, Sectigo, GlobalSign or Entrust.", "level_full": "Ready for all", "level_basic": "Ready without Gmail/Apple", "level_none": "Not ready", "level_full_help": "Everything is in place. Mail apps can take a few days before they show the logo.", "level_basic_help": "Yahoo, Fastmail and others can show the logo now. Gmail and Apple Mail also need a VMC or CMC.", "level_none_help": "Work through the steps above. Steps 1 to 3 are free."}, "dmarc": {"title": "DMARC", "help": "BIMI requires DMARC with p=quarantine or p=reject for all mail (pct=100). Without that, mail apps ignore your logo.", "set_quarantine": "Set to quarantine", "set_reject": "Set to reject", "careful": "Only switch DMARC on when all real senders (website, newsletter, invoicing) pass. Check the DMARC reports page first.", "p": {"dmarc_missing": "There is no DMARC record.", "dmarc_invalid": "The DMARC record has an error.", "dmarc_not_enforced": "The policy is {{value}}; it must be quarantine or reject.", "dmarc_pct": "Only {{value}}% of the mail falls under the policy; it must be 100%.", "dmarc_sp_none": "Subdomains have sp=none; remove it or set it to quarantine or reject."}}, "logo": {"title": "Logo", "help": "Upload your logo as SVG. Use a square version with a solid background colour: mail apps show it in a circle. Mailfilter checks the file and can convert an ordinary SVG to SVG Tiny PS.", "square": "Message", "round": "Inbox", "small": "Small", "name": "Name in the logo", "size": "Size", "updated": "Updated", "url": "Public address", "upload": "Upload SVG", "replace": "Upload new SVG", "convert": "Convert automatically", "save": "Save logo", "remove": "Remove", "remove_confirm": "Remove the logo? If the BIMI record is published, mail apps then show no logo.", "removed": "Logo removed", "valid": "This logo is valid SVG Tiny PS.", "converted_ok": "Converted. Check the preview: does the logo still look right?", "invalid": "This logo does not meet SVG Tiny PS yet:", "changes": "What was changed", "title_field": "Company name", "title_hint": "Goes into the logo as its title. Empty: the domain name."}, "svg": {"too_large": "The file is {{value}} KB; at most 32 KB is allowed.", "doctype": "Contains a DOCTYPE or entities.", "not_xml": "Not a valid SVG file.", "not_svg": "Not an SVG image.", "version": "version=\"1.2\" is missing on the svg element.", "base_profile": "baseProfile=\"tiny-ps\" is missing on the svg element.", "root_xy": "The svg element may not have x or y.", "no_title": "A <title> with the company name is missing.", "no_viewbox": "A viewBox is missing.", "not_square": "The logo is not square.", "element": "Not allowed: <{{value}}>.", "foreign_element": "Editor data (<{{value}}>) is not allowed.", "script_attr": "Contains script (on... attributes).", "external_ref": "Refers to files elsewhere on the internet.", "style_attr": "Uses style=\"...\" instead of plain attributes.", "foreign_attr": "Contains editor data (Illustrator/Inkscape attributes)."}, "change": {"inlined_css": "CSS styles turned into plain attributes", "dropped_css": "CSS that SVG Tiny does not support removed", "removed_editor_data": "Illustrator/Inkscape data removed", "removed_script": "Scripts removed", "removed_animation": "Animation removed", "removed_link": "Links removed", "removed_root_xy": "Position (x/y) removed", "set_profile": "Marked as SVG Tiny PS", "added_viewbox": "viewBox added", "made_square": "Made square (space added at the sides; a solid background looks better)", "added_title": "Title added"}, "cert": {"title": "Mark certificate (VMC or CMC)", "help": "Gmail and Apple Mail only show your logo with a mark certificate. It proves the logo belongs to you and contains the logo itself. Upload the .pem file you get from the issuer (with the full chain).", "vmc": "VMC (Verified Mark Certificate): for a registered trademark of your logo. Gmail shows a blue check mark.", "cmc": "CMC (Common Mark Certificate): no trademark needed; the logo must have been on your website for at least a year. Gmail shows the logo without a check mark.", "none": "None", "kind": "Type", "kind_vmc": "VMC", "kind_cmc": "CMC", "kind_unknown": "Unknown", "org": "Organisation", "issuer": "Issued by", "names": "Domains", "valid_until": "Valid until", "days_left": "{{n}} days left", "upload": "Upload certificate", "replace": "Upload new certificate", "save": "Save certificate", "remove": "Remove", "remove_confirm": "Remove the certificate? Gmail and Apple Mail then stop showing the logo.", "removed": "Certificate removed", "use_logo": "Use logo from certificate", "logo_used": "The logo from the certificate is now used"}, "certp": {"too_large": "The file is too large.", "not_pem": "Not a PEM certificate file.", "expired": "The certificate has expired.", "not_yet_valid": "The certificate is not valid yet.", "expires_soon": "Expires in {{value}} days; renew it in time.", "no_bimi_eku": "This is not a BIMI certificate (the BIMI usage is missing).", "domain_mismatch": "The certificate is not for this domain (it is for {{value}}).", "no_logo": "The certificate contains no logo.", "logo_differs": "The logo in the certificate differs from the uploaded logo. Gmail needs them to be the same: use the logo from the certificate.", "no_chain": "Only the certificate itself, without the intermediate certificate. Download the full chain from the issuer."}, "record": {"title": "BIMI record", "help": "This DNS record tells mail apps where your logo and certificate are. Mailfilter serves both files over HTTPS.", "expected": "Record to publish", "published": "Now in DNS", "need_logo": "Upload a valid logo first; then the record is ready.", "status_ok": "Published", "status_missing": "Not published", "status_different": "Different", "status_bad": "Several records"}},
   "dmarc": {
     "title": "DMARC reports",
     "sub_admin": "Who sends mail as your domains, whether it passes DMARC, and the next safe step towards p=reject.",
