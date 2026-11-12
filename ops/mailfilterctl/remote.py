@@ -231,6 +231,22 @@ class FileTransport(Transport):
         shutil.rmtree(self.p(rel), ignore_errors=True)
 
 
+class _LenientSSLSocket(ssl.SSLSocket):
+    """FTPS data connection whose TLS shutdown may fail without failing the transfer.
+
+    ftplib calls unwrap() after every transfer. When the server closes the data connection
+    first (common for an empty listing, or right after a short file) OpenSSL can report
+    SHUTDOWN_WHILE_IN_INIT or an unexpected EOF. The transfer itself is still confirmed by
+    the server's 226 reply, and uploads are verified by checksum, so the shutdown is best effort.
+    """
+
+    def unwrap(self):
+        try:
+            return super().unwrap()
+        except (ssl.SSLError, OSError):
+            return None
+
+
 class FtpTransport(Transport):
     def connect(self):
         c = self.cfg
@@ -241,6 +257,7 @@ class FtpTransport(Transport):
                 if not c["verify_tls"]:
                     ctx.check_hostname = False
                     ctx.verify_mode = ssl.CERT_NONE
+                ctx.sslsocket_class = _LenientSSLSocket
                 self.ftp = ftplib.FTP_TLS(context=ctx, timeout=TIMEOUT)
             else:
                 self.ftp = ftplib.FTP(timeout=TIMEOUT)
