@@ -4,6 +4,8 @@
     "skip": "Skip to content"
   },
   "nav": {
+    "security": "Security",
+    "audit": "Audit log",
     "group": {
       "overview": "Overview",
       "mail": "Mail flow",
@@ -54,6 +56,14 @@
     "refresh": "Refresh"
   },
   "errors": {
+    "bad_code": "That code is not correct. Check the time on your phone and try again.",
+    "challenge_expired": "The sign-in took too long. Enter your password again.",
+    "two_factor_already_enabled": "Two-factor login is already on.",
+    "two_factor_not_started": "Start the setup first.",
+    "two_factor_not_enabled": "Two-factor login is not on.",
+    "two_factor_required_by_policy": "Your administrator requires two-factor login, so it cannot be turned off.",
+    "two_factor_setup_required": "Set up two-factor login first.",
+    "enable_two_factor_first": "Turn on two-factor login for your own account first, so you cannot lock yourself out.",
     "notify_no_recipients": "There is nobody to send the e-mail to.",
     "notify_bad_email": "Not a valid e-mail address: {{value}}",
     "telegram_no_token": "Enter the bot token first.",
@@ -155,6 +165,13 @@
     "queue_unavailable": "The mail queue cannot be reached right now. Try again in a minute."
   },
   "login": {
+    "twofa_title": "Enter your code",
+    "twofa_sub": "Open your authenticator app and enter the 6-digit code for Mailfilter.",
+    "twofa_recovery_sub": "Enter one of your recovery codes. Each code works once.",
+    "recovery_code": "Recovery code",
+    "verify": "Verify",
+    "use_recovery": "Use a recovery code",
+    "use_app": "Use the authenticator app",
     "title": "Sign in",
     "sub": "Sign in to manage mail flow, quarantine and settings.",
     "email": "E-mail address",
@@ -283,6 +300,11 @@
     "role": "Role"
   },
   "users": {
+    "twofa": "Two-factor login",
+    "twofa_reset": "Reset 2FA",
+    "twofa_reset_confirm": "Turn off two-factor login for {{email}}? They are logged out and can set it up again.",
+    "twofa_reset_done": "Two-factor login was reset",
+    "twofa_hint": "Reset this when someone lost their phone and recovery codes.",
     "title": "Users",
     "sub": "Admins manage everything. Customers only see mail for the domains linked to them.",
     "add": "Add user",
@@ -1817,5 +1839,8 @@
       "failed": "The other server could not apply the configuration.",
       "too_large": "The configuration is too large to send."
     }
-  }
+  },
+  "twofa": {"title": "Two-factor login", "on": "On", "off": "Off", "intro": "Protect your account with a code from an authenticator app (for example Microsoft Authenticator, Google Authenticator, 1Password or Bitwarden) on top of your password.", "setup": "Set up two-factor login", "step_app": "Install an authenticator app on your phone.", "step_scan": "Scan the QR code with the app, or type in the key.", "step_code": "Enter the 6-digit code the app shows.", "qr": "QR code for your authenticator app", "manual": "Can't scan? Enter this key:", "code": "6-digit code", "code_or_recovery": "Code from the app or a recovery code", "confirm": "Turn on", "codes_once": "Save these recovery codes somewhere safe. Each one lets you sign in once without your phone. They are shown only now.", "codes_file": "Mailfilter recovery codes. Each code works once.", "download": "Download", "codes_saved": "I saved them", "since": "On since", "codes_left": "Recovery codes left", "renew": "New recovery codes", "renew_hint": "Your old recovery codes stop working. Confirm with a code from your app.", "disable": "Turn off", "disable_hint": "Confirm with your password and a code from your app.", "enabled_toast": "Two-factor login is on", "disabled_toast": "Two-factor login is off", "required_notice": "Your administrator requires two-factor login for your account.", "required_by_admin": "Required by your administrator, so it cannot be turned off.", "admin_tip": "Lost everything? Another admin can reset it under Users, or run mailfilter-admin reset-2fa on the server.", "gate_title": "Set up two-factor login", "gate_sub": "Your administrator requires two-factor login. Set it up for {{email}} to continue."},
+  "security": {"title": "Security", "sub": "Rules for signing in to Mailfilter.", "require": "Require two-factor login", "policy_off": "Optional", "policy_off_hint": "Everyone can turn it on under My account.", "policy_admins": "Required for admins", "policy_admins_hint": "Admins must set it up at their next sign-in. Customers choose themselves.", "policy_all": "Required for everyone", "policy_all_hint": "Every user must set it up at their next sign-in.", "self_first": "Turn on two-factor login for yourself first:", "status": "Status", "with_2fa": "Users with 2FA", "of": "{{n}} of {{total}}", "missing_one": "1 user still has to set it up at the next sign-in:", "missing_other": "{{count}} users still have to set it up at the next sign-in:", "lost_phone": "Someone lost their phone? Reset their two-factor login under Users."},
+  "audit": {"title": "Audit log", "sub_admin": "Who changed what, and when.", "sub_customer": "Your own actions and the changes to your domains.", "export": "Export CSV", "search": "Search user, target, IP or details", "action": "Action", "all_actions": "All actions", "user": "User", "all_users": "All users", "domain": "Domain", "all_domains": "All domains", "period": "Period", "period_1": "Last 24 hours", "period_7": "Last 7 days", "period_30": "Last 30 days", "period_90": "Last 90 days", "period_all": "Everything", "empty": "No entries for these filters.", "time": "Time", "who": "Who", "what": "What", "details": "Details", "system": "Mailfilter (automatic)", "count": "{{total}} entries · page {{page}} of {{pages}}", "prev": "Previous page", "next": "Next page", "groups": {"login": "Sign-ins", "2fa": "Two-factor login", "user": "Users", "quarantine": "Quarantine", "sender": "Paused senders", "domain": "Domains and routing", "relay": "Relay access", "throttling": "Throttling", "dns": "DNS", "backup": "Backups", "system": "System and updates", "pmg_import": "PMG import", "dmarc": "DMARC", "rules": "Custom rules", "cluster": "Cluster", "lists": "Allow and block lists", "other": "Other"}, "actions": {"login": "Signed in", "login_failed": "Sign-in failed", "login_2fa_failed": "Wrong 2FA code", "password_changed": "Changed password", "2fa_enabled": "Turned on 2FA", "2fa_disabled": "Turned off 2FA", "2fa_reset": "Reset 2FA", "2fa_recovery_codes_renewed": "New recovery codes", "security_require_2fa": "Changed 2FA requirement", "user_created": "Created user", "user_updated": "Changed user", "user_deleted": "Deleted user", "quarantine_released": "Released from quarantine", "quarantine_deleted": "Deleted from quarantine", "sender_paused": "Paused sender", "sender_released": "Released sender", "abuse_settings_updated": "Changed hacked-sender settings", "domain_created": "Added domain", "domain_updated": "Changed domain", "domain_deleted": "Deleted domain", "address_route_added": "Added address route", "address_route_updated": "Changed address route", "address_route_deleted": "Deleted address route", "tls_policy_added": "Added TLS policy", "tls_policy_updated": "Changed TLS policy", "tls_policy_deleted": "Deleted TLS policy", "gateway_applied": "Applied configuration", "relay_network_added": "Allowed relay IP", "relay_network_updated": "Changed relay IP", "relay_network_deleted": "Removed relay IP", "relay_port_added": "Added relay port", "relay_port_updated": "Changed relay port", "relay_port_deleted": "Removed relay port", "throttling_updated": "Changed throttling", "dns_publish": "Published {{kind}} record", "dns_undo": "Undid DNS change", "dns_mta_sts_policy": "Changed MTA-STS policy", "dns_golive": "Went live", "dns_golive_rollback": "Rolled back go-live", "dns_blacklist_check": "Checked blacklists", "cloudflare_token_set": "Set Cloudflare token", "cloudflare_token_removed": "Removed Cloudflare token", "backup_create": "Started backup", "backup_config": "Changed backup settings", "backup_restore": "Restored backup", "backup_delete": "Deleted backup", "system_update": "Started update", "settings_smtp": "Changed e-mail sending", "pmg_import_upload": "Uploaded PMG backup", "pmg_import_apply": "Applied PMG import", "dmarc_upload": "Uploaded DMARC report", "custom_rule_updated": "Changed custom rule", "backup_remote_config": "Changed remote backup", "backup_remote_forget_hostkey": "Forgot remote host key", "backup_remote_passphrase_shown": "Showed backup passphrase", "backup_remote_sync": "Copied backup to remote", "cluster_create": "Created cluster", "cluster_join": "Joined cluster", "cluster_join_code_shown": "Showed join code", "cluster_leave": "Left cluster", "cluster_node_joined": "Server joined the cluster", "cluster_node_left": "Server left the cluster", "cluster_remove_node": "Removed server from cluster", "cluster_rename": "Renamed server", "list_allow_add": "Added to allow list", "list_allow_remove": "Removed from allow list", "list_block_add": "Added to block list", "list_block_remove": "Removed from block list", "quarantine_report_settings": "Changed quarantine report", "quarantine_report_release": "Released via quarantine report", "quarantine_report_release_allow": "Released and allowed via quarantine report", "quarantine_report_block": "Blocked via quarantine report", "settings_notifications": "Changed notifications"}, "fields": {"method": "method", "role": "role", "domains": "domains", "active": "active", "sender": "sender", "learned": "learned", "reason": "reason", "kind": "kind", "previous": "previous", "job": "job", "via": "via"}}
 }

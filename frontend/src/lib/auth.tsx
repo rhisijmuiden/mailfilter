@@ -3,7 +3,11 @@ import { useEffect } from "react";
 import { api, ApiError } from "./api";
 import { setLanguage } from "../i18n";
 
-export type Me = { id: number; email: string; name: string; role: "admin" | "customer"; language: "en" | "nl"; domains: string[] };
+export type Me = { id: number; email: string; name: string; role: "admin" | "customer"; language: "en" | "nl"; domains: string[];
+  two_factor_enabled: boolean;
+  // 2FA is required by the admin but not set up yet: only the setup screen works.
+  two_factor_setup_required: boolean;
+};
 
 export function useMe() {
   const qc = useQueryClient();

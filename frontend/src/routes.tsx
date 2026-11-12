@@ -4,6 +4,7 @@ import { lazy, type ReactNode } from "react";
 import type { Me } from "./lib/auth";
 
 const Account = lazy(() => import("./pages/Account"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Backups = lazy(() => import("./pages/Backups"));
 const Cluster = lazy(() => import("./pages/Cluster"));
 const CustomRules = lazy(() => import("./pages/CustomRules"));
@@ -18,6 +19,7 @@ const Lists = lazy(() => import("./pages/Lists"));
 const Quarantine = lazy(() => import("./pages/Quarantine"));
 const QuarantineReport = lazy(() => import("./pages/QuarantineReport"));
 const RelayAccess = lazy(() => import("./pages/RelayAccess"));
+const Security = lazy(() => import("./pages/Security"));
 const Throttling = lazy(() => import("./pages/Throttling"));
 const Trace = lazy(() => import("./pages/Trace"));
 const Users = lazy(() => import("./pages/Users"));
@@ -42,5 +44,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/system/notifications", element: () => <Notifications />, adminOnly: true },
   { path: "/system/cluster", element: () => <Cluster />, adminOnly: true },
   { path: "/system/backups", element: () => <Backups />, adminOnly: true },
+  { path: "/audit", element: (me) => <AuditLog me={me} /> },
+  { path: "/system/security", element: (me) => <Security me={me} />, adminOnly: true },
   { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true },
 ];

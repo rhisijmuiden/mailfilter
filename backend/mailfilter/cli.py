@@ -3,6 +3,7 @@
   mailfilter-admin migrate                     bring the database schema up to date
   mailfilter-admin create-admin EMAIL          create an admin (prints a generated password)
   mailfilter-admin set-password EMAIL          set a new generated password
+  mailfilter-admin reset-2fa EMAIL             turn off two-factor login (lost phone and codes)
   mailfilter-admin has-users                   exit 0 when at least one user exists
   mailfilter-admin abuse-scan                  pause senders that suddenly send spam (run by a timer)
   mailfilter-admin notify-check                send alerts by e-mail, Telegram and webhook (run by a timer)
@@ -49,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--language", choices=["en", "nl"], default="en")
     s = sub.add_parser("set-password")
     s.add_argument("email")
+    r = sub.add_parser("reset-2fa")
+    r.add_argument("email")
     sub.add_parser("has-users")
     sub.add_parser("abuse-scan")
     sub.add_parser("notify-check")
@@ -112,6 +115,20 @@ def main(argv: list[str] | None = None) -> int:
             return 1 if res.failed else 0
         email = args.email.strip().lower()
         user = db.execute(select(User).where(func.lower(User.email) == email)).scalar_one_or_none()
+        if args.cmd == "reset-2fa":
+            if not user:
+                print(f"No user {email}", file=sys.stderr)
+                return 1
+            from . import twofactor
+            from .audit import audit
+            from .models import AuthSession
+
+            twofactor.disable(user)
+            db.query(AuthSession).filter(AuthSession.user_id == user.id).delete()
+            audit(db, None, None, "2fa_reset", user.email, via="cli")
+            db.commit()
+            print(f"Two-factor login turned off for {email}")
+            return 0
         password = generate_password()
         if args.cmd == "create-admin":
             if user:

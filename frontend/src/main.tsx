@@ -7,6 +7,7 @@ import { Loading, ToastProvider } from "./components/ui";
 import { i18nReady } from "./i18n";
 import { useMe } from "./lib/auth";
 import Login from "./pages/Login";
+import TwoFactorGate from "./pages/TwoFactorGate";
 import NotFound from "./pages/NotFound";
 import { ROUTES } from "./routes";
 import "./styles/index.css";
@@ -22,6 +23,7 @@ function App() {
   if (me.isLoading) return <Loading />;
   if (!me.data) return <Login />;
   const user = me.data;
+  if (user.two_factor_setup_required) return <TwoFactorGate me={user} />;
   return (
     <Routes>
       <Route element={<Layout me={user} />}>

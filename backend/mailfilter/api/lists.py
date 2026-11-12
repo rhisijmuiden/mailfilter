@@ -134,7 +134,7 @@ def options(user: CurrentUser, db: DB) -> OptionsOut:
 def create(body: EntryIn, request: Request, user: CurrentUser, db: DB) -> EntryOut:
     e = add_entry(db, user, body.list, body.recipient, body.sender, body.comment, user.email)
     db.flush()
-    audit(db, request, user, f"list_{body.list}_add", f"{e.recipient} <- {e.sender}")
+    audit(db, request, user, f"list_{body.list}_add", f"{e.recipient} <- {e.sender}", domain=e.recipient)
     save_maps(db)
     db.refresh(e)
     return entry_out(e)
@@ -145,6 +145,6 @@ def remove(entry_id: int, request: Request, user: CurrentUser, db: DB) -> None:
     e = db.execute(_scoped(select(SenderListEntry), user).where(SenderListEntry.id == entry_id)).scalar_one_or_none()
     if e is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
-    audit(db, request, user, f"list_{e.list}_remove", f"{e.recipient} <- {e.sender}")
+    audit(db, request, user, f"list_{e.list}_remove", f"{e.recipient} <- {e.sender}", domain=e.recipient)
     db.delete(e)
     save_maps(db)

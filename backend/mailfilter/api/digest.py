@@ -199,7 +199,7 @@ def report_action(token: str, body: ReportActionIn, request: Request, db: DB) ->
         raise HTTPException(status.HTTP_409_CONFLICT, "not_in_quarantine") from e
     db.add(QuarantineAction(queue_id=m.queue_id, action="released" if releasing else "deleted", learned=learned,
                             user_id=None, user_email=f"{rcpt} (report)"))
-    audit(db, request, None, f"quarantine_report_{body.action}", m.queue_id, recipient=rcpt, sender=m.sender)
+    audit(db, request, None, f"quarantine_report_{body.action}", m.queue_id, domain=rcpt, recipient=rcpt, sender=m.sender)
     if listed:
         save_maps(db)
     else:

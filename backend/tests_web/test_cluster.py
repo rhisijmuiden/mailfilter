@@ -348,3 +348,39 @@ def test_lists_and_quarantine_report_are_synced(nodes):
         e = db.execute(select(SenderListEntry)).scalar_one()
         assert (e.list, e.sender, e.domain.name) == ("block", "spam.example", "rhis.nl")
         assert db.execute(select(DigestDomain)).scalar_one().enabled is False
+
+
+def test_two_factor_and_policy_are_synced(nodes):
+    import time
+
+    from mailfilter import twofactor
+
+    make_cluster(nodes)
+    nodes.clients.clear()
+    secret = nodes.call("a", "post", "/api/auth/2fa/setup").json()["secret"]
+    codes = nodes.call("a", "post", "/api/auth/2fa/enable", json={"code": twofactor.totp(secret)}).json()["codes"]
+    assert nodes.call("a", "put", "/api/system/security", json={"require_2fa": "admins"}).status_code == 200
+    with nodes.on("a"):
+        peer.push_all()
+    with nodes.on("b"), session() as db:
+        u = db.execute(select(User).where(User.email == "admin@rhis.nl")).scalar_one()
+        assert u.two_factor_enabled and twofactor.decrypt_secret(u.totp_secret) == secret
+        assert twofactor.get_policy(db) == "admins"
+    with nodes.on("b"):
+        c = Client()
+        r = c.post("/api/auth/login", json={"email": "admin@rhis.nl", "password": PASSWORD})
+        assert r.json()["two_factor_required"] is True
+        r = c.post("/api/auth/login/2fa", json={"challenge": r.json()["challenge"],
+                                                "code": twofactor.totp(secret, time.time() + 30)})
+        assert r.status_code == 200, r.text
+    # Using a TOTP code is not a configuration change; using a recovery code is.
+    before = form(nodes, "b")["rev"]
+    with nodes.on("b"), session() as db:
+        assert form(nodes, "b")["rev"] == before
+        u = db.execute(select(User).where(User.email == "admin@rhis.nl")).scalar_one()
+        assert twofactor.use_recovery_code(u, codes[0])
+        db.commit()
+        peer.push_all()
+    with nodes.on("a"), session() as db:
+        u = db.execute(select(User).where(User.email == "admin@rhis.nl")).scalar_one()
+        assert len(u.recovery_codes) == 9

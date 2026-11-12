@@ -25,6 +25,7 @@ SYNCED_MODELS plus an export/import pair below, to have it synced.
 
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import subprocess
 from typing import Any
@@ -43,13 +44,13 @@ from .state import ClusterError
 FORMAT = 1
 
 SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp", "smtp.password", "cloudflare_token",
-                             "quarantine_report"})
+                             "quarantine_report", "security"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
                  TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain)
 
 # Changes to these columns alone are not configuration changes.
-LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at"}), ClusterNode: ClusterNode.LOCAL,
+LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at", "totp_last_step"}), ClusterNode: ClusterNode.LOCAL,
                  SenderListEntry: frozenset({"created_at"})}
 LIST_FIELDS = ("list", "comment", "created_by")
 
@@ -114,7 +115,7 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
     digest_off = sorted(d.name for d, in db.execute(
         select(Domain).join(DigestDomain, DigestDomain.domain_id == Domain.id).where(DigestDomain.enabled.is_(False))))
 
-    users = [{**_pick(u, USER_FIELDS), "email": u.email, "domains": u.domain_names}
+    users = [{**_pick(u, USER_FIELDS), "email": u.email, "domains": u.domain_names, **_two_factor_out(u)}
              for u in db.execute(select(User).order_by(User.email)).scalars()]
 
     settings: dict[str, Any] = {}
@@ -215,6 +216,29 @@ def _import_simple(db: Session, model, key: str, fields: tuple[str, ...], items:
         db.add(r)
 
 
+def _two_factor_out(u: User) -> dict[str, Any]:
+    # The TOTP secret is encrypted with this node's APP_SECRET: send it plain
+    # (inside the sealed message); the receiver encrypts it with its own.
+    return {"two_factor": {
+        "secret": _fernet().decrypt(u.totp_secret.encode()).decode() if u.totp_secret else None,
+        "enabled_at": u.totp_enabled_at.isoformat() if u.totp_enabled_at else None,
+        "recovery_codes": list(u.recovery_codes or []),
+    }}
+
+
+def _two_factor_in(u: User, tf: dict[str, Any] | None) -> None:
+    if tf is None:  # older nodes do not send it: leave ours alone
+        return
+    secret = tf.get("secret")
+    new = _fernet().encrypt(secret.encode()).decode() if secret else None
+    old = _fernet().decrypt(u.totp_secret.encode()).decode() if u.totp_secret else None
+    if secret != old:
+        u.totp_secret = new
+        u.totp_last_step = None
+    u.totp_enabled_at = datetime.fromisoformat(tf["enabled_at"]) if tf.get("enabled_at") else None
+    u.recovery_codes = list(tf.get("recovery_codes") or [])
+
+
 def _import_users(db: Session, items: list[dict], domains: dict[str, Domain]) -> None:
     have = {u.email.lower(): u for u in db.execute(select(User)).scalars()}
     wanted = {str(i["email"]).lower(): i for i in items}
@@ -225,6 +249,7 @@ def _import_users(db: Session, items: list[dict], domains: dict[str, Domain]) ->
     for email, i in wanted.items():
         u = have.get(email) or User(email=email)
         _put(u, i, USER_FIELDS)
+        _two_factor_in(u, i.get("two_factor"))
         u.domains = [domains[d.lower()] for d in i.get("domains", []) if d.lower() in domains]
         db.add(u)
 
