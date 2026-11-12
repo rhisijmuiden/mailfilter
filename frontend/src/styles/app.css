@@ -182,6 +182,8 @@ td.nowrap{white-space:nowrap}
 .drawer-head{display:flex;gap:12px;align-items:flex-start;padding:20px max(22px,env(safe-area-inset-right,0px)) 16px 22px;border-bottom:1px solid var(--line)}
 .drawer-head h2{margin:0 0 4px;font-size:18px;line-height:1.3}
 .drawer-body{padding:20px max(22px,env(safe-area-inset-right,0px)) 32px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:20px}
+/* Sections keep their full height; the drawer body scrolls instead of squeezing them (boxes with overflow:hidden would otherwise shrink and overlap). */
+.drawer-body>*{flex-shrink:0}
 .icon-btn{border:1px solid var(--line);background:transparent;border-radius:var(--r-sm);width:34px;height:34px;display:grid;place-items:center;cursor:pointer;flex:none;margin-left:auto}
 .icon-btn svg{width:18px;height:18px;stroke:currentColor}
 .kv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:8px 12px;font-size:13px}
