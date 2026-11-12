@@ -169,3 +169,33 @@ def test_golive_status_error_shows_reason(admin, env, monkeypatch):
     monkeypatch.setattr(golive, "preflight", boom)
     r = admin.get("/api/dns/golive/rhis.nl")
     assert r.status_code == 500 and r.json()["detail"].startswith("golive_error:RuntimeError probe exploded badly")
+
+
+def test_mx_editor(admin, env):
+    admin.put("/api/dns/cloudflare", json={"token": TOKEN})
+    cur = admin.get("/api/dns/mx/rhis.nl/cloudflare").json()
+    assert cur["records"] == [{"priority": 10, "host": "pmg.rhis.nl"}] and cur["managed"] is True
+    body = {"kind": "mx", "domain": "rhis.nl", "mx": [{"priority": 10, "host": "mailfilter.rhis.nl"},
+                                                     {"priority": 20, "host": "PMG.rhis.nl."}]}
+    plan = admin.post("/api/dns/publish/plan", json=body).json()
+    assert [(c["action"], (c["after"] or {}).get("priority")) for c in plan["changes"]] == [("create", 10), ("update", 20)]
+    assert plan["warnings"] == []
+    r = admin.post("/api/dns/publish/apply", json=body)
+    assert r.status_code == 200, r.text
+    assert sorted((x["priority"], x["content"]) for x in env.find("rhis.nl", "MX")) == [(10, "mailfilter.rhis.nl"), (20, "pmg.rhis.nl")]
+    # Same list again: nothing to do
+    assert {c["action"] for c in admin.post("/api/dns/publish/plan", json=body).json()["changes"]} == {"none"}
+    # Undo puts the old MX back
+    assert admin.post(f"/api/dns/undo/{r.json()['batch']}").status_code == 200
+    assert [(x["priority"], x["content"]) for x in env.find("rhis.nl", "MX")] == [(10, "pmg.rhis.nl")]
+
+
+def test_mx_editor_rejects_bad_input(admin, env, monkeypatch):
+    admin.put("/api/dns/cloudflare", json={"token": TOKEN})
+    plan = lambda mx: admin.post("/api/dns/publish/plan", json={"kind": "mx", "domain": "rhis.nl", "mx": mx})
+    assert plan([]).json()["detail"] == "no_mx"
+    assert plan([{"priority": 10, "host": "not a host"}]).json()["detail"].startswith("invalid_mx_host")
+    assert plan([{"priority": 10, "host": "a.rhis.nl"}, {"priority": 20, "host": "a.rhis.nl"}]).json()["detail"] == "duplicate_mx"
+    assert plan([{"priority": 70000, "host": "a.rhis.nl"}]).status_code == 422
+    monkeypatch.setattr(dns_api, "relay_domains", lambda: {})
+    assert plan([{"priority": 10, "host": "mailfilter.rhis.nl"}]).json()["warnings"] == ["not_relay_domain"]

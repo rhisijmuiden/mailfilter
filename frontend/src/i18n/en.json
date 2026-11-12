@@ -112,7 +112,10 @@
     "smtp_tls_failed": "Encrypted connection failed: {{value}}",
     "smtp_timeout": "The SMTP server did not answer in time.",
     "smtp_connect_failed": "Could not connect to the SMTP server: {{value}}",
-    "golive_error": "The go-live checks failed: {{value}}"
+    "golive_error": "The go-live checks failed: {{value}}",
+    "no_mx": "Enter at least one MX record.",
+    "duplicate_mx": "Each mail server may appear only once.",
+    "invalid_mx_host": "\"{{value}}\" is not a valid host name."
   },
   "login": {
     "title": "Sign in",
@@ -465,14 +468,16 @@
       "spf_value": "Publish SPF record",
       "dkim": "Publish DKIM key",
       "dmarc": "Publish DMARC record",
-      "server_spf": "Publish Mailfilter's SPF record"
+      "server_spf": "Publish Mailfilter's SPF record",
+      "mx": "Change MX records"
     },
     "publish_help": {
       "spf": "Your current SPF value stays as it is; Mailfilter only adds itself. Nothing else changes.",
       "spf_value": "This replaces the domain's SPF record with the generated value.",
       "dkim": "Publishes the public key Mailfilter signs outbound mail with.",
       "dmarc": "This sets the domain's DMARC record to the value shown.",
-      "server_spf": "The shared record that lists all Mailfilter addresses. Domains include this name."
+      "server_spf": "The shared record that lists all Mailfilter addresses. Domains include this name.",
+      "mx": "Cloudflare will get exactly these MX records. New records are added before old ones are removed, so mail keeps flowing. You can undo this in the change log."
     },
     "problem": {
       "waiting_for_dns": "Cloudflare already has this record. DNS servers can take up to 30 minutes to show it; nothing more to do.",
@@ -626,6 +631,23 @@
       "detail": "{{ip}} is listed on {{name}} ({{zone}}) since {{time}}. Outbound mail to some providers may be refused. Check outbound spam, then request removal.",
       "customer": "Outbound mail to some providers may be refused for a while. We are working on it.",
       "open": "Open blacklist check"
+    },
+    "warn": {
+      "not_relay_domain": "{{domain}} is not a relay domain in Mailfilter yet, so Mailfilter would refuse its mail. Add the domain under Domains first.",
+      "mx_leaves_mailfilter": "{{domain}} is live on Mailfilter, but this list no longer points to Mailfilter. Mail will bypass the filter."
+    },
+    "mxe": {
+      "title": "MX records in Cloudflare",
+      "help": "Change where mail for this domain is delivered. Use \"Only Mailfilter\" to send all mail through {{host}}, or keep the old server as a backup with a higher number (lower number = tried first).",
+      "only_mf": "Only Mailfilter",
+      "add_mf": "Add Mailfilter",
+      "add_row": "Add MX record",
+      "reset": "Reset",
+      "review": "Review changes",
+      "edit_link": "Edit MX records",
+      "no_cloudflare": "Connect Cloudflare on the Cloudflare tab to change the MX records of {{domain}} from here.",
+      "no_zone": "{{domain}} is not in your Cloudflare account, so its MX records cannot be changed from here.",
+      "not_managed": "{{domain}} is not a relay domain in Mailfilter. Mail sent to Mailfilter for this domain would be refused."
     }
   },
   "gateway": {

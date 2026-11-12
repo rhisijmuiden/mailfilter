@@ -2,7 +2,7 @@
 // status, Cloudflare settings and the change log. Every write to Cloudflare is
 // shown as "current / new" first and can be undone from the change log.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, RefreshCw, Rocket, Undo2, X } from "lucide-react";
+import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, Pencil, Plus, RefreshCw, Rocket, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
@@ -16,10 +16,12 @@ type GoLiveState = { status: "live" | "rolled_back"; time: string; actor: string
 type CheckResult = { domain: string; items: Item[]; managed: boolean; golive: GoLiveState };
 type Rec = { type: string; name: string; content: string; priority?: number | null; id?: string | null };
 type Change = { action: "create" | "update" | "delete" | "none"; type: string; name: string; before: Rec | null; after: Rec | null; reason: string };
-type Plan = { zone_name: string; domain: string; changes: Change[] };
+type Plan = { zone_name: string; domain: string; changes: Change[]; warnings?: string[] };
+type MxRow = { priority: number; host: string };
+type MxCloudflare = { domain: string; zone: string; managed: boolean; hostname: string; mx_priority: number; golive: GoLiveState; records: MxRow[] };
 type Server = { hostname: string; addresses: string[]; spf_name: string; spf_include: string; domains: string[] };
 type CfStatus = { configured: boolean; status: string | null; zones: string[] };
-type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf";
+type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx";
 type Smtp = { reachable: boolean; starttls: boolean; tls_ok: boolean; error: string; cert: { matches: boolean; days_left: number | null } | null } | null;
 type MxResult = {
   domain: string; null_mx: boolean; implicit: boolean; error: string;
@@ -172,6 +174,11 @@ function CheckTab() {
               </tbody>
             </table>
           </div>
+          <div>
+            <button className="btn small" type="button" onClick={() => setParams((p) => { p.set("tab", "mx"); p.set("domain", q.data!.domain); return p; })}>
+              <Pencil /> {t("dns.mxe.edit_link")}
+            </button>
+          </div>
           {q.data.managed ? <GoLive domain={q.data.domain} /> : (
             <div className="callout"><Info /><span>{t("dns.not_managed", { domain: q.data.domain })}</span></div>
           )}
@@ -210,12 +217,12 @@ function PlanView({ plan }: { plan: Plan }) {
   );
 }
 
-function PublishModal({ kind, domain, value, onClose, onDone }: { kind: PublishKind; domain: string; value?: string; onClose: () => void; onDone?: () => void }) {
+function PublishModal({ kind, domain, value, mx, onClose, onDone }: { kind: PublishKind; domain: string; value?: string; mx?: MxRow[]; onClose: () => void; onDone?: () => void }) {
   const { t } = useTranslation();
   const toast = useToast();
   const qc = useQueryClient();
-  const body = { kind, domain, value };
-  const plan = useQuery({ queryKey: ["dns-plan", kind, domain, value], queryFn: () => api.post<Plan>("/dns/publish/plan", body), retry: false, gcTime: 0 });
+  const body = { kind, domain, value, mx };
+  const plan = useQuery({ queryKey: ["dns-plan", kind, domain, value, mx], queryFn: () => api.post<Plan>("/dns/publish/plan", body), retry: false, gcTime: 0 });
   const apply = useMutation({
     mutationFn: () => api.post<{ batch: string | null }>("/dns/publish/apply", body),
     onSuccess: () => {
@@ -230,6 +237,7 @@ function PublishModal({ kind, domain, value, onClose, onDone }: { kind: PublishK
     <Modal title={t(`dns.publish_title.${kind}`)} onClose={onClose} icon={<Cloud />}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <p className="muted" style={{ margin: 0 }}>{t(`dns.publish_help.${kind}`)}</p>
+        {plan.data?.warnings?.map((w) => <div key={w} className="callout warn"><Info /><span>{t(`dns.warn.${w}`, { domain })}</span></div>)}
         {plan.isLoading ? <Loading /> : plan.error ? <ErrorText error={plan.error} /> : plan.data && <PlanView plan={plan.data} />}
         <ErrorText error={apply.error} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -331,7 +339,10 @@ function GoLive({ domain }: { domain: string }) {
 
 function MxTab() {
   const { t } = useTranslation();
-  const [domain, setDomain] = useState("");
+  const [params, setParams] = useSearchParams();
+  const server = useServer();
+  const domain = params.get("domain") ?? "";
+  const setDomain = (d: string) => setParams((p) => { p.set("domain", d); return p; });
   const [probe, setProbe] = useState(true);
   const q = useQuery({ queryKey: ["dns-mx", domain, probe], queryFn: () => api.get<MxResult>(`/dns/mx/${encodeURIComponent(domain)}?probe=${probe}`), enabled: !!domain, retry: false });
   const d = q.data;
@@ -339,7 +350,7 @@ function MxTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <p className="muted" style={{ margin: 0 }}>{t("dns.mx.help")}</p>
-      <DomainForm initial={domain} placeholder={t("dns.mx.ph")} onSubmit={setDomain} />
+      <DomainForm initial={domain} placeholder={t("dns.mx.ph")} onSubmit={setDomain} domains={server.data?.domains} />
       <label className="check"><input type="checkbox" checked={probe} onChange={(e) => setProbe(e.target.checked)} /><span>{t("dns.mx.probe")}</span></label>
       {q.isFetching ? <Loading /> : q.error ? <ErrorText error={q.error} /> : d && (
         d.null_mx ? <div className="callout"><Info /><span>{t("dns.mx.null_mx")}</span></div> : (
@@ -374,7 +385,74 @@ function MxTab() {
           </>
         )
       )}
+      {domain && <MxEditor domain={domain} onDone={() => q.refetch()} />}
     </div>
+  );
+}
+
+function MxEditor({ domain, onDone }: { domain: string; onDone: () => void }) {
+  const { t } = useTranslation();
+  const q = useQuery({ queryKey: ["dns-mx-cf", domain], queryFn: () => api.get<MxCloudflare>(`/dns/mx/${encodeURIComponent(domain)}/cloudflare`), retry: false });
+  const [rows, setRows] = useState<MxRow[]>([]);
+  const [review, setReview] = useState(false);
+  useEffect(() => { if (q.data) setRows(q.data.records.length ? q.data.records : [{ priority: 10, host: "" }]); }, [q.data]);
+  const d = q.data;
+  const set = (n: number, patch: Partial<MxRow>) => setRows(rows.map((r, i) => (i === n ? { ...r, ...patch } : r)));
+  const clean = rows.map((r) => ({ priority: r.priority, host: r.host.trim().toLowerCase() })).filter((r) => r.host);
+  const changed = !!d && JSON.stringify(clean) !== JSON.stringify(d.records);
+  const hasMf = !!d && clean.some((r) => r.host === d.hostname);
+  return (
+    <section className="card" style={{ borderColor: "var(--accent)" }}>
+      <div className="card-head">
+        <span className="status s-info" style={{ padding: 4 }}><Cloud /></span>
+        <h2>{t("dns.mxe.title")}</h2>
+        {d && <div className="right"><span className="cell-sub">{t("dns.zone")}: <b>{d.zone}</b></span></div>}
+      </div>
+      <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {q.isLoading ? <Loading /> : q.error ? (
+          q.error instanceof ApiError && (q.error.message === "cloudflare_not_configured" || q.error.message.startsWith("zone_not_found"))
+            ? <div className="callout"><Info /><span>{t(q.error.message === "cloudflare_not_configured" ? "dns.mxe.no_cloudflare" : "dns.mxe.no_zone", { domain })}</span></div>
+            : <ErrorText error={q.error} />
+        ) : d && (
+          <>
+            <p className="cell-sub" style={{ margin: 0 }}>{t("dns.mxe.help", { host: d.hostname })}</p>
+            {!d.managed && <div className="callout warn"><Info /><span>{t("dns.mxe.not_managed", { domain })}</span></div>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn small" type="button" onClick={() => setRows([{ priority: d.mx_priority, host: d.hostname }])}><Rocket /> {t("dns.mxe.only_mf")}</button>
+              {!hasMf && (
+                <button className="btn small" type="button" onClick={() => setRows([...rows.filter((r) => r.host.trim()), { priority: Math.max(0, ...rows.map((r) => r.priority)) + 10, host: d.hostname }])}>
+                  <Plus /> {t("dns.mxe.add_mf")}
+                </button>
+              )}
+              {changed && <button className="btn small ghost" type="button" onClick={() => setRows(d.records.length ? d.records : [{ priority: 10, host: "" }])}><Undo2 /> {t("dns.mxe.reset")}</button>}
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th style={{ width: 110 }}>{t("dns.mx.prio")}</th><th>{t("dns.mx.host")}</th><th /></tr></thead>
+                <tbody>
+                  {rows.map((r, n) => (
+                    <tr key={n}>
+                      <td><input className="input inline" type="number" min={0} max={65535} value={r.priority} aria-label={t("dns.mx.prio")} onChange={(e) => set(n, { priority: Math.max(0, Math.min(65535, Number(e.target.value) || 0)) })} style={{ width: 90 }} /></td>
+                      <td><input className="input inline mono" value={r.host} aria-label={t("dns.mx.host")} placeholder="mx.example.com" spellCheck={false} autoComplete="off" onChange={(e) => set(n, { host: e.target.value })} style={{ width: "100%" }} /></td>
+                      <td className="nowrap" style={{ textAlign: "right" }}>
+                        {r.host.trim().toLowerCase() === d.hostname && <span className="tag" style={{ marginRight: 6 }}>Mailfilter</span>}
+                        <button className="btn small ghost" type="button" aria-label={t("common.delete")} disabled={rows.length < 2} onClick={() => setRows(rows.filter((_, i) => i !== n))}><Trash2 /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn small" type="button" disabled={rows.length >= 10} onClick={() => setRows([...rows, { priority: Math.max(0, ...rows.map((r) => r.priority)) + 10, host: "" }])}><Plus /> {t("dns.mxe.add_row")}</button>
+              <span className="grow" style={{ flex: 1 }} />
+              <button className="btn primary" type="button" disabled={!changed || !clean.length} onClick={() => setReview(true)}><Cloud /> {t("dns.mxe.review")}</button>
+            </div>
+          </>
+        )}
+      </div>
+      {review && <PublishModal kind="mx" domain={domain} mx={clean} onClose={() => setReview(false)} onDone={() => { q.refetch(); onDone(); }} />}
+    </section>
   );
 }
 
