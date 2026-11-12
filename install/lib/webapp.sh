@@ -53,6 +53,12 @@ install_webapp() {
   run systemctl daemon-reload
   run systemctl enable --now mailfilter-abuse.timer
 
+  # Every two minutes: alerts by e-mail, Telegram and webhook (Settings > Notifications)
+  install -m 0644 "$TPL/systemd/mailfilter-notify.service" /etc/systemd/system/mailfilter-notify.service
+  install -m 0644 "$TPL/systemd/mailfilter-notify.timer" /etc/systemd/system/mailfilter-notify.timer
+  run systemctl daemon-reload
+  run systemctl enable --now mailfilter-notify.timer
+
   # Every minute: cluster nodes check each other and exchange configuration (idle on a single server)
   install -m 0644 "$TPL/systemd/mailfilter-cluster.service" /etc/systemd/system/mailfilter-cluster.service
   install -m 0644 "$TPL/systemd/mailfilter-cluster.timer" /etc/systemd/system/mailfilter-cluster.timer
