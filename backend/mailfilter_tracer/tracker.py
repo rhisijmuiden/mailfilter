@@ -47,6 +47,7 @@ class Message:
     spam_score: float | None = None
     spam_action: str | None = None
     symbols: dict = field(default_factory=dict)
+    symbol_options: dict = field(default_factory=dict)
     parent: str | None = None  # for bounces: the message this bounce is about
     is_bounce: bool = False
     done: bool = False
@@ -136,6 +137,7 @@ class Tracker:
             msg.spam_score = d["score"]
             msg.spam_action = d["action"]
             msg.symbols = d["symbols"]
+            msg.symbol_options = d.get("symbol_options", {})
             msg.message_id = msg.message_id or (d.get("mid") if d.get("mid") != "undef" else None)
             if d.get("user") and d["user"] != "unknown":
                 msg.direction = "outbound"

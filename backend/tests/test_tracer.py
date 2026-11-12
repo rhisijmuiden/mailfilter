@@ -44,6 +44,8 @@ def test_inbound_delivered():
     assert m.sender == "jan@gmail.com" and m.size == 4211
     assert m.spam_score == -0.4 and m.spam_action == "no action"
     assert m.symbols["DMARC_POLICY_ALLOW"] == -0.5
+    assert m.symbol_options["R_SPF_ALLOW"] == ["+ip6:2a00:1450::/32"]
+    assert m.symbol_options["DMARC_POLICY_ALLOW"] == ["gmail.com", "none"]
     r = m.recipients["info@rhis.nl"]
     assert (r.relay_host, r.relay_ip, r.transport) == ("mail.rhis.nl", "192.0.2.10", "relay")
     assert r.explain is None

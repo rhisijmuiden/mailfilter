@@ -33,6 +33,9 @@ CREATE INDEX IF NOT EXISTS trace_message_sender ON trace_message (lower(sender))
 CREATE INDEX IF NOT EXISTS trace_message_message_id ON trace_message (message_id);
 CREATE INDEX IF NOT EXISTS trace_message_status ON trace_message (status, first_seen DESC);
 
+-- Added later: what each spam rule found (shown in the spam check report).
+ALTER TABLE trace_message ADD COLUMN IF NOT EXISTS symbol_options jsonb NOT NULL DEFAULT '{}';
+
 CREATE TABLE IF NOT EXISTS trace_recipient (
     queue_id    text NOT NULL REFERENCES trace_message (queue_id) ON DELETE CASCADE,
     address     text NOT NULL,
@@ -58,7 +61,7 @@ CREATE TABLE IF NOT EXISTS tracer_state (
 
 _MSG_COLS = ("queue_id", "first_seen", "last_seen", "direction", "status", "listener", "client_host",
              "client_ip", "sasl_user", "message_id", "sender", "size", "spam_score", "spam_action",
-             "symbols", "parent", "is_bounce", "done")
+             "symbols", "symbol_options", "parent", "is_bounce", "done")
 _RCPT_COLS = ("queue_id", "address", "status", "dsn", "reply", "relay_host", "relay_ip", "transport",
               "delay", "attempts", "explain", "updated")
 
@@ -81,9 +84,10 @@ class Store:
         """Write messages and the journal cursor in one transaction, so nothing is lost or doubled."""
         with self.conn.transaction(), self.conn.cursor() as cur:
             for m in msgs:
-                row = {c: getattr(m, c) for c in _MSG_COLS if c not in ("status", "symbols")}
+                row = {c: getattr(m, c) for c in _MSG_COLS if c not in ("status", "symbols", "symbol_options")}
                 row["status"] = m.status
                 row["symbols"] = json.dumps(m.symbols)
+                row["symbol_options"] = json.dumps(m.symbol_options)
                 cur.execute(_upsert("trace_message", _MSG_COLS, ("queue_id",)),
                             [row[c] for c in _MSG_COLS])
                 for r in m.recipients.values():
