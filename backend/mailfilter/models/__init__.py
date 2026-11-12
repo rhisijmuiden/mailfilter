@@ -7,10 +7,12 @@ from .gateway import AddressRoute, DestinationPolicy, OutboundHold, DomainDestin
 from .cluster import ClusterNode, ClusterNonce
 from .mailtrap import MailTrap, MailTrapNetwork, mailtrap_user
 from .lists import DigestDomain, DigestSent, SenderListEntry
+from .reports import MonthlyReportUser, MonthlyStats
 from .trace import QuarantineAction, TraceMessage, TraceRecipient
 
 __all__ = ["AppSetting", "AuditLog", "AuthSession", "Domain", "User", "user_domain", "QuarantineAction", "TraceMessage", "TraceRecipient",
            "DmarcIngest", "DmarcReport", "DmarcRow",
            "AddressRoute", "DestinationPolicy", "OutboundHold", "DomainDestination", "DomainRoute", "RelayNetwork", "RelayPort", "SmtpAccount", "TlsPolicy",
            "ClusterNode", "ClusterNonce",
-           "DigestDomain", "DigestSent", "SenderListEntry", "MailTrap", "MailTrapNetwork", "mailtrap_user"]
+           "DigestDomain", "DigestSent", "SenderListEntry", "MailTrap", "MailTrapNetwork", "mailtrap_user",
+           "MonthlyReportUser", "MonthlyStats"]

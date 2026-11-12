@@ -45,9 +45,12 @@ install_webapp() {
   install -m 0644 "$TPL/systemd/mailfilter-web.service" /etc/systemd/system/mailfilter-web.service
   install -m 0644 "$TPL/systemd/mailfilter-quarantine-report.service" /etc/systemd/system/mailfilter-quarantine-report.service
   install -m 0644 "$TPL/systemd/mailfilter-quarantine-report.timer" /etc/systemd/system/mailfilter-quarantine-report.timer
+  install -m 0644 "$TPL/systemd/mailfilter-monthly-report.service" /etc/systemd/system/mailfilter-monthly-report.service
+  install -m 0644 "$TPL/systemd/mailfilter-monthly-report.timer" /etc/systemd/system/mailfilter-monthly-report.timer
   run systemctl daemon-reload
   run systemctl enable mailfilter-web
   run systemctl enable --now mailfilter-quarantine-report.timer
+  run systemctl enable --now mailfilter-monthly-report.timer
   run systemctl restart mailfilter-web
 
   # Every minute: pause relay IPs and SMTP accounts that suddenly send spam or a flood of mail
