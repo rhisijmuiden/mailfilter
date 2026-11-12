@@ -172,6 +172,8 @@ class Applier:
                 return report
             if cfg.mailtraps:
                 self._check_mailtrap_support()
+            if any(t.enabled for t in cfg.cloud_tenants):
+                self._check_cloud_support()
 
             try:
                 for p in changed:
@@ -241,6 +243,14 @@ class Applier:
         if res.returncode == 0 and "mailtrap" not in (res.stdout or ""):
             raise ApplyError("mailtrap",
                              "This server's Postfix configuration has no Mailtrap checks yet. "
+                             "Update Mailfilter (or run the installer again) and try again.")
+
+    def _check_cloud_support(self) -> None:
+        """Cloud mail tenants need the cloud_relay.cidr check in main.cf (from the installer)."""
+        res = self.run_cmd(("postconf", "-h", "smtpd_relay_restrictions"))
+        if res.returncode == 0 and "cloud_relay" not in (res.stdout or ""):
+            raise ApplyError("cloud",
+                             "This server's Postfix configuration has no Cloud mail checks yet. "
                              "Update Mailfilter (or run the installer again) and try again.")
 
     def _ensure_mailboxes(self, dirs: list[str]) -> None:

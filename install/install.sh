@@ -189,7 +189,7 @@ install -d -m 0755 "$MF_ETC/nftables"
 # web interface). Here we only make sure every file exists so Postfix can start.
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
 for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
-for f in relay_networks.cidr client_block.cidr postscreen_access.cidr mailtrap.cidr mailtrap_sasl; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_networks.cidr client_block.cidr postscreen_access.cidr mailtrap.cidr mailtrap_sasl cloud_relay.cidr; do touch "$MF_ETC/postfix/$f"; done
 # Mailtrap: caught mail of test environments (filled by the web interface)
 [[ -f $MF_ETC/dovecot-mailtrap.conf ]] || echo "# Managed by Mailfilter (Mailtrap). No mailbox allows IMAP." >"$MF_ETC/dovecot-mailtrap.conf"
 for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs arc_trusted; do touch "$MF_ETC/rspamd/$f.map"; done
