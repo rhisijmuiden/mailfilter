@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ipaddress
 from dataclasses import dataclass
-from typing import Iterable, Protocol
+from typing import Iterable, Protocol, Callable
 
 
 class DnsError(Exception):
@@ -94,6 +94,9 @@ class DnsResolver:
     def aaaa(self, name: str) -> list[str]:
         return sorted(rr.address for rr in self._query(name, "AAAA"))
 
+    def ns(self, name: str) -> list[str]:
+        return sorted(norm(rr.target.to_text()) for rr in self._query(name, "NS"))
+
     def ptr(self, ip: str) -> list[str]:
         name = ipaddress.ip_address(ip).reverse_pointer
         return sorted(norm(rr.target.to_text()) for rr in self._query(name, "PTR"))
@@ -121,6 +124,56 @@ class DnsResolver:
         raise DnsError(f"{name} {rdtype}: no name server answered")
 
 
+class FreshTxt:
+    """Reads the TXT records of one domain straight from its authoritative name servers.
+
+    The local resolver (unbound) remembers "this record does not exist" for up
+    to the zone's negative TTL (30 minutes on Cloudflare). A check made just
+    before publishing would then hide the new SPF, DKIM or DMARC record for
+    that long. Asking the domain's own name servers skips every cache.
+    Everything else (MX, includes of other domains, PTR ...) goes to ``base``;
+    when the authoritative servers cannot be found or reached, so does TXT.
+    """
+
+    def __init__(self, base: Resolver, domain: str, make: Callable[[list[str]], Resolver] | None = None):
+        self._base = base
+        self._domain = norm(domain)
+        self._make = make or (lambda ips: DnsResolver(ips, timeout=4.0))
+        self._auth: Resolver | None | bool = False  # False: not looked up yet
+
+    def __getattr__(self, attr):
+        return getattr(self._base, attr)
+
+    def _authoritative(self) -> Resolver | None:
+        if self._auth is False:
+            self._auth = None
+            try:
+                labels = self._domain.split(".")
+                for i in range(len(labels) - 1):  # the domain itself, then its parents (not the TLD)
+                    hosts = self._base.ns(".".join(labels[i:]))
+                    if hosts:
+                        ips: list[str] = []
+                        for h in hosts[:4]:
+                            ips += self._base.a(h) + self._base.aaaa(h)
+                        if ips:
+                            self._auth = self._make(ips)
+                        break
+            except Exception:  # noqa: BLE001 - no NS support or lookup failed: use the normal resolver
+                self._auth = None
+        return self._auth or None
+
+    def txt(self, name: str) -> list[str]:
+        n = norm(name)
+        if n == self._domain or n.endswith("." + self._domain):
+            auth = self._authoritative()
+            if auth is not None:
+                try:
+                    return auth.txt(name)
+                except Exception:  # noqa: BLE001 - an unreachable server should not fail the check
+                    pass
+        return self._base.txt(name)
+
+
 class StaticResolver:
     """Resolver with fixed answers, for tests and dry runs.
 
@@ -143,6 +196,9 @@ class StaticResolver:
 
     def txt(self, name):
         return self._get(name, "TXT")
+
+    def ns(self, name):
+        return [norm(h) for h in self._get(name, "NS")]
 
     def mx(self, name):
         return sorted((MxRecord(p, norm(h)) for p, h in self._get(name, "MX")), key=lambda r: (r.priority, r.host))
