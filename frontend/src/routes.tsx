@@ -21,6 +21,7 @@ const Lists = lazy(() => import("./pages/Lists"));
 const Quarantine = lazy(() => import("./pages/Quarantine"));
 const QuarantineReport = lazy(() => import("./pages/QuarantineReport"));
 const RelayAccess = lazy(() => import("./pages/RelayAccess"));
+const SpamReports = lazy(() => import("./pages/SpamReports"));
 const Security = lazy(() => import("./pages/Security"));
 const Throttling = lazy(() => import("./pages/Throttling"));
 const Trace = lazy(() => import("./pages/Trace"));
@@ -37,6 +38,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/quarantine/report", element: (me) => <QuarantineReport me={me} /> },
   { path: "/mailtrap", element: (me) => <Mailtrap me={me} /> },
   { path: "/lists", element: (me) => <Lists me={me} /> },
+  { path: "/spam-reports", element: (me) => <SpamReports me={me} /> },
   { path: "/account", element: (me) => <Account me={me} /> },
   { path: "/domains", element: (me) => <Domains me={me} /> },
   { path: "/relay", element: (me) => <RelayAccess me={me} /> },

@@ -47,10 +47,14 @@ check "bounce templates" postconf -b
 check "DMARC report address goes to the mfdmarc pipe" bash -c 'postconf -xh transport_maps | grep -q "dmarc-reports@mailfilter01.example.nl=mfdmarc:" && postconf -M mfdmarc/unix | grep -q mailfilter-dmarc-ingest'
 # shellcheck disable=SC2016
 check "DMARC report address lives on the host name" bash -c '[[ $(postconf -xh virtual_mailbox_domains) == mailfilter01.example.nl ]]'
+# shellcheck disable=SC2016
+check "Spam report addresses go to the mfreport pipe" bash -c 'postconf -xh transport_maps | grep -q "spam@mailfilter01.example.nl=mfreport:" && postconf -xh transport_maps | grep -q "notspam@mailfilter01.example.nl=mfreport:" && postconf -M mfreport/unix | grep -q mailfilter-spam-report && [[ $(postconf -xh mfreport_destination_recipient_limit) == 1 ]]'
 check "master.cf has the mailfilter-config block" grep -q '^# BEGIN mailfilter-config' /etc/postfix/master.cf
 
 RSPAMD_PASSWORD_HASH=$(rspamadm pw -q -p test)
 for f in "$TPL"/rspamd/local.d/*; do render "$f" "/etc/rspamd/local.d/$(basename "$f")"; done
+install -d /etc/rspamd/lua.local.d
+render "$TPL/rspamd/lua.local.d/mailfilter_reports.lua" /etc/rspamd/lua.local.d/mailfilter_reports.lua
 check "rspamadm configtest" rspamadm configtest
 
 # What the installer's "Domains, relay access and throttling" step does, on top of these templates
