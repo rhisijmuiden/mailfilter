@@ -5,6 +5,7 @@
   mailfilter-admin set-password EMAIL          set a new generated password
   mailfilter-admin has-users                   exit 0 when at least one user exists
   mailfilter-admin abuse-scan                  pause senders that suddenly send spam (run by a timer)
+  mailfilter-admin notify-check                send alerts by e-mail, Telegram and webhook (run by a timer)
 """
 
 from __future__ import annotations
@@ -44,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("email")
     sub.add_parser("has-users")
     sub.add_parser("abuse-scan")
+    sub.add_parser("notify-check")
     args = p.parse_args(argv)
 
     if args.cmd == "migrate":
@@ -55,6 +57,13 @@ def main(argv: list[str] | None = None) -> int:
 
             for h in scan(db):
                 print(f"paused {h.kind} {h.value}: {h.reason}")
+            return 0
+        if args.cmd == "notify-check":
+            from .notify import run_checks
+
+            for a in run_checks(db):
+                print(f"{a.event} {a.key}")
+            db.commit()
             return 0
         if args.cmd == "has-users":
             return 0 if db.execute(select(func.count(User.id))).scalar_one() else 1

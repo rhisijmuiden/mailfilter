@@ -46,6 +46,12 @@ install_webapp() {
   run systemctl daemon-reload
   run systemctl enable --now mailfilter-abuse.timer
 
+  # Every two minutes: alerts by e-mail, Telegram and webhook (Settings > Notifications)
+  install -m 0644 "$TPL/systemd/mailfilter-notify.service" /etc/systemd/system/mailfilter-notify.service
+  install -m 0644 "$TPL/systemd/mailfilter-notify.timer" /etc/systemd/system/mailfilter-notify.timer
+  run systemctl daemon-reload
+  run systemctl enable --now mailfilter-notify.timer
+
   if ! "$MF_VENV/bin/mailfilter-admin" has-users; then
     local pw
     pw=$("$MF_VENV/bin/mailfilter-admin" create-admin "$ADMIN_EMAIL" --name Admin)
