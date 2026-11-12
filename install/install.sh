@@ -305,6 +305,9 @@ for f in "$TPL"/rspamd/local.d/*; do
   render "$f" "/etc/rspamd/local.d/$name" 0640
   chgrp _rspamd "/etc/rspamd/local.d/$name"
 done
+install -d -m 0755 /etc/rspamd/lua.local.d
+render "$TPL/rspamd/lua.local.d/mailfilter_reports.lua" /etc/rspamd/lua.local.d/mailfilter_reports.lua 0640
+chgrp _rspamd /etc/rspamd/lua.local.d/mailfilter_reports.lua
 touch "$MF_ETC/rspamd/ratelimit_overrides.conf"
 if [[ -n $FIRST_DOMAIN ]]; then
   SEL=mf$(date +%Y)

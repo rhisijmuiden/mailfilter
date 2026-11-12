@@ -1,14 +1,14 @@
 """Link protection: clicks on protected links.
 
-Revision ID: 0015_link_clicks
-Revises: 0014_monthly_report
+Revision ID: 0016_link_clicks
+Revises: 0015_spam_feedback
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import ARRAY, INET, JSONB
 
-revision = "0015_link_clicks"
-down_revision = "0014_monthly_report"
+revision = "0016_link_clicks"
+down_revision = "0015_spam_feedback"
 branch_labels = None
 depends_on = None
 

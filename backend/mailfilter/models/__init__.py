@@ -3,6 +3,7 @@ so Alembic sees every table."""
 
 from .core import AppSetting, AuditLog, AuthSession, Domain, User, user_domain
 from .dmarc import DmarcIngest, DmarcReport, DmarcRow
+from .feedback import SpamFeedback
 from .gateway import AddressRoute, DestinationPolicy, OutboundHold, DomainDestination, DomainRoute, RelayNetwork, RelayPort, SmtpAccount, TlsPolicy
 from .cluster import ClusterNode, ClusterNonce
 from .mailtrap import MailTrap, MailTrapNetwork, mailtrap_user
@@ -16,4 +17,4 @@ __all__ = ["AppSetting", "AuditLog", "AuthSession", "Domain", "User", "user_doma
            "AddressRoute", "DestinationPolicy", "OutboundHold", "DomainDestination", "DomainRoute", "RelayNetwork", "RelayPort", "SmtpAccount", "TlsPolicy",
            "ClusterNode", "ClusterNonce",
            "DigestDomain", "DigestSent", "SenderListEntry", "MailTrap", "MailTrapNetwork", "mailtrap_user",
-           "MonthlyReportUser", "MonthlyStats", "LinkClick"]
+           "MonthlyReportUser", "MonthlyStats", "SpamFeedback", "LinkClick"]

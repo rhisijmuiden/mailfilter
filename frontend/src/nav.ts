@@ -1,6 +1,6 @@
 // The left menu. Each feature adds its entries here; `group` decides the section.
 import type { LucideIcon } from "lucide-react";
-import { FileChartColumn, FlaskConical, AtSign, BellRing, Boxes, DatabaseBackup, FileInput, Gauge, Globe, KeyRound, LayoutDashboard, ListChecks, MailCheck, MousePointerClick, Network, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { Flag, FileChartColumn, FlaskConical, AtSign, BellRing, Boxes, DatabaseBackup, FileInput, Gauge, Globe, KeyRound, LayoutDashboard, ListChecks, MailCheck, MousePointerClick, Network, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 export type NavGroup = "overview" | "mail" | "config" | "system";
 
@@ -26,6 +26,7 @@ export const NAV: NavItem[] = [
   { to: "/mailtrap", label: "nav.mailtrap", icon: FlaskConical, group: "mail", badge: "mailtrap", module: "mailtrap" },
   { to: "/links", label: "nav.links", icon: MousePointerClick, group: "mail" },
   { to: "/lists", label: "nav.lists", icon: ListChecks, group: "mail" },
+  { to: "/spam-reports", label: "nav.spam_reports", icon: Flag, group: "mail" },
   { to: "/quarantine/report", label: "nav.quarantine_report", icon: MailCheck, group: "mail" },
   { to: "/dmarc", label: "nav.dmarc", icon: ShieldCheck, group: "mail" },
   { to: "/domains", label: "nav.domains", icon: AtSign, group: "config" },
