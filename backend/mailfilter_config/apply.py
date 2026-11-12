@@ -19,7 +19,8 @@ from datetime import datetime, timezone
 from typing import Callable, Sequence
 
 from .model import GatewayConfig
-from .render import MANAGED_PARAM_PREFIXES, MANAGED_PARAMS, SMTP_USERS, render, splice_master_cf, splice_users
+from .render import (DOVECOT_MAILTRAP, MAILTRAP_JSON, MAILTRAP_USERS, MANAGED_PARAM_PREFIXES, MANAGED_PARAMS, SMTP_USERS,
+                     render, splice_master_cf, splice_users)
 from .validate import check
 
 STATE_FILE = "/etc/mailfilter/gateway.json"
@@ -74,7 +75,8 @@ class Applier:
     def run(self, step: str, *cmd: str) -> str:
         res = self.run_cmd(cmd)
         if res.returncode != 0:
-            raise ApplyError(step, (res.stdout or "") + (res.stderr or ""))
+            # Errors first: doveconf -n, for one, prints the whole configuration before them.
+            raise ApplyError(step, ((res.stderr or "") + "\n" + (res.stdout or "")).strip())
         return res.stdout or ""
 
     def read(self, p: str) -> str | None:
@@ -148,7 +150,7 @@ class Applier:
     def apply(self, cfg: GatewayConfig, save_state: bool = True) -> Report:
         self.fill_server_facts(cfg)
         check(cfg)
-        r = render(cfg)
+        r = render(cfg, _mail_ids())
         files = dict(r.files)
         files[MASTER_CF] = splice_master_cf(self.read(MASTER_CF) or "", r.master_cf_block)
         users_now = self.read(SMTP_USERS)
@@ -166,13 +168,18 @@ class Applier:
             to_remove = sorted(set(old_params) - set(r.main_cf))
             to_set = {k: v for k, v in r.main_cf.items() if old_params.get(k) != v}
             if not changed and not to_remove and not to_set:
+                self._ensure_mailboxes(r.mailboxes)
                 return report
+            if cfg.mailtraps:
+                self._check_mailtrap_support()
 
             try:
                 for p in changed:
                     self.write(p, files[p])
-                    if p == SMTP_USERS:  # password hashes: only Dovecot may read them
+                    if p in (SMTP_USERS, MAILTRAP_USERS):  # password hashes: only Dovecot may read them
                         _chown(self.path(p), "root", "dovecot", 0o640)
+                    elif p == MAILTRAP_JSON:  # read by the mftrap pipe and the web app
+                        _chown(self.path(p), "root", "mailfilter", 0o640)
                 for m in r.hash_maps:
                     self.run("postmap", "postmap", f"hash:{self.path(m)}")
                 if to_remove:
@@ -184,14 +191,17 @@ class Applier:
                 if new_warnings:
                     raise ApplyError("postconf", "\n".join(sorted(new_warnings)))
                 self.run("rspamadm configtest", "rspamadm", "configtest")
+                if DOVECOT_MAILTRAP in changed:
+                    self.run("doveconf", "doveconf", "-n")
             except Exception:
                 self._rollback(old_files, old_params, r.hash_maps, set(to_set) | set(to_remove))
                 raise
 
             report.changed, report.params_set, report.params_removed = changed, to_set, to_remove
             self._ensure_dkim_keys(cfg, report)
+            self._ensure_mailboxes(r.mailboxes)
             if self.reload:
-                self._reload(r.relay_ports, changed, report)
+                self._reload([*r.relay_ports, *r.open_ports], changed, report)
         return report
 
     def _ensure_dkim_keys(self, cfg: GatewayConfig, report: Report) -> None:
@@ -224,6 +234,28 @@ class Applier:
             self.write(DKIM_MAP, current + ("" if not current or current.endswith("\n") else "\n") + "".join(added))
             report.changed.append(DKIM_MAP)
 
+    def _check_mailtrap_support(self) -> None:
+        """The Mailtrap checks live in main.cf/master.cf from the installer. Without
+        them a Mailtrap login could relay like a normal SMTP account, so refuse."""
+        res = self.run_cmd(("postconf", "-h", "smtpd_relay_restrictions"))
+        if res.returncode == 0 and "mailtrap" not in (res.stdout or ""):
+            raise ApplyError("mailtrap",
+                             "This server's Postfix configuration has no Mailtrap checks yet. "
+                             "Update Mailfilter (or run the installer again) and try again.")
+
+    def _ensure_mailboxes(self, dirs: list[str]) -> None:
+        """Maildir for every Mailtrap mailbox, owned by the mailfilter user (the mftrap
+        pipe writes, the web app and Dovecot read as that user). Never removes one."""
+        for d in dirs:
+            for sub in ("cur", "new", "tmp"):
+                path = self.path(f"{d}/Maildir/{sub}")
+                if not os.path.isdir(path):
+                    os.makedirs(path, exist_ok=True)
+            for p in (d, f"{d}/Maildir", *(f"{d}/Maildir/{s}" for s in ("cur", "new", "tmp"))):
+                _chown(self.path(p), "mailfilter", "mailfilter", 0o750)
+        if dirs:
+            _chown(self.path(os.path.dirname(dirs[0])), "mailfilter", "mailfilter", 0o750)
+
     def _postconf_warnings(self) -> set[str]:
         res = self.run_cmd(("postconf", "-n"))
         return {ln for ln in (res.stderr or "").splitlines() if "warning" in ln.lower()}
@@ -251,6 +283,10 @@ class Applier:
             # Map files (local_addrs) are picked up by Rspamd on its own; config needs a reload.
             self.run("rspamd reload", "systemctl", "reload", "rspamd")
             report.reloaded.append("rspamd")
+        if DOVECOT_MAILTRAP in changed:
+            # Opening or closing port 993 needs a restart; SMTP logins pause for a moment.
+            self.run("dovecot restart", "systemctl", "restart", "dovecot")
+            report.reloaded.append("dovecot")
         nft_file = "/etc/mailfilter/nftables/relay_ports.nft"
         if nft_file in changed:
             res = self.run_cmd(("nft", "list", "set", "inet", "mailfilter", "relay_ports"))
@@ -261,6 +297,16 @@ class Applier:
                 report.warnings.append(
                     "The firewall has no relay_ports set yet; re-run the installer to open "
                     + ", ".join(map(str, ports)) + ".")
+
+
+def _mail_ids() -> tuple[int, int]:
+    """uid/gid of the mailfilter user, for Dovecot's IMAP userdb."""
+    try:
+        import pwd
+        pw = pwd.getpwnam("mailfilter")
+        return pw.pw_uid, pw.pw_gid
+    except (KeyError, ImportError):
+        return 0, 0
 
 
 def _chown(path: str, user: str, group: str, mode: int) -> None:

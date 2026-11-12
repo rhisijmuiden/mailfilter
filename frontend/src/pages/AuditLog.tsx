@@ -36,6 +36,7 @@ const GROUPS: [string, RegExp][] = [
   ["rules", /^custom_rule_/],
   ["cluster", /^cluster\./],
   ["lists", /^list_/],
+  ["mailtrap", /^mailtrap_/],
 ];
 
 function groupOf(action: string): string {

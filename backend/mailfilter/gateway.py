@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 import mailfilter_config as mfc
 from mailfilter_config.rules import rule_from_dict
 
-from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, OutboundHold,
+from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, MailTrap, OutboundHold,
                      RelayNetwork, RelayPort, SmtpAccount, TlsPolicy)
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
@@ -32,6 +32,12 @@ DEFAULTS_KEY = "gateway.defaults"
 LAST_APPLY_KEY = "gateway.last_apply"
 IMPORTED_KEY = "gateway.imported"
 RULES_KEY = "custom_rules"
+MAILTRAP_KEY = "mailtrap.enabled"
+
+
+def mailtrap_enabled(db: Session) -> bool:
+    value = get_setting(db, MAILTRAP_KEY)
+    return False if value is None else bool(value)  # a module: off until an admin switches it on
 
 
 def custom_rules(db: Session) -> dict[str, mfc.CustomRule]:
@@ -88,6 +94,12 @@ def build_config(db: Session) -> mfc.GatewayConfig:
         smtp_accounts=[mfc.SmtpAccount(username=a.username, password_hash=a.password_hash, domain=a.domain.name,
                                        enabled=a.enabled, description=a.description)
                        for a in db.execute(select(SmtpAccount).order_by(SmtpAccount.username)).scalars()],
+        mailtraps=[mfc.MailTrap(slug=t.slug, name=t.name, networks=[n.cidr for n in t.networks], login=t.login,
+                                password_hash=t.password_hash, smtp_login=t.smtp_login, imap=t.imap, mode=t.mode,
+                                allow=list(t.allow or []), retention_days=t.retention_days,
+                                max_messages=t.max_messages, enabled=t.enabled)
+                   for t in db.execute(select(MailTrap).order_by(MailTrap.slug)).scalars()],
+        mailtrap_enabled=mailtrap_enabled(db),
         defaults=defaults(db),
         custom_rules=custom_rules(db),
     )

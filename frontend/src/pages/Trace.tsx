@@ -10,7 +10,7 @@ import { api, qs } from "../lib/api";
 import type { Detail, Message } from "../lib/trace";
 import { formatSize } from "../lib/trace";
 
-const STATUSES = ["all", "delivered", "problem", "deferred", "bounced", "quarantined", "rejected"] as const;
+const STATUSES = ["all", "delivered", "problem", "deferred", "bounced", "quarantined", "rejected", "trapped"] as const;
 const PERIODS = [1, 24, 24 * 7, 24 * 30, 24 * 90];
 const PAGE = 50;
 
@@ -216,7 +216,7 @@ function TraceDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 
 function Verdict({ m }: { m: Detail }) {
   const { t } = useTranslation();
-  const tone = { delivered: "s-ok", partly_delivered: "s-warn", deferred: "s-warn", bounced: "s-bad", quarantined: "s-info", rejected: "s-mute", queued: "s-mute" }[m.status] ?? "s-mute";
+  const tone = { delivered: "s-ok", partly_delivered: "s-warn", deferred: "s-warn", bounced: "s-bad", quarantined: "s-info", trapped: "s-info", rejected: "s-mute", queued: "s-mute" }[m.status] ?? "s-mute";
   const text = m.explanation ? `${m.explanation.title} ${m.explanation.action}` : t(`trace.verdict_${m.status}`, { defaultValue: "" });
   return (
     <div className={`verdict ${tone}`}>

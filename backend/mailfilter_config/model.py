@@ -141,6 +141,33 @@ class OutboundHold:
     reason: str = ""
 
 
+MAILTRAP_MODES = ("all", "except")
+
+
+@dataclass
+class MailTrap:
+    """A Mailtrap mailbox: mail from these test-environment IPs (or this login)
+    is never sent on. Postfix hands it to the mftrap pipe, which stores it in
+    /var/lib/mailfilter/mailtrap/<login>/Maildir for the web interface and IMAP.
+
+    slug names the Postfix restriction class and the pipe's nexthop; login is
+    the IMAP/SMTP user name (also the mailbox directory name)."""
+
+    slug: str
+    name: str = ""
+    networks: list[str] = field(default_factory=list)
+    login: str = ""
+    password_hash: str = ""  # Dovecot format; empty = no login
+    smtp_login: bool = False  # mail sent with the login (port 587/465) is caught too
+    imap: bool = False  # testers can read the mailbox with a mail program (port 993)
+    # all: nothing leaves; except: recipients matching `allow` are also really delivered
+    mode: str = "all"
+    allow: list[str] = field(default_factory=list)  # "user@example.nl" or "@example.nl"
+    retention_days: int = 7
+    max_messages: int = 1000
+    enabled: bool = True
+
+
 @dataclass
 class Defaults:
     relay_ip_per_minute: int = 30
@@ -161,9 +188,15 @@ class GatewayConfig:
     tls_policies: list[TlsPolicy] = field(default_factory=list)
     holds: list[OutboundHold] = field(default_factory=list)
     smtp_accounts: list[SmtpAccount] = field(default_factory=list)
+    mailtraps: list[MailTrap] = field(default_factory=list)
+    # Main switch. Off: mail from Mailtrap senders is refused (never relayed).
+    mailtrap_enabled: bool = True
     defaults: Defaults = field(default_factory=Defaults)
     # Custom rules (newsletter filter etc.) by rule id; missing rules use their default.
     custom_rules: dict[str, CustomRule] = field(default_factory=dict)
+    # Certificate for IMAP (Mailtrap); empty = Let's Encrypt for the host name.
+    tls_cert: str = ""
+    tls_key: str = ""
     # Used for loop detection; filled in from the server when empty.
     hostname: str = ""
     own_addresses: list[str] = field(default_factory=list)
@@ -203,9 +236,13 @@ class GatewayConfig:
             tls_policies=[TlsPolicy(**t) for t in data.get("tls_policies", [])],
             holds=[OutboundHold(**h) for h in data.get("holds", [])],
             smtp_accounts=[SmtpAccount(**a) for a in data.get("smtp_accounts", [])],
+            mailtraps=[MailTrap(**t) for t in data.get("mailtraps", [])],
+            mailtrap_enabled=bool(data.get("mailtrap_enabled", True)),
             defaults=Defaults(**data.get("defaults", {})),
             custom_rules={k: rule_from_dict(v) for k, v in (data.get("custom_rules") or {}).items()},
             hostname=data.get("hostname", ""),
+            tls_cert=data.get("tls_cert", ""),
+            tls_key=data.get("tls_key", ""),
             own_addresses=list(data.get("own_addresses", [])),
             version=data.get("version", 1),
         )

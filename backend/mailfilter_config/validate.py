@@ -11,10 +11,10 @@ import re
 from dataclasses import dataclass
 
 from .rules import problems as rule_problems
-from .model import ALL_TLS_MODES, DOMAIN_KINDS, LISTENER_TLS, PROTOCOLS, TLS_MODES, GatewayConfig
+from .model import ALL_TLS_MODES, DOMAIN_KINDS, LISTENER_TLS, MAILTRAP_MODES, PROTOCOLS, TLS_MODES, GatewayConfig
 
 # Ports the gateway itself uses; an extra relay listener may not take them.
-RESERVED_PORTS = {22, 25, 53, 80, 443, 465, 587, 3310, 5432, 6379, 11332, 11333, 11334, 11335}
+RESERVED_PORTS = {22, 25, 53, 80, 443, 465, 587, 993, 3310, 5432, 6379, 11332, 11333, 11334, 11335}
 # Where the gateway accepts mail itself: delivering to these on a local address is a loop.
 OWN_SMTP_PORTS = {25, 465, 587}
 MIN_PREFIX = {4: 16, 6: 32}
@@ -22,6 +22,8 @@ MIN_PREFIX = {4: 16, 6: 32}
 USERNAME_RE = re.compile(r"[a-z0-9][a-z0-9._@-]{0,99}")
 # Dovecot password scheme prefix plus hash; never a colon or line break (passwd-file format).
 HASH_RE = re.compile(r"\{[A-Z0-9.-]{2,20}\}[A-Za-z0-9+/=$.]{8,300}")
+SLUG_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
+EMAIL_RE = re.compile(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+")
 _LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
 
@@ -296,6 +298,8 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
             add(f"{f}.password_hash", "account_hash_invalid", "The password could not be stored.",
                 "Het wachtwoord kon niet worden opgeslagen.")
 
+    _check_mailtraps(cfg, add, own_ips)
+
     dft = cfg.defaults
     for attr in ("relay_ip_per_minute", "relay_ip_per_hour", "domain_per_hour", "domain_per_day",
                  "user_per_hour", "concurrency"):
@@ -305,6 +309,104 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
     for p in rule_problems(cfg.custom_rules, {d.name for d in cfg.domains}):
         add(*p)
     return problems
+
+
+def normalise_allow(entry: str) -> str | None:
+    """"user@example.nl" or "@example.nl" (the whole domain), lower-case; None when invalid."""
+    local, at, dom = (entry or "").strip().lower().rpartition("@")
+    ndom = normalise_domain(dom)
+    if not at or not ndom or (local and not EMAIL_RE.fullmatch(local)):
+        return None
+    return f"{local}@{ndom}"
+
+
+def _check_mailtraps(cfg: GatewayConfig, add, own_ips) -> None:
+    relay_nets = []
+    for n in cfg.relay_networks:
+        try:
+            relay_nets.append((n.cidr, ipaddress.ip_network(n.cidr, strict=False)))
+        except ValueError:
+            pass
+    accounts = {a.username for a in cfg.smtp_accounts}
+    slugs: set[str] = set()
+    logins: set[str] = set()
+    trap_nets: dict[str, str] = {}
+    for i, t in enumerate(cfg.mailtraps):
+        f = f"mailtraps[{i}]"
+        t.slug = (t.slug or "").strip().lower()
+        t.name = re.sub(r"[\r\n]+", " ", t.name or "").strip()[:100]
+        label = t.name or t.slug
+        if not SLUG_RE.fullmatch(t.slug):
+            add(f"{f}.slug", "mailtrap_slug_invalid", "The Mailtrap mailbox needs a short name (letters, digits, -).",
+                "Het Mailtrap-postvak heeft een korte naam nodig (letters, cijfers, -).")
+        elif t.slug in slugs:
+            add(f"{f}.slug", "mailtrap_duplicate", f"{t.slug} is listed twice.", f"{t.slug} staat er twee keer in.")
+        slugs.add(t.slug)
+
+        cleaned = []
+        for j, raw in enumerate(t.networks):
+            nf = f"{f}.networks[{j}]"
+            try:
+                net = ipaddress.ip_network(str(raw).strip(), strict=False)
+            except ValueError:
+                add(nf, "network_invalid", f"'{raw}' is not an IP address or network.",
+                    f"'{raw}' is geen IP-adres of netwerk.")
+                continue
+            cidr = str(net.network_address) if net.prefixlen == net.max_prefixlen else str(net)
+            cleaned.append(cidr)
+            if net.prefixlen < MIN_PREFIX[net.version]:
+                add(nf, "network_too_broad", f"{cidr} is too large for a test environment.",
+                    f"{cidr} is te groot voor een testomgeving.")
+            if net.network_address.is_loopback or any(ip in net for ip in own_ips):
+                add(nf, "mailtrap_own_address",
+                    f"{cidr} contains the Mailfilter itself; its own mail (alerts, reports) would be caught.",
+                    f"{cidr} bevat de Mailfilter zelf; de eigen mail (meldingen, rapporten) zou dan worden opgevangen.")
+            for rc, rnet in relay_nets:
+                if rnet.version == net.version and rnet.overlaps(net):
+                    add(nf, "mailtrap_network_is_relay",
+                        f"{cidr} is also in Relay access ({rc}). An address either relays or goes to the Mailtrap; "
+                        "remove it from Relay access first.",
+                        f"{cidr} staat ook bij Relay-toegang ({rc}). Een adres relayt óf gaat naar de Mailtrap; "
+                        "haal het eerst weg bij Relay-toegang.")
+            if cidr in trap_nets:
+                add(nf, "network_duplicate", f"{cidr} is already in Mailtrap mailbox {trap_nets[cidr]}.",
+                    f"{cidr} staat al in Mailtrap-postvak {trap_nets[cidr]}.")
+            trap_nets.setdefault(cidr, label)
+        t.networks = cleaned
+
+        # The login also names the mailbox directory, so every mailbox has one.
+        t.login = (t.login or "").strip().lower() or f"trap-{t.slug}"
+        if True:
+            if not USERNAME_RE.fullmatch(t.login):
+                add(f"{f}.login", "account_invalid",
+                    f"'{t.login}' is not a valid login name (letters, digits and . _ - @, at most 100).",
+                    f"'{t.login}' is geen geldige inlognaam (letters, cijfers en . _ - @, maximaal 100).")
+            elif t.login in logins or t.login in accounts:
+                add(f"{f}.login", "account_duplicate", f"The login {t.login} is already in use.",
+                    f"De inlognaam {t.login} is al in gebruik.")
+            logins.add(t.login)
+        if (t.smtp_login or t.imap) and not HASH_RE.fullmatch(t.password_hash or ""):
+            add(f"{f}.password_hash", "account_hash_invalid", "The password could not be stored.",
+                "Het wachtwoord kon niet worden opgeslagen.")
+
+        if t.mode not in MAILTRAP_MODES:
+            add(f"{f}.mode", "mailtrap_mode_invalid", "Choose to catch all mail or all except testers.",
+                "Kies alles opvangen of alles behalve testers.")
+        allow = []
+        for entry in t.allow:
+            norm = normalise_allow(entry)
+            if norm is None:
+                add(f"{f}.allow", "address_invalid", f"'{entry}' is not an email address or @domain.",
+                    f"'{entry}' is geen e-mailadres of @domein.")
+            elif norm not in allow:
+                allow.append(norm)
+        t.allow = allow
+        if not 1 <= int(t.retention_days) <= 365:
+            add(f"{f}.retention_days", "retention_invalid", "Keep mail between 1 and 365 days.",
+                "Bewaar mail tussen 1 en 365 dagen.")
+        if not 1 <= int(t.max_messages) <= 100_000:
+            add(f"{f}.max_messages", "max_messages_invalid", "The maximum must be between 1 and 100,000 messages.",
+                "Het maximum moet tussen 1 en 100.000 mails liggen.")
 
 
 def _check_queue(add, f: str, q) -> None:

@@ -142,7 +142,7 @@ export DEBIAN_FRONTEND=noninteractive
 echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
 echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
-PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
+PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core dovecot-imapd
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
       nodejs npm sudo git zstd gnupg openssh-client curl dnsutils ca-certificates jq crowdsec)
@@ -189,7 +189,9 @@ install -d -m 0755 "$MF_ETC/nftables"
 # web interface). Here we only make sure every file exists so Postfix can start.
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
 for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
-for f in relay_networks.cidr client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_networks.cidr client_block.cidr postscreen_access.cidr mailtrap.cidr mailtrap_sasl; do touch "$MF_ETC/postfix/$f"; done
+# Mailtrap: caught mail of test environments (filled by the web interface)
+[[ -f $MF_ETC/dovecot-mailtrap.conf ]] || echo "# Managed by Mailfilter (Mailtrap). No mailbox allows IMAP." >"$MF_ETC/dovecot-mailtrap.conf"
 for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs arc_trusted; do touch "$MF_ETC/rspamd/$f.map"; done
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
@@ -258,7 +260,7 @@ if [[ $HAVE_CERT == 0 ]]; then
   postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
   warn "Postfix uses a temporary self-signed certificate until Let's Encrypt succeeds."
 fi
-for f in relay_domains transport sender_block tls_policy recipient_verify; do run postmap "hash:$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify mailtrap_sasl; do run postmap "hash:$MF_ETC/postfix/$f"; done
 # A bare install with "No configuration" has no /etc/aliases; route system mail to the admin.
 [[ -f /etc/aliases ]] || printf 'postmaster: root\nabuse: root\nroot: %s\n' "$ADMIN_EMAIL" >/etc/aliases
 run newaliases
@@ -270,6 +272,7 @@ ok "Listening on 25 (inbound), 587 and 465 (relay)"
 # ---------------------------------------------------------------------------
 step "SMTP accounts for relay (Dovecot)"
 touch "$MF_ETC/smtp-users"; chown root:dovecot "$MF_ETC/smtp-users"; chmod 0640 "$MF_ETC/smtp-users"
+touch "$MF_ETC/mailtrap-users"; chown root:dovecot "$MF_ETC/mailtrap-users"; chmod 0640 "$MF_ETC/mailtrap-users"
 backup_file /etc/dovecot/dovecot.conf
 render "$TPL/dovecot/dovecot.conf" /etc/dovecot/dovecot.conf
 run doveconf -n

@@ -4,6 +4,7 @@ Rspamd and nftables read. Pure functions: nothing here touches the server.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass, field
 
@@ -15,7 +16,7 @@ PF = f"{ETC}/postfix"
 
 # Every main.cf parameter this package sets starts with one of these, so
 # stale ones (from a removed domain) can be found and deleted.
-MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_", "mfl_")
+MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_", "mfl_", "mft_")
 # Standard Postfix parameters this package owns completely (always set).
 MANAGED_PARAMS = ("smtpd_end_of_data_restrictions", "smtpd_restriction_classes")
 SMTP_USERS = f"{ETC}/smtp-users"
@@ -23,6 +24,15 @@ SMTP_USERS = f"{ETC}/smtp-users"
 # passwd-file; lines outside them (added by hand) are left alone.
 USERS_BEGIN = "# BEGIN mailfilter-config accounts (managed by the web interface, do not edit)"
 USERS_END = "# END mailfilter-config accounts"
+# Mailtrap: where caught mail is stored (one Maildir per mailbox login), the
+# settings the mftrap pipe reads, the IMAP users and Dovecot's IMAP part.
+MAILTRAP_DIR = "/var/lib/mailfilter/mailtrap"
+MAILTRAP_JSON = f"{ETC}/mailtrap.json"
+MAILTRAP_USERS = f"{ETC}/mailtrap-users"
+DOVECOT_MAILTRAP = f"{ETC}/dovecot-mailtrap.conf"
+IMAP_PORT = 993
+# Same order as main.cf: the Mailtrap is checked before anything that permits relaying.
+MAILTRAP_CHECKS = f"check_client_access,cidr:{PF}/mailtrap.cidr,check_sasl_access,hash:{PF}/mailtrap_sasl"  # no spaces: master.cf -o values end at whitespace
 BEGIN = "# BEGIN mailfilter-config (managed by the web interface, do not edit)"
 END = "# END mailfilter-config"
 
@@ -37,6 +47,8 @@ class Rendered:
     master_cf_block: str = ""
     relay_ports: list[int] = field(default_factory=list)
     users_block: str = ""  # Dovecot passwd-file lines for SMTP accounts
+    open_ports: list[int] = field(default_factory=list)  # other ports to open in the firewall (IMAP)
+    mailboxes: list[str] = field(default_factory=list)  # Mailtrap Maildirs that must exist
 
 
 def service_name(prefix: str, domain: str) -> str:
@@ -93,16 +105,16 @@ def _listener(port: int, tls: str) -> str:
         opts.append(f"smtpd_tls_security_level={tls}")
     opts += [
         "smtpd_sasl_auth_enable=yes",
-        "smtpd_client_restrictions=permit_mynetworks,permit_sasl_authenticated,reject",
+        f"smtpd_client_restrictions={MAILTRAP_CHECKS},permit_mynetworks,permit_sasl_authenticated,reject",
         "smtpd_helo_restrictions=",
-        "smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,reject",
-        "smtpd_recipient_restrictions=permit_mynetworks,permit_sasl_authenticated,reject",
+        f"smtpd_relay_restrictions={MAILTRAP_CHECKS},permit_mynetworks,permit_sasl_authenticated,reject",
+        f"smtpd_recipient_restrictions={MAILTRAP_CHECKS},permit_mynetworks,permit_sasl_authenticated,reject",
         "milter_macro_daemon_name=ORIGINATING",
     ]
     return "\n".join([f"{port:<10} inet  n       -       y       -       -       smtpd"] + [f"  -o {o}" for o in opts])
 
 
-def render(cfg: GatewayConfig) -> Rendered:
+def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
     """Expects a configuration that passed validate.check()."""
     out = Rendered()
     domains: list[Domain] = sorted((d for d in cfg.domains if d.enabled), key=lambda d: d.name)
@@ -171,12 +183,18 @@ def render(cfg: GatewayConfig) -> Rendered:
         plain.append(f"{n.cidr}{_comment(label)}\n")
         cidr.append(_comment_line(label) + f"{n.cidr} OK\n")
         local_addrs.append(f"{n.cidr}\n")
+    # Mailtrap senders are checked like outbound mail (DKIM, no greylisting), as they would be in production.
+    for t in cfg.mailtraps:
+        for c in t.networks:
+            local_addrs.append(f"{c}\n")
     out.files[f"{ETC}/relay_networks.list"] = "".join(plain)
     out.files[f"{PF}/relay_networks.cidr"] = "".join(cidr)
     out.files[f"{ETC}/rspamd/local_addrs.map"] = "".join(local_addrs)
 
-    # ---- nftables: open the extra relay ports -----------------------------------
-    ports = ", ".join(str(p) for p in out.relay_ports)
+    # ---- nftables: open the extra relay ports (and IMAP for the Mailtrap) ----------
+    if cfg.mailtrap_enabled and any(t.enabled and t.imap for t in cfg.mailtraps):
+        out.open_ports.append(IMAP_PORT)
+    ports = ", ".join(str(p) for p in [*out.relay_ports, *out.open_ports])
     out.files[f"{ETC}/nftables/relay_ports.nft"] = (
         HEADER + "flush set inet mailfilter relay_ports\n"
         + (f"add element inet mailfilter relay_ports {{ {ports} }}\n" if ports else "")
@@ -215,6 +233,7 @@ def render(cfg: GatewayConfig) -> Rendered:
     out.files[f"{PF}/sender_lock.cidr"] = "".join(lock_ip)
     out.files[f"{PF}/sender_lock_sasl"] = "".join(lock_sasl)
     out.hash_maps.append(f"{PF}/sender_lock_sasl")
+    classes += render_mailtrap(cfg, out, mail_ids)
     if classes:
         # Left out when empty: `postconf -n` prints an empty value without " = ", so
         # setting "" would look changed on every apply. Unset, it is removed (managed).
@@ -223,11 +242,100 @@ def render(cfg: GatewayConfig) -> Rendered:
     out.main_cf["smtpd_end_of_data_restrictions"] = eod
 
     # ---- SMTP accounts (Dovecot passwd-file block) -----------------------------
-    out.users_block = "".join(f"{a.username}:{a.password_hash}\n"
-                              for a in sorted(cfg.smtp_accounts, key=lambda a: a.username) if a.enabled)
+    # Mailtrap logins that may send are in here too; mailtrap_sasl sends their mail to the trap.
+    logins = [(a.username, a.password_hash) for a in cfg.smtp_accounts if a.enabled]
+    logins += [(t.login, t.password_hash) for t in cfg.mailtraps
+               if cfg.mailtrap_enabled and t.enabled and t.smtp_login and t.password_hash]
+    out.users_block = "".join(f"{u}:{h}\n" for u, h in sorted(logins))
     # ---- custom rules (newsletter filter etc.) ------------------------------------
     out.files.update(render_rule_files(cfg.custom_rules, {d.name for d in domains}))
     return out
+
+
+def render_mailtrap(cfg: GatewayConfig, out: Rendered, mail_ids: tuple[int, int]) -> list[str]:
+    """Mailtrap: senders whose mail is caught instead of sent. Returns the restriction classes.
+
+    main.cf and master.cf check mailtrap.cidr and mailtrap_sasl before anything
+    that permits relaying. A match gives the mailbox's class: FILTER the whole
+    message to the mftrap pipe (it stores the mail) and permit. When the
+    Mailtrap or the mailbox is off the sender gets a refusal instead, so a test
+    environment can never fall through to normal relaying."""
+    classes: list[str] = []
+    cidr, sasl = [HEADER], [HEADER]
+    users, boxes = [HEADER], {}
+    off = "REJECT 5.7.1 Mailtrap is switched off: mail from this test environment is not sent"
+    uid, gid = mail_ids
+    for t in sorted(cfg.mailtraps, key=lambda t: t.slug):
+        on = cfg.mailtrap_enabled and t.enabled
+        action = service_name("mft_", t.slug) if on else off
+        if on:
+            classes.append(action)
+            out.main_cf[action] = f"check_client_access static:{{FILTER mftrap:{t.slug}}}, permit"
+        label = _comment_line(t.name or t.slug)
+        for c in t.networks:
+            cidr.append(label + f"{c} {action}\n")
+        if t.login:
+            # A login that may only read (IMAP) must never send: refuse it on SMTP.
+            sasl.append(f"{t.login} {action if t.smtp_login else 'REJECT 5.7.1 This login can only read the Mailtrap'}\n")
+            if on and t.imap and t.password_hash:
+                users.append(f"{t.login}:{t.password_hash}:{uid}:{gid}::{MAILTRAP_DIR}/{t.login}::\n")
+        boxes[t.slug] = {"name": t.name, "login": t.login, "enabled": t.enabled, "mode": t.mode,
+                         "allow": t.allow if t.mode == "except" else [], "retention_days": int(t.retention_days),
+                         "max_messages": int(t.max_messages), "maildir": f"{MAILTRAP_DIR}/{t.login}/Maildir"}
+        out.mailboxes.append(f"{MAILTRAP_DIR}/{t.login}")
+    out.files[f"{PF}/mailtrap.cidr"] = "".join(cidr)
+    out.files[f"{PF}/mailtrap_sasl"] = "".join(sasl)
+    out.hash_maps.append(f"{PF}/mailtrap_sasl")
+    out.files[MAILTRAP_USERS] = "".join(users)
+    out.files[MAILTRAP_JSON] = json.dumps({"enabled": cfg.mailtrap_enabled, "boxes": boxes}, indent=2) + "\n"
+    out.files[DOVECOT_MAILTRAP] = render_dovecot_mailtrap(cfg, IMAP_PORT in out.open_ports)
+    return classes
+
+
+def render_dovecot_mailtrap(cfg: GatewayConfig, imap: bool) -> str:
+    """Included by /etc/dovecot/dovecot.conf. Only when a mailbox allows IMAP does
+    Dovecot open port 993; logins come from mailtrap-users (userdb and passdb), so
+    SMTP accounts cannot read anything."""
+    if not imap:
+        return "# Managed by Mailfilter (Mailtrap). No mailbox allows IMAP, so Dovecot serves no mailboxes.\n"
+    host = cfg.hostname or "localhost"
+    cert = cfg.tls_cert or f"/etc/letsencrypt/live/{host}/fullchain.pem"
+    key = cfg.tls_key or f"/etc/letsencrypt/live/{host}/privkey.pem"
+    return f"""# Managed by Mailfilter (Mailtrap). Changes here are overwritten.
+# Testers read their Mailtrap mailbox with a mail program: IMAP over TLS on port {IMAP_PORT} only.
+protocols {{
+  imap = yes
+}}
+service imap-login {{
+  inet_listener imap {{
+    port = 0
+  }}
+  inet_listener imaps {{
+    port = {IMAP_PORT}
+    ssl = yes
+  }}
+}}
+# Not "required": Postfix's SASL socket needs auth_allow_cleartext, which Dovecot 2.4 refuses next to it.
+# There is no plain IMAP listener, so IMAP is TLS-only all the same.
+ssl = yes
+ssl_server_cert_file = {cert}
+ssl_server_key_file = {key}
+ssl_min_protocol = TLSv1.2
+
+mail_driver = maildir
+mail_path = ~/Maildir
+
+protocol imap {{
+  passdb mailtrap {{
+    driver = passwd-file
+    passwd_file_path = {MAILTRAP_USERS}
+  }}
+}}
+userdb mailtrap {{
+  driver = passwd-file
+  passwd_file_path = {MAILTRAP_USERS}
+}}
+"""
 
 
 def _rate(name: str, selector: str, n: int, period: str) -> str:
