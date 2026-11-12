@@ -21,6 +21,7 @@
     "domains": "Domains",
     "relay": "Relay access",
     "throttling": "Throttling",
+    "custom_rules": "Custom rules",
     "mail_sending": "E-mail sending",
     "backups": "Backups"
   },
@@ -354,7 +355,11 @@
     "DBL_SPAM": "Link to a known spam domain",
     "SURBL_MULTI": "Link to a blocked website",
     "FORGED_SENDER": "Forged sender",
-    "HFILTER_HOSTNAME_UNKNOWN": "Sending server has no name"
+    "HFILTER_HOSTNAME_UNKNOWN": "Sending server has no name",
+    "MF_NEWSLETTER": "Newsletter",
+    "MF_NEWSLETTER_NO_UNSUB": "Newsletter without unsubscribe option",
+    "MF_NEWSLETTER_NO_ONECLICK": "Newsletter without one-click unsubscribe",
+    "MF_NEWSLETTER_NO_DKIM": "Newsletter not signed by the sender's domain"
   },
   "dns": {
     "title": "DNS toolbox",
@@ -939,5 +944,33 @@
     "done_toast": "Imported",
     "failed": "Import not done, nothing was changed",
     "nothing_new": "Nothing new to import."
+  },
+  "rules": {
+    "title": "Custom rules",
+    "sub": "Extra filter rules you can switch on and off, for all domains or per domain.",
+    "intro": "Every rule explains what it does. A rule with a spam score adds that score; from 8 a message goes to quarantine, from 15 it is refused. Changes are checked by Rspamd and take effect straight away; if Rspamd does not accept a change, nothing is changed.",
+    "intro_customer": "These rules are set by your administrator. Per domain you can choose to follow that setting or switch a rule on or off for your own domains.",
+    "group": {
+      "newsletter": "Newsletters"
+    },
+    "group_sub": {
+      "newsletter": "Recognise newsletters and catch the ones that break the rules"
+    },
+    "dir": {
+      "inbound": "Incoming mail",
+      "outbound": "Outgoing mail",
+      "both": "In and out"
+    },
+    "more": "What does this do?",
+    "less": "Less",
+    "changed": "Changed",
+    "on": "On",
+    "off": "Off",
+    "follow_default": "Default ({{state}})",
+    "per_domain": "Per domain",
+    "per_domain_hint": "Default follows the switch above. For a message to several domains, the rule applies when it is on for at least one of them.",
+    "symbol": "Shows in the mail trace as",
+    "saved": "Rule saved and applied",
+    "admin_only": "Only an administrator can change this"
   }
 }

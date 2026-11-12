@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 
 from .model import Domain, GatewayConfig, QueuePolicy
+from .rules import render_files as render_rule_files
 
 ETC = "/etc/mailfilter"
 PF = f"{ETC}/postfix"
@@ -172,6 +173,8 @@ def render(cfg: GatewayConfig) -> Rendered:
     )
 
     out.files["/etc/rspamd/local.d/ratelimit.conf"] = render_ratelimit(cfg, domains)
+    # ---- custom rules (newsletter filter etc.) ------------------------------------
+    out.files.update(render_rule_files(cfg.custom_rules, {d.name for d in domains}))
     return out
 
 

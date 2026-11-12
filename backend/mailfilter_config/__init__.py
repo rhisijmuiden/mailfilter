@@ -7,8 +7,9 @@ from .apply import Applier, ApplyError, Report, load_state
 from .model import (AddressRoute, Defaults, Destination, DestinationPolicy, Domain, GatewayConfig, OutboundLimits,
                     QueuePolicy, RelayNetwork, RelayPort, TlsPolicy)
 from .render import render
+from .rules import RULES, CustomRule
 from .validate import ConfigError, Problem, check, validate
 
 __all__ = ["AddressRoute", "TlsPolicy", "Applier", "ApplyError", "Report", "load_state", "Defaults", "Destination", "DestinationPolicy",
            "Domain", "GatewayConfig", "OutboundLimits", "QueuePolicy", "RelayNetwork", "RelayPort",
-           "render", "ConfigError", "Problem", "check", "validate"]
+           "render", "RULES", "CustomRule", "ConfigError", "Problem", "check", "validate"]

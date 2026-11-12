@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import mailfilter_config as mfc
+from mailfilter_config.rules import rule_from_dict
 
 from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, RelayNetwork,
                      RelayPort, TlsPolicy)
@@ -30,6 +31,13 @@ from .settings_store import get_setting, set_setting
 DEFAULTS_KEY = "gateway.defaults"
 LAST_APPLY_KEY = "gateway.last_apply"
 IMPORTED_KEY = "gateway.imported"
+RULES_KEY = "custom_rules"
+
+
+def custom_rules(db: Session) -> dict[str, mfc.CustomRule]:
+    """What the admin chose on the Custom rules page (rules not in here use their default)."""
+    stored = get_setting(db, RULES_KEY) or {}
+    return {k: rule_from_dict(v) for k, v in stored.items()}
 
 
 def defaults(db: Session) -> mfc.Defaults:
@@ -74,6 +82,7 @@ def build_config(db: Session) -> mfc.GatewayConfig:
         tls_policies=[mfc.TlsPolicy(destination=t.destination, level=t.level, note=t.note)
                       for t in db.execute(select(TlsPolicy).order_by(TlsPolicy.destination)).scalars()],
         defaults=defaults(db),
+        custom_rules=custom_rules(db),
     )
 
 
@@ -166,5 +175,7 @@ def ensure_imported(db: Session, state_file: Path | None = None) -> None:
         db.add(TlsPolicy(destination=t.destination, level=t.level, note=t.note))
     if cfg.defaults != mfc.Defaults():
         set_setting(db, DEFAULTS_KEY, cfg.defaults.__dict__)
+    if cfg.custom_rules and get_setting(db, RULES_KEY) is None:
+        set_setting(db, RULES_KEY, {k: v.__dict__ for k, v in cfg.custom_rules.items()})
     set_setting(db, IMPORTED_KEY, {"at": datetime.now(timezone.utc).isoformat(), "from": str(path)})
     db.commit()
