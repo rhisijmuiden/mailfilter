@@ -190,7 +190,7 @@ install -d -m 0755 "$MF_ETC/nftables"
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
 for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
 for f in relay_networks.cidr client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
-for f in allow_from allow_domain block_from block_domain block_ip antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
+for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
 ok "Lists and maps in $MF_ETC"
@@ -364,6 +364,17 @@ install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/mailfilter-config
 rm -f "$SUDOERS_TMP"
 
 # ---------------------------------------------------------------------------
+step "Import from Proxmox Mail Gateway"
+# The web app (sandboxed, /etc read-only) queues uploads here; a root oneshot
+# applies them. The web app may start exactly that one unit through sudo.
+install -d -o mailfilter -g mailfilter -m 0750 /var/lib/mailfilter/pmg-import
+render "$TPL/systemd/mailfilter-pmg-import.service" /etc/systemd/system/mailfilter-pmg-import.service
+run systemctl daemon-reload
+install -m 0440 "$TPL/sudoers-pmg-import" /etc/sudoers.d/mailfilter-pmg-import
+visudo -cqf /etc/sudoers.d/mailfilter-pmg-import || { rm -f /etc/sudoers.d/mailfilter-pmg-import; die "sudoers rule for the PMG import is invalid"; }
+ok "PMG backups can be imported in the web interface (or: $MF_SRC/backend/bin/mailfilter-pmg-import)"
+
+# ---------------------------------------------------------------------------
 step "Intrusion protection (CrowdSec)"
 install -D -m 0644 "$TPL/crowdsec/acquis-mailfilter.yaml" /etc/crowdsec/acquis.d/mailfilter.yaml
 for c in crowdsecurity/linux crowdsecurity/sshd crowdsecurity/postfix crowdsecurity/dovecot; do
@@ -446,10 +457,12 @@ if [[ -n $FIRST_DOMAIN ]]; then
   echo "  DKIM  $(tr -s ' \n\t' ' ' <"$MF_ETC/dkim-$FIRST_DOMAIN.$SEL.txt" | sed 's/  */ /g')"
   echo "  MX    $FIRST_DOMAIN -> $HOSTNAME_FQDN  (only at go-live)"
 fi
+# Also show it on later runs until it is removed: an earlier run may have stopped before this point.
+[[ -z $WEB_ADMIN_PASSWORD && -s $MF_ETC/initial-admin-password ]] && WEB_ADMIN_PASSWORD=$(<"$MF_ETC/initial-admin-password")
 if [[ -n $WEB_ADMIN_PASSWORD ]]; then
   printf '\n%sWeb interface login%s  https://%s\n' "$C_BOLD" "$C_RESET" "$HOSTNAME_FQDN"
   echo "  User:     $ADMIN_EMAIL"
-  echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in)"
+  echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in, then delete that file)"
 fi
 echo
 echo "Log of this install: $MF_LOG"

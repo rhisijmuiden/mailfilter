@@ -92,12 +92,14 @@ class RuleSummary:
     actions: list[str] = field(default_factory=list)
     is_default: bool = False
     handled_by: str = ""  # what Mailfilter does with it, empty if manual review needed
+    handled_by_nl: str = ""
 
 
 @dataclass
 class Warning:
     code: str
     message: str
+    message_nl: str = ""
 
 
 @dataclass
@@ -118,8 +120,8 @@ class ImportPlan:
     rules: list[RuleSummary] = field(default_factory=list)
     warnings: list[Warning] = field(default_factory=list)
 
-    def warn(self, code: str, message: str) -> None:
-        self.warnings.append(Warning(code, message))
+    def warn(self, code: str, message: str, message_nl: str = "") -> None:
+        self.warnings.append(Warning(code, message, message_nl or message))
 
     def to_dict(self, include_secrets: bool = False) -> dict[str, Any]:
         data = asdict(self)

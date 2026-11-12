@@ -61,6 +61,8 @@ jobs:
         run: bash install/tests/validate-configs.sh
       - name: Apply a sample gateway configuration
         run: bash backend/mailfilter_config/tests/integration.sh
+      - name: Import a Proxmox Mail Gateway backup
+        run: bash backend/mailfilter_pmg/tests/integration.sh
   tracer:
     # Mail trace log collector, with the same Python and psycopg as Debian 13
     runs-on: ubuntu-latest

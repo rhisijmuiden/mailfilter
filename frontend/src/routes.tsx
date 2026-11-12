@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Domains from "./pages/Domains";
 import Dns from "./pages/Dns";
 import MailSending from "./pages/MailSending";
+import ImportPmg from "./pages/ImportPmg";
 import Quarantine from "./pages/Quarantine";
 import RelayAccess from "./pages/RelayAccess";
 import Throttling from "./pages/Throttling";
@@ -27,4 +28,5 @@ export const ROUTES: AppRoute[] = [
   { path: "/dns", element: () => <Dns />, adminOnly: true },
   { path: "/system/mail", element: () => <MailSending />, adminOnly: true },
   { path: "/system/backups", element: () => <Backups />, adminOnly: true },
+  { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true },
 ];
