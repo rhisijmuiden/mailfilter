@@ -130,8 +130,12 @@ class MailTrapRenderTest(unittest.TestCase):
         c.relay_ports.append(RelayPort(2525))
         validate(c)
         block = render(c).master_cf_block
-        self.assertIn("smtpd_relay_restrictions=check_client_access cidr:/etc/mailfilter/postfix/mailtrap.cidr,"
-                      "check_sasl_access hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks", block)
+        self.assertIn("smtpd_relay_restrictions=check_client_access,cidr:/etc/mailfilter/postfix/mailtrap.cidr,"
+                      "check_sasl_access,hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks", block)
+        # master.cf -o values end at whitespace
+        for line in block.splitlines():
+            if line.strip().startswith("-o "):
+                self.assertNotIn(" ", line.strip()[3:], line)
 
     def test_json_roundtrip(self):
         c = cfg(mailtrap_enabled=True)

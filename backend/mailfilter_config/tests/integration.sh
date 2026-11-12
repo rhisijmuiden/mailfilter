@@ -237,8 +237,8 @@ install -d /var/lib/mailfilter/venv/bin
 printf '#!/bin/sh\nPYTHONPATH=%s/backend exec python3 -m mailfilter.mailtrap.deliver "$@"\n' "$SRC" >/var/lib/mailfilter/venv/bin/mailfilter-trap-deliver
 chmod 0755 /var/lib/mailfilter/venv/bin/mailfilter-trap-deliver
 chmod -R o+rX "$SRC/backend" 2>/dev/null || true
-# The test environment: its own address on this container
-ip addr add 192.0.2.50/32 dev lo 2>/dev/null || true
+# The test environment's address comes in with XCLIENT (an address on this container would be the Mailfilter's own)
+postconf -e smtpd_authorized_xclient_hosts=127.0.0.1 >/dev/null
 TRAP_HASH=$(doveadm pw -s SSHA512 -p trapsecret)
 trap_state() { python3 - "$1" "$TRAP_HASH" <<'PY'
 import json, sys
@@ -267,11 +267,15 @@ trap_send() { python3 - "$@" <<'PY'
 import smtplib, sys, time
 for _ in range(20):
     try:
-        s = smtplib.SMTP("127.0.0.1", 2525, timeout=20, source_address=("192.0.2.50", 0)); break
+        s = smtplib.SMTP("127.0.0.1", 2525, timeout=20); break
     except OSError:
         time.sleep(0.5)
 else:
     print("no SMTP listener"); sys.exit(2)
+s.ehlo("staging.example")
+code, msg = s.docmd("XCLIENT", "ADDR=192.0.2.50 NAME=[UNAVAILABLE]")
+if code != 220:
+    print("XCLIENT", code, msg.decode()); sys.exit(2)
 s.ehlo("staging.example")
 try:
     s.sendmail("shop@example.com", sys.argv[1:], "From: Shop <shop@example.com>\r\nTo: klant@voorbeeld.nl\r\n"

@@ -32,7 +32,7 @@ MAILTRAP_USERS = f"{ETC}/mailtrap-users"
 DOVECOT_MAILTRAP = f"{ETC}/dovecot-mailtrap.conf"
 IMAP_PORT = 993
 # Same order as main.cf: the Mailtrap is checked before anything that permits relaying.
-MAILTRAP_CHECKS = f"check_client_access cidr:{PF}/mailtrap.cidr,check_sasl_access hash:{PF}/mailtrap_sasl"
+MAILTRAP_CHECKS = f"check_client_access,cidr:{PF}/mailtrap.cidr,check_sasl_access,hash:{PF}/mailtrap_sasl"  # no spaces: master.cf -o values end at whitespace
 BEGIN = "# BEGIN mailfilter-config (managed by the web interface, do not edit)"
 END = "# END mailfilter-config"
 
