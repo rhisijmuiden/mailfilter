@@ -59,6 +59,12 @@ install_webapp() {
   run systemctl daemon-reload
   run systemctl enable --now mailfilter-notify.timer
 
+  # Every minute: cluster nodes check each other and exchange configuration (idle on a single server)
+  install -m 0644 "$TPL/systemd/mailfilter-cluster.service" /etc/systemd/system/mailfilter-cluster.service
+  install -m 0644 "$TPL/systemd/mailfilter-cluster.timer" /etc/systemd/system/mailfilter-cluster.timer
+  run systemctl daemon-reload
+  run systemctl enable --now mailfilter-cluster.timer
+
   if ! "$MF_VENV/bin/mailfilter-admin" has-users; then
     local pw
     pw=$("$MF_VENV/bin/mailfilter-admin" create-admin "$ADMIN_EMAIL" --name Admin)

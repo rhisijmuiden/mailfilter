@@ -1,9 +1,10 @@
-// System > Backups: local full and incremental backups, schedule, restore.
+// System > Backups: local full and incremental backups, schedule, restore, and copies on another server.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, DatabaseBackup, History, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { JobProgress } from "../components/JobProgress";
+import { RemoteCard, type RemoteBackup } from "../components/RemoteBackups";
 import { Card, Drawer, ErrorText, Field, Loading, PageHead, formatDate, useToast } from "../components/ui";
 import { api } from "../lib/api";
 import { isActive, useJobs, type Job } from "../lib/jobs";
@@ -34,7 +35,7 @@ export default function Backups() {
   const summary = useQuery({ queryKey: ["backups"], queryFn: () => api.get<Summary>("/backups") });
   const jobs = useJobs();
   const [jobId, setJobId] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState<Backup | null>(null);
+  const [restoring, setRestoring] = useState<{ backup: Backup | RemoteBackup; remote: boolean } | null>(null);
   const running = jobs.data?.jobs.find((j) => isActive(j) && j.kind !== "update");
   useEffect(() => {
     if (running && !jobId) setJobId(running.id);
@@ -54,6 +55,7 @@ export default function Backups() {
   });
   const onDone = () => {
     qc.invalidateQueries({ queryKey: ["backups"] });
+    qc.invalidateQueries({ queryKey: ["backups-remote"] });
     qc.invalidateQueries({ queryKey: ["jobs"] });
   };
 
@@ -136,7 +138,7 @@ export default function Backups() {
                         <button className="btn small ghost" title={t("backups.verify")} onClick={() => verify.mutate(b.id)} disabled={verify.isPending}>
                           <ShieldCheck />
                         </button>
-                        <button className="btn small" onClick={() => setRestoring(b)} disabled={busy}>
+                        <button className="btn small" onClick={() => setRestoring({ backup: b, remote: false })} disabled={busy}>
                           <Archive /> {t("backups.restore")}
                         </button>
                         {b.type === "full" && (
@@ -163,17 +165,23 @@ export default function Backups() {
             </Card>
           )}
           {s && <Schedule config={s.config} />}
+          <RemoteCard
+            busy={busy}
+            bytes={(n) => bytes(n, i18n.language)}
+            onJob={(id) => setJobId(id)}
+            onRestore={(b) => setRestoring({ backup: b, remote: true })}
+          />
           <Card title={t("backups.contents")}>
             <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
               {COMPONENTS.map((c) => <li key={c}><b>{t(`backups.comp_${c}`)}</b>: <span className="muted">{t(`backups.comp_${c}_d`)}</span></li>)}
             </ul>
-            <p className="muted" style={{ fontSize: 12.5, marginBottom: 0 }}>{t("backups.remote_later")}</p>
           </Card>
         </div>
       </div>
       {restoring && (
         <RestoreDrawer
-          backup={restoring}
+          backup={restoring.backup}
+          remote={restoring.remote}
           onClose={() => setRestoring(null)}
           onStarted={(id) => {
             setRestoring(null);
@@ -235,21 +243,24 @@ function Schedule({ config }: { config: Config }) {
   );
 }
 
-function RestoreDrawer({ backup, onClose, onStarted }: { backup: Backup; onClose: () => void; onStarted: (jobId: string) => void }) {
+function RestoreDrawer({ backup, remote, onClose, onStarted }: {
+  backup: Backup | RemoteBackup; remote: boolean; onClose: () => void; onStarted: (jobId: string) => void;
+}) {
   const { t, i18n } = useTranslation();
   const [parts, setParts] = useState<string[]>(backup.components.length ? backup.components : [...COMPONENTS]);
   const [safety, setSafety] = useState(true);
   const [confirm, setConfirm] = useState("");
   const word = t("backups.confirm_word");
   const restore = useMutation({
-    mutationFn: () => api.post<Job>(`/backups/${backup.id}/restore`, { components: parts, safety_backup: safety }),
+    mutationFn: () => api.post<Job>(`/backups/${backup.id}/restore`, { components: parts, safety_backup: safety, remote }),
     onSuccess: (job) => onStarted(job.id),
   });
   return (
-    <Drawer title={t("backups.restore_title")} sub={`${formatDate(backup.created, i18n.language)} · ${backup.id}`} onClose={onClose}>
+    <Drawer title={remote ? t("backups.remote.restore_title") : t("backups.restore_title")} sub={`${formatDate(backup.created, i18n.language)} · ${backup.id}`} onClose={onClose}>
       <div className="callout warn">
         <span>{t("backups.restore_warn")}</span>
       </div>
+      {remote && <p className="muted" style={{ fontSize: 13 }}>{t("backups.remote.restore_d")}</p>}
       {backup.type === "incremental" && <p className="muted" style={{ fontSize: 13 }}>{t("backups.restore_chain", { count: backup.step })}</p>}
       <div className="field">
         <span style={{ fontSize: 12.5, fontWeight: 650 }}>{t("backups.restore_parts")}</span>

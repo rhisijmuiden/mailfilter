@@ -20,14 +20,16 @@ def command() -> list[str]:
     return override.split() if override else ["sudo", "-n", "/usr/local/sbin/mailfilterctl"]
 
 
-def call(*args: str, timeout: int = 180) -> Any:
+def call(*args: str, timeout: int = 180, input: str | None = None) -> Any:
     """Run mailfilterctl and return its JSON answer.
 
     Its own errors (``{"error": ...}``) become HTTP 400 with detail
     ``ctl_error:<message>``; a missing or broken helper becomes 503.
+    ``input`` goes to stdin, so secrets never appear in the process list.
     """
     try:
-        p = subprocess.run([*command(), "--json", *args], capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run([*command(), "--json", *args], capture_output=True, text=True, timeout=timeout,
+                           input=input)
     except FileNotFoundError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "ctl_unavailable") from None
     except subprocess.TimeoutExpired:

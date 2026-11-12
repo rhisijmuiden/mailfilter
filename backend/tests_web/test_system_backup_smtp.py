@@ -160,3 +160,41 @@ def test_smtp_errors_are_explained(admin, fake_smtp):
                                                      "password": "bad", "to": "reinder@rhis.nl"})
     assert r.status_code == 400 and r.json()["detail"].startswith("smtp_auth_failed:")
     assert admin.post("/api/settings/smtp/test", json={"mode": "smtp", "to": "a@b.nl"}).json()["detail"] == "smtp_no_host"
+
+
+def test_remote_backup_settings_sync_and_restore(admin, customer, ctl, tmp_path, monkeypatch):
+    # "file" is a test-only protocol, so set it with the helper; the API covers the rest
+    import json as _json
+    import subprocess as _sp
+    monkeypatch.setenv("MF_REMOTE_ALLOW_FILE", "1")
+    assert customer.get("/api/backups/remote").status_code == 403
+
+    r = admin.put("/api/backups/remote", json={"enabled": False, "protocol": "ftps", "host": "backup.example.org",
+                                              "username": "mf", "password": "pw", "keep_full": 3})
+    assert r.status_code == 200, r.text
+    shown = r.json()
+    assert shown["port"] == 21 and shown["has_password"] and shown["has_passphrase"] and "password" not in shown
+    assert len(admin.get("/api/backups/remote/passphrase").json()["passphrase"]) >= 24
+    r = admin.put("/api/backups/remote", json={"enabled": True, "protocol": "scp", "host": "bad host", "username": "mf"})
+    assert r.json()["detail"].startswith("ctl_error:"), r.text
+
+    target = tmp_path / "remote"
+    _sp.run([sys.executable, f"{REPO}/ops/bin/mailfilterctl", "remote", "set", "--stdin"], check=True,
+            input=_json.dumps({"enabled": True, "protocol": "file", "path": str(target)}), text=True)
+    assert admin.post("/api/backups/remote/test").json()["ok"] is True
+
+    job = admin.post("/api/backups", json={"type": "full"}).json()
+    assert job["state"] == "done" and job["result"]["remote"]["ok"], job
+    remote_list = admin.get("/api/backups/remote/backups").json()["backups"]
+    assert len(remote_list) == 1 and remote_list[0]["encrypted"]
+    assert admin.post("/api/backups/remote/sync").json()["state"] == "done"
+
+    import shutil
+    shutil.rmtree(tmp_path / "backups")
+    (ctl / "etc/mailfilter/relay_networks.list").write_text("changed\n")
+    bid = remote_list[0]["id"]
+    r = admin.post(f"/api/backups/{bid}/restore", json={"components": ["files"], "safety_backup": False, "remote": True})
+    assert r.json()["state"] == "done", r.text
+    assert (ctl / "etc/mailfilter/relay_networks.list").read_text() == "203.0.113.25\n"
+    names = [e["event"] for e in admin.get("/api/system/events").json()["events"]]
+    assert names[0] == "restore.succeeded" and "remote.succeeded" in names
