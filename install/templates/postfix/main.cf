@@ -21,7 +21,12 @@ mynetworks = 127.0.0.0/8 [::1]/128 cidr:/etc/mailfilter/postfix/relay_networks.c
 
 # Domains we accept mail for, and where we deliver it (managed in "Domains")
 relay_domains = hash:/etc/mailfilter/postfix/relay_domains
-transport_maps = hash:/etc/mailfilter/postfix/transport
+transport_maps = inline:{ dmarc-reports@{{HOSTNAME}}=mfdmarc: }, hash:/etc/mailfilter/postfix/transport
+
+# DMARC reports that other providers send about our domains (rua=mailto:dmarc-reports@{{HOSTNAME}}).
+# Only this one address exists on the server's own name; the mfdmarc pipe in master.cf stores them.
+virtual_mailbox_domains = {{HOSTNAME}}
+virtual_mailbox_maps = inline:{ dmarc-reports@{{HOSTNAME}}=dmarc }
 # Check with the destination server that a recipient exists before accepting (no backscatter).
 # Switched on per domain in recipient_verify (domain -> reject_unverified_recipient).
 address_verify_map = lmdb:$data_directory/verify_cache

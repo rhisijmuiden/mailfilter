@@ -32,6 +32,8 @@ const GROUPS: [string, RegExp][] = [
   ["backup", /^backup\./],
   ["system", /^system\.|^settings\./],
   ["pmg_import", /^pmg_import\./],
+  ["dmarc", /^dmarc\./],
+  ["rules", /^custom_rule_/],
 ];
 
 function groupOf(action: string): string {
