@@ -122,3 +122,27 @@ class ApplyAccountsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CustomerNetworkLock(unittest.TestCase):
+    """A relay network of a customer is locked to all of that customer's domains."""
+
+    def test_network_senders_get_their_own_class(self):
+        cfg = GatewayConfig(
+            domains=[Domain(name="klant.nl", destinations=[Destination(host="mail.klant.nl")])],
+            relay_networks=[RelayNetwork(cidr="192.0.2.10", customer="klant.nl", senders=["Klant2.nl", "klant.nl"]),
+                            RelayNetwork(cidr="198.51.100.1")],
+        )
+        self.assertEqual(validate(cfg), [])
+        r = render(cfg)
+        cls = service_name("mfl_", "klant.nl+klant2.nl")
+        self.assertIn(cls, r.main_cf["smtpd_restriction_classes"])
+        self.assertIn("inline:{klant.nl=OK, klant2.nl=OK, <>=OK}", r.main_cf[cls])
+        self.assertIn("@klant.nl or @klant2.nl", r.main_cf[cls])
+        lock = r.files["/etc/mailfilter/postfix/sender_lock.cidr"]
+        self.assertIn(f"192.0.2.10 {cls}", lock)
+        self.assertNotIn("198.51.100.1", lock)
+
+    def test_bad_sender_domain_is_refused(self):
+        cfg = GatewayConfig(relay_networks=[RelayNetwork(cidr="192.0.2.10", senders=["a.nl, OK}, permit"])])
+        self.assertIn("sender_domain_invalid", [p.code for p in validate(cfg)])

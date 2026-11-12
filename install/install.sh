@@ -373,6 +373,13 @@ printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/system
 run visudo -cf "$SUDOERS_TMP"
 install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/mailfilter-config
 rm -f "$SUDOERS_TMP"
+# Write the gateway again from the web app's database, so rules that came with an
+# update (e.g. the sender lock for customer relay IPs) take effect right away.
+if runuser -u mailfilter -- "$MF_VENV/bin/mailfilter-admin" gateway-apply >>"$MF_LOG" 2>&1; then
+  ok "Gateway configuration written from the web app"
+else
+  warn "Could not write the gateway configuration from the web app; see $MF_LOG"
+fi
 
 # ---------------------------------------------------------------------------
 step "Import from Proxmox Mail Gateway"

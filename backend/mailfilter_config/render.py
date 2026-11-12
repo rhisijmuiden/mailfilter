@@ -219,17 +219,27 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
     # the empty bounce sender, otherwise a clear rejection.
     lock_ip, lock_sasl, classes = [HEADER], [HEADER], []
     locked = {d.name for d in domains if d.sender_lock}
+
+    def lock_class(names: list[str]) -> str:
+        cls = service_name("mfl_", "+".join(names))
+        if cls not in classes:
+            classes.append(cls)
+            allowed = ", ".join(f"{n}=OK" for n in names)
+            shown = " or ".join(f"@{n}" for n in names)
+            out.main_cf[cls] = (f"check_sender_access inline:{{{allowed}, <>=OK}}, "
+                                f"check_sender_access static:{{REJECT 5.7.1 This server may only send mail as {shown}}}")
+        return cls
+
     for name in sorted(locked):
-        cls = service_name("mfl_", name)
-        classes.append(cls)
-        out.main_cf[cls] = (f"check_sender_access inline:{{{name}=OK, <>=OK}}, "
-                            f"check_sender_access static:{{REJECT 5.7.1 This server may only send mail as @{name}}}")
+        lock_class([name])
+    # Customer networks are always locked to that customer's own domains.
     for n in sorted(nets, key=lambda n: n.cidr):
-        if n.customer in locked:
-            lock_ip.append(f"{n.cidr} {service_name('mfl_', n.customer)}\n")
+        names = sorted(set(n.senders)) or ([n.customer] if n.customer in locked else [])
+        if names:
+            lock_ip.append(f"{n.cidr} {lock_class(names)}\n")
     for a in sorted(cfg.smtp_accounts, key=lambda a: a.username):
         if a.enabled and a.domain in locked:
-            lock_sasl.append(f"{a.username} {service_name('mfl_', a.domain)}\n")
+            lock_sasl.append(f"{a.username} {lock_class([a.domain])}\n")
     out.files[f"{PF}/sender_lock.cidr"] = "".join(lock_ip)
     out.files[f"{PF}/sender_lock_sasl"] = "".join(lock_sasl)
     out.hash_maps.append(f"{PF}/sender_lock_sasl")

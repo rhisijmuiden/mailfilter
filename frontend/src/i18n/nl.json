@@ -1139,8 +1139,8 @@
   },
   "relay": {
     "title": "Relay-toegang",
-    "sub": "Servers (bijvoorbeeld webservers) die mail via de Mailfilter mogen versturen. Hun mail wordt nog steeds op spam en virussen gecontroleerd.",
-    "sub_customer": "Je servers die mail via de Mailfilter mogen versturen.",
+    "sub": "Servers (bijvoorbeeld webservers) die mail via de Mailfilter mogen versturen. Hun mail wordt nog steeds op spam en virussen gecontroleerd. Een server die aan een klantdomein hangt, mag alleen mailen als de eigen domeinen van die klant.",
+    "sub_customer": "Je servers die mail via de Mailfilter mogen versturen. Ze mogen alleen mail versturen vanaf je eigen domeinen.",
     "networks": "Toegestane servers",
     "cidr": "IP-adres of netwerk",
     "cidr_placeholder": "203.0.113.25 of 2a02:58::/64",

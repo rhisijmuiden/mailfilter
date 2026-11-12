@@ -150,3 +150,27 @@ def test_import_from_installer_state(tmp_path, users):
         cfg = gateway.build_config(db)
         assert [n.cidr for n in cfg.relay_networks] == ["203.0.113.7"]
         assert [p.port for p in cfg.relay_ports] == [2525]
+
+
+def test_customer_relay_networks_are_locked_to_their_domains(users, admin, helper):
+    """Relay IPs of a customer's domain may only send as that customer's domains;
+    admin networks without a domain stay unrestricted."""
+    admin.post("/api/gateway/relay-networks", json={"cidr": "198.51.100.1"})
+    cust = Client().login(users["customer"])
+    assert cust.post("/api/gateway/relay-networks", json={"cidr": "192.0.2.10", "domain": "klant.nl"}).status_code == 201
+    nets = {n["cidr"]: n for n in helper["calls"][-1]["relay_networks"]}
+    assert nets["192.0.2.10"]["senders"] == ["klant.nl"]
+    assert nets["198.51.100.1"]["senders"] == []
+
+    # The customer gets a second domain: the lock follows at once.
+    with session() as db:
+        db.add(Domain(name="klant2.nl"))
+        db.commit()
+    cid = next(u["id"] for u in admin.get("/api/users").json() if u["email"] == users["customer"])
+    before = len(helper["calls"])
+    r = admin.put(f"/api/users/{cid}", json={"email": "info@klant.nl", "name": "Klant", "role": "customer",
+                                             "language": "nl", "is_active": True, "domains": ["klant.nl", "klant2.nl"]})
+    assert r.status_code == 200, r.text
+    assert len(helper["calls"]) == before + 1
+    nets = {n["cidr"]: n for n in helper["calls"][-1]["relay_networks"]}
+    assert nets["192.0.2.10"]["senders"] == ["klant.nl", "klant2.nl"]

@@ -56,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("abuse-scan")
     sub.add_parser("notify-check")
     sub.add_parser("write-lists")
+    sub.add_parser("gateway-apply", help="write the gateway configuration again from the database")
     qr = sub.add_parser("quarantine-report")
     qr.add_argument("--now", action="store_true", help="send now, even when not due")
     sub.add_parser("cluster-sync")
@@ -96,6 +97,20 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == "has-users":
             return 0 if db.execute(select(func.count(User.id))).scalar_one() else 1
+        if args.cmd == "gateway-apply":
+            from fastapi import HTTPException
+
+            from .gateway import apply_changes, ensure_imported
+
+            ensure_imported(db)
+            try:
+                result = apply_changes(db)
+            except HTTPException as e:
+                print(f"gateway apply failed: {e.detail}", file=sys.stderr)
+                return 1
+            db.commit()
+            print(f"changed: {', '.join(result.get('changed') or []) or 'nothing'}")
+            return 0
         if args.cmd == "write-lists":
             from .lists import write_maps
 
