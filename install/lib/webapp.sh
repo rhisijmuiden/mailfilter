@@ -24,6 +24,9 @@ install_webapp() {
   run "$MF_VENV/bin/mailfilter-admin" migrate
   ok "Database schema up to date"
 
+  # Mailtrap mailboxes (Maildir per mailbox): the mftrap pipe writes, the web app and Dovecot (IMAP) read.
+  install -d -o mailfilter -g mailfilter -m 0750 "$MF_VAR/mailtrap"
+
   # Allow/block lists from the web interface, read by Rspamd (multimap.conf).
   install -d -o mailfilter -g mailfilter -m 0755 "$MF_VAR/lists"
   run runuser -u mailfilter -- "$MF_VENV/bin/mailfilter-admin" write-lists

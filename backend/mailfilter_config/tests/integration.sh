@@ -229,6 +229,107 @@ PY
 check "own domain may be sent from a locked IP" smtp_try news@example.com
 check "bounce (empty sender) may be sent from a locked IP" smtp_try ""
 check "other domain refused from a locked IP" bash -c "$(declare -f smtp_try); out=\$(smtp_try boss@example.org) ; echo \"\$out\"; echo \"\$out\" | grep -q 'may only send mail as @example.com'"
+echo "== Mailtrap: mail from a test environment is caught, never sent"
+id mailfilter >/dev/null 2>&1 || useradd --system --home-dir /var/lib/mailfilter --shell /usr/sbin/nologin mailfilter
+install -d -o mailfilter -g mailfilter /var/lib/mailfilter /var/lib/mailfilter/mailtrap
+# The pipe runs the command from the web app's venv; here it comes from the source tree.
+install -d /var/lib/mailfilter/venv/bin
+printf '#!/bin/sh\nPYTHONPATH=%s/backend exec python3 -m mailfilter.mailtrap.deliver "$@"\n' "$SRC" >/var/lib/mailfilter/venv/bin/mailfilter-trap-deliver
+chmod 0755 /var/lib/mailfilter/venv/bin/mailfilter-trap-deliver
+chmod -R o+rX "$SRC/backend" 2>/dev/null || true
+# The test environment: its own address on this container
+ip addr add 192.0.2.50/32 dev lo 2>/dev/null || true
+TRAP_HASH=$(doveadm pw -s SSHA512 -p trapsecret)
+trap_state() { python3 - "$1" "$TRAP_HASH" <<'PY'
+import json, sys
+d = json.load(open("/tmp/relay.json"))
+d["mailtrap_enabled"] = sys.argv[1] == "on"
+d["tls_cert"] = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
+d["tls_key"] = "/etc/ssl/private/ssl-cert-snakeoil.key"
+d["mailtraps"] = [{"slug": "staging", "name": "Staging", "networks": ["192.0.2.50"], "password_hash": sys.argv[2],
+                   "smtp_login": True, "imap": True, "mode": "except", "allow": ["tester@example.com"]}]
+json.dump(d, open("/tmp/trap.json", "w"))
+PY
+}
+trap_state on
+check "apply with a Mailtrap mailbox" "$MFC" apply --state /tmp/trap.json --no-reload
+check "postfix check with Mailtrap" postfix check
+check "postconf has no warnings with Mailtrap" bash -c '! postconf -n 2>&1 >/dev/null | grep -i warning'
+check "trap address points to its class" bash -c 'postmap -q 192.0.2.50 cidr:/etc/mailfilter/postfix/mailtrap.cidr | grep -q "^mft_staging"'
+check "trap login points to its class" bash -c 'postmap -q trap-staging hash:/etc/mailfilter/postfix/mailtrap_sasl | grep -q "^mft_staging"'
+check "mftrap pipe in master.cf" bash -c 'postconf -M mftrap/unix | grep -q mailfilter-trap-deliver'
+check "Maildir made for the mailbox" test -d /var/lib/mailfilter/mailtrap/trap-staging/Maildir/new
+check "dovecot accepts the Mailtrap IMAP config" bash -c 'doveconf -n | grep -q "port = 993"'
+check "firewall opens IMAPS" grep -q 993 /etc/mailfilter/nftables/relay_ports.nft
+postfix reload >/dev/null 2>&1 || postfix start >/dev/null 2>&1 || true
+sleep 2
+trap_send() { python3 - "$@" <<'PY'
+import smtplib, sys, time
+for _ in range(20):
+    try:
+        s = smtplib.SMTP("127.0.0.1", 2525, timeout=20, source_address=("192.0.2.50", 0)); break
+    except OSError:
+        time.sleep(0.5)
+else:
+    print("no SMTP listener"); sys.exit(2)
+s.ehlo("staging.example")
+try:
+    s.sendmail("shop@example.com", sys.argv[1:], "From: Shop <shop@example.com>\r\nTo: klant@voorbeeld.nl\r\n"
+               "Subject: Je bestelling {{ order.id }}\r\n\r\nBekijk http://staging.example.local:8080/o/1\r\n")
+    print("accepted"); sys.exit(0)
+except smtplib.SMTPResponseException as e:
+    print(e.smtp_code, e.smtp_error.decode()); sys.exit(1)
+except smtplib.SMTPRecipientsRefused as e:
+    print(e); sys.exit(1)
+PY
+}
+check "test environment may hand in mail" trap_send klant@voorbeeld.nl
+# shellcheck disable=SC2016  # expanded by the inner bash
+check "mail is stored in the Mailtrap mailbox" bash -c 'for _ in $(seq 1 30); do f=$(ls /var/lib/mailfilter/mailtrap/trap-staging/Maildir/new/* 2>/dev/null | head -1); [ -n "$f" ] && break; sleep 1; done
+  [ -n "$f" ] || { postqueue -p; exit 1; }
+  grep -q "^X-Mailfilter-Trap: staging" "$f" && grep -q "^X-Mailfilter-Envelope-To: klant@voorbeeld.nl" "$f" && grep -q "Je bestelling" "$f" || { cat "$f"; exit 1; }
+  [ "$(stat -c %U "$f")" = mailfilter ]'
+check "nothing left in the queue (never sent on)" bash -c 'for _ in $(seq 1 10); do postqueue -j | grep -q . || exit 0; sleep 1; done; postqueue -p; exit 1'
+# Dovecot for real: log in over IMAPS with the mailbox login and read the caught mail
+pkill -x dovecot 2>/dev/null || true
+sleep 1
+dovecot -F -o log_path=/dev/stderr >/tmp/dovecot-trap.log 2>&1 &
+imap_read() { python3 - <<'PY' || { cat /tmp/dovecot-trap.log; exit 1; }
+import imaplib, ssl, sys, time
+ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+for _ in range(20):
+    try:
+        m = imaplib.IMAP4_SSL("127.0.0.1", 993, ssl_context=ctx); break
+    except OSError:
+        time.sleep(0.5)
+else:
+    print("no IMAPS listener"); sys.exit(1)
+m.login("trap-staging", "trapsecret")
+typ, data = m.select("INBOX", readonly=True)
+print(typ, data)
+sys.exit(not (typ == "OK" and int(data[0]) >= 1))
+PY
+}
+check "IMAP login reads the caught mail" imap_read
+smtp_imap_refused() { python3 - <<'PY'
+import imaplib, ssl, sys
+ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+m = imaplib.IMAP4_SSL("127.0.0.1", 993, ssl_context=ctx)
+try:
+    m.login("web01@example.nl", "secret"); print("SMTP account could read mail"); sys.exit(1)
+except imaplib.IMAP4.error as e:
+    print("refused:", e); sys.exit(0)
+PY
+}
+check "SMTP accounts cannot log in on IMAP" smtp_imap_refused
+pkill -x dovecot 2>/dev/null || true
+trap_state off
+check "apply with Mailtrap switched off" "$MFC" apply --state /tmp/trap.json --no-reload
+postfix reload >/dev/null 2>&1 || true
+sleep 2
+# shellcheck disable=SC2016
+check "switched off: test environment is refused, not relayed" bash -c "$(declare -f trap_send); out=\$(trap_send klant@voorbeeld.nl); echo \"\$out\"; echo \"\$out\" | grep -q 'Mailtrap is switched off'"
+check "switched off: IMAP closed" bash -c '! doveconf -n | grep -q "port = 993"'
 postsuper -d ALL >/dev/null 2>&1 || true
 postfix stop >/dev/null 2>&1 || true
 pkill -x rspamd || true

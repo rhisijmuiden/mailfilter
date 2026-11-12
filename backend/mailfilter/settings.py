@@ -56,6 +56,8 @@ class Settings:
     timezone: str = "Europe/Amsterdam"
     # Allow/block list maps the web app writes and Rspamd reads (multimap.conf).
     lists_dir: Path = Path("/var/lib/mailfilter/lists")
+    # Mailtrap mailboxes (Maildir per mailbox login), written by the mftrap pipe.
+    mailtrap_dir: Path = Path("/var/lib/mailfilter/mailtrap")
 
 
 @lru_cache
@@ -83,4 +85,5 @@ def get_settings() -> Settings:
         session_hours=int(env.get("MF_SESSION_HOURS", "12")),
         timezone=env.get("MF_TIMEZONE", "Europe/Amsterdam"),
         lists_dir=Path(env.get("MF_LISTS_DIR", "/var/lib/mailfilter/lists")),
+        mailtrap_dir=Path(env.get("MF_MAILTRAP_DIR", "/var/lib/mailfilter/mailtrap")),
     )

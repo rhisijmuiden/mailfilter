@@ -1,4 +1,4 @@
-import { Ban, Check, Clock, Hourglass, ShieldAlert, X, type LucideIcon } from "lucide-react";
+import { Ban, Check, Clock, FlaskConical, Hourglass, ShieldAlert, X, type LucideIcon } from "lucide-react";
 
 export type Explanation = { title: string; action: string; who: "recipient" | "sender" | "us" | "nobody" | string };
 export type Recipient = {
@@ -34,6 +34,7 @@ const MESSAGE: Record<string, [Tone, LucideIcon]> = {
   partly_delivered: ["warn", Check], deferred: ["warn", Clock],
   bounced: ["bad", X], expired: ["bad", X],
   quarantined: ["info", ShieldAlert],
+  trapped: ["info", FlaskConical],
   rejected: ["mute", Ban],
   queued: ["mute", Hourglass],
 };

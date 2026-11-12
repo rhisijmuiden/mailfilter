@@ -63,7 +63,7 @@ function legFor(status: string | null): Leg {
   switch (status) {
     case "sent": return "ok";
     case "deferred": case "queued": return "warn";
-    case "quarantined": case "held": return "stop";
+    case "quarantined": case "held": case "trapped": return "stop";
     case "rejected": return "none";
     default: return "bad";
   }
@@ -74,7 +74,8 @@ export function RoutePicture({ route, message }: { route: RouteNode[]; message: 
   const { t } = useTranslation();
   const [source, filter, ...dests] = route;
   const rejected = message.status === "rejected";
-  const quarantined = message.status === "quarantined" || message.status === "held";
+  const trapped = message.status === "trapped";
+  const quarantined = message.status === "quarantined" || message.status === "held" || trapped;
   const firstDest = dests[0];
   const leg2: Leg = rejected ? "none" : quarantined ? "stop" : legFor(firstDest?.status ?? "queued");
   const spam = filter.detail ? t("trace.route_score", { score: filter.detail }) : t("trace.route_checked");
@@ -100,8 +101,8 @@ export function RoutePicture({ route, message }: { route: RouteNode[]; message: 
         {rejected || quarantined || !firstDest ? (
           <div className="node dim">
             <span className="ico"><Server /></span>
-            <span className="k">{t("trace.route_destination")}</span>
-            <b>{quarantined ? t("trace.not_forwarded") : rejected ? t("trace.refused") : t("trace.not_yet")}</b>
+            <span className="k">{trapped ? t("trace.in_mailtrap") : t("trace.route_destination")}</span>
+            <b>{trapped ? t("trace.not_sent_test") : quarantined ? t("trace.not_forwarded") : rejected ? t("trace.refused") : t("trace.not_yet")}</b>
             <span className="cell-sub">{message.recipients[0]?.address}</span>
           </div>
         ) : (

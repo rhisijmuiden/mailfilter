@@ -208,3 +208,16 @@ def test_per_domain_and_throttled_queues():
     ])
     assert msgs[QA].direction == "inbound" and msgs[QA].recipients["info@rhis.nl"].transport == "relay"
     assert msgs[QB].direction == "outbound" and msgs[QB].recipients["a@outlook.com"].transport == "smtp"
+
+
+def test_mailtrap_is_caught_not_delivered():
+    _, msgs = run([
+        f"Nov 11 12:10:00 mailfilter01 postfix/smtpd[401]: {QB}: client=staging-web01[10.0.8.21]",
+        f"Nov 11 12:10:01 mailfilter01 postfix/pipe[402]: {QB}: to=<j.devries@gmail.com>, relay=mftrap, delay=0.21, "
+        "delays=0.01/0/0/0.2, dsn=2.0.0, status=sent (delivered via mftrap service)",
+    ])
+    m = msgs[QB]
+    assert m.status == "trapped" and m.direction == "outbound"
+    r = m.recipients["j.devries@gmail.com"]
+    assert r.status == "trapped" and r.explain == "mailtrap" and r.transport == "mailtrap"
+    assert explain.text("mailtrap", "nl")["title"].startswith("Opgevangen")

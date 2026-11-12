@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Dmarc = lazy(() => import("./pages/Dmarc"));
 const Domains = lazy(() => import("./pages/Domains"));
 const Dns = lazy(() => import("./pages/Dns"));
+const Mailtrap = lazy(() => import("./pages/Mailtrap"));
 const MailSending = lazy(() => import("./pages/MailSending"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const ImportPmg = lazy(() => import("./pages/ImportPmg"));
@@ -32,6 +33,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/quarantine", element: (me) => <Quarantine me={me} /> },
   { path: "/dmarc", element: (me) => <Dmarc me={me} /> },
   { path: "/quarantine/report", element: (me) => <QuarantineReport me={me} /> },
+  { path: "/mailtrap", element: (me) => <Mailtrap me={me} /> },
   { path: "/lists", element: (me) => <Lists me={me} /> },
   { path: "/account", element: (me) => <Account me={me} /> },
   { path: "/domains", element: (me) => <Domains me={me} /> },

@@ -40,7 +40,13 @@ export function Layout({ me }: { me: Me }) {
   const [theme, toggleTheme] = useTheme();
   const sys = useSystemInfo();
   const stats = useQuery({ queryKey: ["trace-stats"], queryFn: () => api.get<Stats>("/trace/stats?hours=24"), refetchInterval: 60_000 });
-  const BADGES = { quarantine: stats.data?.quarantined_now };
+  const mailtrap = useQuery({
+    queryKey: ["mailtrap-menu"],
+    queryFn: () => api.get<{ unread: number; visible: boolean }>("/mailtrap/unread"),
+    refetchInterval: 60_000,
+  });
+  const BADGES = { quarantine: stats.data?.quarantined_now, mailtrap: mailtrap.data?.unread };
+  const MODULES = { mailtrap: !!mailtrap.data?.visible };
   useEffect(() => setNavOpen(false), [loc.pathname]);
 
   const changeLang = async (lang: Lang) => {
@@ -54,7 +60,7 @@ export function Layout({ me }: { me: Me }) {
     qc.setQueryData(["me"], null);
   };
 
-  const items = NAV.filter((n) => !n.adminOnly || me.role === "admin");
+  const items = NAV.filter((n) => (!n.adminOnly || me.role === "admin") && (!n.module || MODULES[n.module]));
   const initials = (me.name || me.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0]!.toUpperCase()).join("");
 
   return (

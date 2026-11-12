@@ -19,7 +19,7 @@ OUTBOUND_TRANSPORTS = ("smtp",)
 @dataclass
 class Recipient:
     address: str
-    status: str = "queued"  # queued, sent, deferred, bounced, expired, quarantined, held, rejected
+    status: str = "queued"  # queued, sent, deferred, bounced, expired, quarantined, held, rejected, trapped
     dsn: str = ""
     reply: str = ""
     relay_host: str = ""
@@ -61,6 +61,8 @@ class Message:
             return "rejected" if self.done and not self.recipients else "queued"
         if states == {"sent"}:
             return "delivered"
+        if "trapped" in states and states <= {"trapped", "sent"}:
+            return "trapped"  # caught by the Mailtrap (test environment); never sent
         if "quarantined" in states:
             return "quarantined"
         if "held" in states:  # outbound sender paused by Mailfilter; not a spam verdict
@@ -169,6 +171,10 @@ class Tracker:
             r.status = {"sent": "sent", "deferred": "deferred", "bounced": "bounced",
                         "expired": "expired"}.get(d["status"], d["status"])
             r.explain = explain.explain_remote(r.dsn, r.reply)
+            if r.relay_host == "mftrap" and r.status == "sent":
+                # Stored in a Mailtrap mailbox instead of sent (see master.cf, mftrap pipe)
+                r.status, r.explain, r.transport = "trapped", "mailtrap", "mailtrap"
+                msg.direction = msg.direction or "outbound"
             if r.transport in INBOUND_TRANSPORTS:
                 msg.direction = "inbound"
             elif r.transport in OUTBOUND_TRANSPORTS and msg.direction is None:
