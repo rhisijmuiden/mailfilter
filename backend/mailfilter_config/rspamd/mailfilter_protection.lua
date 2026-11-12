@@ -533,9 +533,19 @@ local function add_banner(task, suspicious)
   end
 
   -- Original headers stay byte for byte (the milter only replaces the body).
-  local whole = task:get_content()
-  local body = task:get_rawbody()
-  local pieces = { whole:sub(1, #whole - #body) }
+  -- Everything up to and including the empty line after the headers.
+  local whole = tostring(task:get_content())
+  local eoh
+  for _, sep in ipairs({ '\r\n\r\n', '\n\n' }) do
+    local _, e = whole:find(sep, 1, true)
+    if e and (not eoh or e < eoh) then
+      eoh = e
+    end
+  end
+  if not eoh then
+    return false
+  end
+  local pieces = { whole:sub(1, eoh) }
   for _, o in ipairs(out) do
     if type(o) == 'string' then
       pieces[#pieces + 1] = o
