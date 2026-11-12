@@ -8,7 +8,7 @@ these tables hold what is needed to find them and to prove nothing changed:
 - ArchiveSeal: one signed seal per domain and day (the chain head of that day).
 - ArchivePurge: one row per retention clean-up, so the chain stays verifiable.
 
-Database triggers (migration 0017_archive) refuse changes to sealed rows, deletes
+Database triggers (migration 0018_archive) refuse changes to sealed rows, deletes
 before the retention date or under a legal hold, and any change to seals and purges.
 Domains are stored by name, so the archive survives a removed domain.
 """

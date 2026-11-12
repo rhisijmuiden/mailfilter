@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
 from .. import twofactor
+from ..apikeys import api_key_of
 from ..audit import audit
 from ..deps import DB, AdminUser
 from ..gateway import apply_changes, customer_sender_domains, ensure_imported
@@ -95,8 +96,16 @@ def list_users(_: AdminUser, db: DB) -> list[UserOut]:
     return [out(u) for u in db.execute(select(User).order_by(User.email)).scalars()]
 
 
+def _api_customers_only(request: Request, *roles: str) -> None:
+    """Through the public API (an API key) only customer accounts can be managed,
+    so a key cannot make itself a new admin login."""
+    if api_key_of(request) is not None and "admin" in roles:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "api_customers_only")
+
+
 @router.post("", response_model=UserCreated, status_code=201)
 def create_user(body: UserIn, request: Request, admin: AdminUser, db: DB) -> UserCreated:
+    _api_customers_only(request, body.role)
     email = body.email.strip().lower()
     if db.execute(select(User).where(func.lower(User.email) == email)).scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "email_exists")
@@ -121,6 +130,7 @@ def update_user(user_id: int, body: UserIn, request: Request, admin: AdminUser, 
     u = db.get(User, user_id)
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    _api_customers_only(request, u.role, body.role)
     if u.id == admin.id and (body.role != "admin" or not body.is_active):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "cannot_demote_self")
     before = customer_sender_domains(db)
@@ -148,6 +158,7 @@ def delete_user(user_id: int, request: Request, admin: AdminUser, db: DB) -> Non
     u = db.get(User, user_id)
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    _api_customers_only(request, u.role)
     if u.id == admin.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "cannot_delete_self")
     before = customer_sender_domains(db)

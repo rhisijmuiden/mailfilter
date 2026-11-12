@@ -4,6 +4,7 @@ import { lazy, type ReactNode } from "react";
 import type { Me } from "./lib/auth";
 
 const Account = lazy(() => import("./pages/Account"));
+const ApiAccess = lazy(() => import("./pages/ApiAccess"));
 const Archive = lazy(() => import("./pages/Archive"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Backups = lazy(() => import("./pages/Backups"));
@@ -57,6 +58,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/system/cluster", element: () => <Cluster />, adminOnly: true },
   { path: "/system/backups", element: () => <Backups />, adminOnly: true },
   { path: "/audit", element: (me) => <AuditLog me={me} /> },
+  { path: "/system/api", element: (me) => <ApiAccess me={me} /> },
   { path: "/system/security", element: (me) => <Security me={me} />, adminOnly: true },
   { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true },
 ];
