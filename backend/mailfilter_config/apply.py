@@ -75,7 +75,8 @@ class Applier:
     def run(self, step: str, *cmd: str) -> str:
         res = self.run_cmd(cmd)
         if res.returncode != 0:
-            raise ApplyError(step, (res.stdout or "") + (res.stderr or ""))
+            # Errors first: doveconf -n, for one, prints the whole configuration before them.
+            raise ApplyError(step, ((res.stderr or "") + "\n" + (res.stdout or "")).strip())
         return res.stdout or ""
 
     def read(self, p: str) -> str | None:
