@@ -1,10 +1,16 @@
 // Types for Domains, Relay access and Throttling (backend: /api/gateway).
 export type Destination = { host: string; port: number; mx: boolean; protocol: "smtp" | "lmtp" };
 
+export type DomainKind = "transport" | "relay";
+
 export type DomainRow = {
   id: number;
   name: string;
   configured: boolean;
+  // transport: receives mail and delivers it to a mail server; relay: outbound only.
+  kind: DomainKind;
+  sender_lock: boolean;
+  smtp_accounts: number;
   destinations: Destination[];
   enabled: boolean;
   tls: "may" | "encrypt" | "verify";
@@ -16,6 +22,17 @@ export type DomainRow = {
   note: string;
   users: string[];
   relay_networks: number;
+};
+
+export type SmtpAccount = { id: number; username: string; domain: string; description: string; enabled: boolean };
+export type SmtpAccountCreated = SmtpAccount & { password: string };
+export type DomainRecords = {
+  domain: string;
+  dkim: { name: string; selector: string; type: string; value: string; key_type: string } | null;
+  spf_include: string;
+  spf_new: string;
+  dmarc_name: string;
+  dmarc_suggested: string;
 };
 
 export type Network = { id: number; cidr: string; description: string; domain: string | null; enabled: boolean; allow_broad: boolean };

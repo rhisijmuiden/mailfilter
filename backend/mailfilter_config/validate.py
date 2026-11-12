@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 
 from .rules import problems as rule_problems
-from .model import ALL_TLS_MODES, LISTENER_TLS, PROTOCOLS, TLS_MODES, GatewayConfig
+from .model import ALL_TLS_MODES, DOMAIN_KINDS, LISTENER_TLS, PROTOCOLS, TLS_MODES, GatewayConfig
 
 # Ports the gateway itself uses; an extra relay listener may not take them.
 RESERVED_PORTS = {22, 25, 53, 80, 443, 465, 587, 3310, 5432, 6379, 11332, 11333, 11334, 11335}
@@ -19,6 +19,9 @@ RESERVED_PORTS = {22, 25, 53, 80, 443, 465, 587, 3310, 5432, 6379, 11332, 11333,
 OWN_SMTP_PORTS = {25, 465, 587}
 MIN_PREFIX = {4: 16, 6: 32}
 
+USERNAME_RE = re.compile(r"[a-z0-9][a-z0-9._@-]{0,99}")
+# Dovecot password scheme prefix plus hash; never a colon or line break (passwd-file format).
+HASH_RE = re.compile(r"\{[A-Z0-9.-]{2,20}\}[A-Za-z0-9+/=$.]{8,300}")
 _LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
 
@@ -110,6 +113,22 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
         if name in seen:
             add(f"{f}.name", "domain_duplicate", f"{name} is listed twice.", f"{name} staat er twee keer in.")
         seen.add(name)
+        if d.kind not in DOMAIN_KINDS:
+            add(f"{f}.kind", "kind_invalid", "A domain is either a transport domain or a relay domain.",
+                "Een domein is een transport-domein of een relay-domein.")
+            continue
+        if d.kind == "relay":
+            # Outbound only: nothing is delivered, so there is no mail server to check.
+            if d.destinations:
+                add(f"{f}.destinations", "relay_has_destination",
+                    f"{name} is a relay domain (outbound only); it has no mail server to deliver to.",
+                    f"{name} is een relay-domein (alleen uitgaand); het heeft geen mailserver om op af te leveren.")
+            for attr in ("per_hour", "per_day"):
+                v = getattr(d.outbound, attr)
+                if v is not None and not 1 <= int(v) <= 10_000_000:
+                    add(f"{f}.outbound.{attr}", "limit_invalid", "Limit must be a positive number.",
+                        "Limiet moet een positief getal zijn.")
+            continue
         if d.tls not in TLS_MODES:
             add(f"{f}.tls", "tls_invalid", f"TLS must be one of {', '.join(TLS_MODES)}.",
                 f"TLS moet een van {', '.join(TLS_MODES)} zijn.")
@@ -253,6 +272,29 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
         if (h.kind, h.value) in holds_seen:
             add(f"{f}.value", "hold_duplicate", f"{h.value} is already paused.", f"{h.value} is al gepauzeerd.")
         holds_seen.add((h.kind, h.value))
+
+    # ---- SMTP accounts ---------------------------------------------------------
+    domain_names = {d.name for d in cfg.domains}
+    users_seen: set[str] = set()
+    for i, a in enumerate(cfg.smtp_accounts):
+        f = f"smtp_accounts[{i}]"
+        a.username = (a.username or "").strip().lower()
+        a.domain = normalise_domain(a.domain) or (a.domain or "")
+        a.description = re.sub(r"[\r\n:]+", " ", a.description or "").strip()[:200]
+        if not USERNAME_RE.fullmatch(a.username):
+            add(f"{f}.username", "account_invalid",
+                f"'{a.username}' is not a valid account name (letters, digits and . _ - @, at most 100).",
+                f"'{a.username}' is geen geldige accountnaam (letters, cijfers en . _ - @, maximaal 100).")
+        if a.username in users_seen:
+            add(f"{f}.username", "account_duplicate", f"{a.username} is listed twice.",
+                f"{a.username} staat er twee keer in.")
+        users_seen.add(a.username)
+        if a.domain not in domain_names:
+            add(f"{f}.domain", "account_domain_unknown", f"{a.domain} is not a domain on this Mailfilter.",
+                f"{a.domain} is geen domein op deze Mailfilter.")
+        if not HASH_RE.fullmatch(a.password_hash or ""):
+            add(f"{f}.password_hash", "account_hash_invalid", "The password could not be stored.",
+                "Het wachtwoord kon niet worden opgeslagen.")
 
     dft = cfg.defaults
     for attr in ("relay_ip_per_minute", "relay_ip_per_hour", "domain_per_hour", "domain_per_day",

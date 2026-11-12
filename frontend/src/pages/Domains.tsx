@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Globe, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeftRight, CheckCircle2, Globe, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import GatewayError from "../components/GatewayError";
@@ -8,34 +8,58 @@ import { api } from "../lib/api";
 import type { Me } from "../lib/auth";
 import type { AddressRoute, Destination, DomainRow, GatewayStatus, TlsPolicy } from "../lib/gateway";
 import { describeDestination, emptyDestination, numOrNull, numStr } from "../lib/gateway";
+import { KindPicker, RelayDrawer, RelayTable } from "./RelayDomains";
 
-type Form = Omit<DomainRow, "id" | "configured" | "users" | "relay_networks">;
+type Form = Omit<DomainRow, "id" | "configured" | "users" | "relay_networks" | "smtp_accounts">;
 const EMPTY: Form = {
-  name: "", destinations: [emptyDestination()], enabled: true, tls: "may", verify_recipients: true,
+  name: "", kind: "transport", sender_lock: false, destinations: [emptyDestination()], enabled: true, tls: "may", verify_recipients: true,
   concurrency: null, rate_delay: null, out_per_hour: null, out_per_day: null, note: "",
 };
+
+type Editing =
+  | { kind: "transport"; domain: DomainRow | null; name?: string }
+  | { kind: "relay"; domain: DomainRow | null; name?: string };
 
 export default function Domains({ me }: { me: Me }) {
   const { t } = useTranslation();
   const admin = me.role === "admin";
   const domains = useQuery({ queryKey: ["gw-domains"], queryFn: () => api.get<DomainRow[]>("/gateway/domains") });
-  const [editing, setEditing] = useState<DomainRow | "new" | null>(null);
+  const [tab, setTab] = useState<"transport" | "relay">("transport");
+  const [picking, setPicking] = useState(false);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const all = domains.data ?? [];
+  const relay = all.filter((d) => d.configured && d.kind === "relay");
+  const transport = all.filter((d) => !d.configured || d.kind !== "relay");
+  const list = tab === "relay" ? relay : transport;
+  // Converting keeps name, limits and senders; a transport domain then still needs its mail server.
+  const toTransport = (d: DomainRow) => setEditing({ kind: "transport", domain: { ...d, kind: "transport", destinations: d.destinations.length ? d.destinations : [emptyDestination()] } });
+  const toRelay = (d: DomainRow) => setEditing({ kind: "relay", domain: { ...d, kind: "relay" } });
   return (
     <>
       <PageHead
         title={t("domains.title")}
-        sub={admin ? t("domains.sub") : t("domains.sub_customer")}
+        sub={admin ? t("relaydom.page_sub") : t("domains.sub_customer")}
         actions={admin && (
-          <button className="btn primary" onClick={() => setEditing("new")}>
+          <button className="btn primary" onClick={() => setPicking(true)}>
             <Plus /> {t("domains.add")}
           </button>
         )}
       />
       {admin && <ApplyStatus />}
       <Card flush>
+        <div className="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "transport"} onClick={() => setTab("transport")}>
+            {t("relaydom.tab_transport")} <span className="tag">{transport.length}</span>
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "relay"} onClick={() => setTab("relay")}>
+            {t("relaydom.tab_relay")} <span className="tag lucht">{relay.length}</span>
+          </button>
+        </div>
         {domains.isLoading ? (
           <Loading />
-        ) : !domains.data?.length ? (
+        ) : tab === "relay" ? (
+          <RelayTable domains={relay} admin={admin} onOpen={(d) => setEditing({ kind: "relay", domain: d })} />
+        ) : !list.length ? (
           <div className="empty">{t("domains.empty")}</div>
         ) : (
           <div className="tbl-wrap">
@@ -49,8 +73,8 @@ export default function Domains({ me }: { me: Me }) {
                 </tr>
               </thead>
               <tbody>
-                {domains.data.map((d) => (
-                  <tr key={d.id} className="click" tabIndex={0} onClick={() => setEditing(d)} onKeyDown={(e) => e.key === "Enter" && setEditing(d)}>
+                {list.map((d) => (
+                  <tr key={d.id} className="click" tabIndex={0} onClick={() => setEditing({ kind: "transport", domain: d })} onKeyDown={(e) => e.key === "Enter" && setEditing({ kind: "transport", domain: d })}>
                     <td>
                       <div className="cell-main">{d.name}</div>
                       {d.users.length > 0 && <div className="cell-sub">{t("domains.users_count", { count: d.users.length })}</div>}
@@ -77,9 +101,24 @@ export default function Domains({ me }: { me: Me }) {
           </div>
         )}
       </Card>
-      {admin && <AddressRoutes />}
-      {admin && <TlsPolicies />}
-      {editing && <DomainDrawer domain={editing === "new" ? null : editing} readOnly={!admin} onClose={() => setEditing(null)} />}
+      {tab === "relay" && <div className="callout"><Globe aria-hidden /><span>{t("relaydom.explain")}</span></div>}
+      {admin && tab === "transport" && <AddressRoutes />}
+      {admin && tab === "transport" && <TlsPolicies />}
+      {picking && (
+        <KindPicker initial={tab} onClose={() => setPicking(false)} onPick={(name, kind) => {
+          setPicking(false);
+          setTab(kind);
+          setEditing({ kind, domain: null, name });
+        }} />
+      )}
+      {editing?.kind === "transport" && (
+        <DomainDrawer key={`t${editing.domain?.id ?? "new"}${editing.domain?.kind}`} domain={editing.domain} name={editing.name} readOnly={!admin}
+          onClose={() => setEditing(null)} onConvert={admin ? toRelay : undefined} />
+      )}
+      {editing?.kind === "relay" && (
+        <RelayDrawer key={`r${editing.domain?.id ?? "new"}`} domain={editing.domain} name={editing.name} readOnly={!admin} admin={admin}
+          onClose={() => setEditing(null)} onConvert={toTransport} />
+      )}
     </>
   );
 }
@@ -158,11 +197,14 @@ function DestinationsEditor({ value, onChange, readOnly }: { value: Destination[
   );
 }
 
-function DomainDrawer({ domain, readOnly, onClose }: { domain: DomainRow | null; readOnly: boolean; onClose: () => void }) {
+function DomainDrawer({ domain, name, readOnly, onClose, onConvert }: {
+  domain: DomainRow | null; name?: string; readOnly: boolean; onClose: () => void; onConvert?: (d: DomainRow) => void;
+}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const toast = useToast();
-  const start: Form = domain?.configured ? { ...domain } : domain ? { ...EMPTY, name: domain.name } : EMPTY;
+  const start: Form = domain?.configured ? { ...domain, kind: "transport" } : domain ? { ...EMPTY, name: domain.name } : { ...EMPTY, name: name ?? "" };
+  const converting = domain?.configured && domain.destinations.every((d) => !d.host);
   const [f, setF] = useState<Form>(start);
   const done = () => {
     qc.invalidateQueries({ queryKey: ["gw-domains"] });
@@ -191,7 +233,8 @@ function DomainDrawer({ domain, readOnly, onClose }: { domain: DomainRow | null;
     </Field>
   );
   return (
-    <Drawer title={domain ? domain.name : t("domains.add")} sub={domain && !domain.configured ? t("domains.not_configured_hint") : undefined} onClose={onClose}>
+    <Drawer title={domain ? domain.name : t("domains.add")}
+      sub={domain && !domain.configured ? t("domains.not_configured_hint") : converting ? t("relaydom.converting_hint") : <span className="tag">{t("relaydom.kind_transport")}</span>} onClose={onClose}>
       <form className="form-grid" onSubmit={(e) => { e.preventDefault(); if (!readOnly) save.mutate(); }}>
         <div className="full"><GatewayError error={save.error || del.error} /></div>
         {!domain && (
@@ -224,6 +267,13 @@ function DomainDrawer({ domain, readOnly, onClose }: { domain: DomainRow | null;
           <textarea className="input" rows={2} disabled={readOnly} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
         </Field>
         <label className="check full">
+          <input type="checkbox" disabled={readOnly} checked={f.sender_lock} onChange={(e) => setF({ ...f, sender_lock: e.target.checked })} />
+          <span>
+            {t("relaydom.lock", { domain: f.name || "example.nl" })}
+            <br /><span className="hint">{t("relaydom.lock_hint")}</span>
+          </span>
+        </label>
+        <label className="check full">
           <input type="checkbox" disabled={readOnly} checked={f.enabled} onChange={(e) => setF({ ...f, enabled: e.target.checked })} />
           <span>{t("domains.enabled")}</span>
         </label>
@@ -236,8 +286,13 @@ function DomainDrawer({ domain, readOnly, onClose }: { domain: DomainRow | null;
               <Globe /> {save.isPending ? t("gateway.applying") : t("common.save")}
             </button>
             <button type="button" className="btn ghost" onClick={onClose}>{t("common.cancel")}</button>
+            {domain?.configured && onConvert && !converting && (
+              <button type="button" className="btn ghost small" style={{ marginLeft: "auto" }} onClick={() => onConvert(domain)}>
+                <ArrowLeftRight /> {t("relaydom.to_relay")}
+              </button>
+            )}
             {domain && (
-              <button type="button" className="btn danger" style={{ marginLeft: "auto" }}
+              <button type="button" className="btn danger" style={onConvert && !converting && domain.configured ? undefined : { marginLeft: "auto" }}
                 onClick={() => window.confirm(t("domains.delete_confirm", { name: domain.name })) && del.mutate()}>
                 {t("common.delete")}
               </button>

@@ -26,7 +26,7 @@ const GROUPS: [string, RegExp][] = [
   ["quarantine", /^quarantine_/],
   ["sender", /^sender_|^abuse_/],
   ["domain", /^domain_|^address_route_|^tls_policy_|^gateway_/],
-  ["relay", /^relay_/],
+  ["relay", /^relay_|^smtp_account_/],
   ["throttling", /^throttling_/],
   ["dns", /^dns\.|^cloudflare\./],
   ["backup", /^backup\./],

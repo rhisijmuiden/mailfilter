@@ -11,16 +11,16 @@ import { ApiError, api } from "../lib/api";
 
 // --- types -----------------------------------------------------------------
 
-type Item = { code: string; status: string; value: string; problems: string[]; fix: string | null };
+export type Item = { code: string; status: string; value: string; problems: string[]; fix: string | null };
 type GoLiveState = { status: "live" | "rolled_back"; time: string; actor: string; previous_mx: Rec[]; mx: Rec[] } | null;
-type CheckResult = { domain: string; items: Item[]; managed: boolean; golive: GoLiveState };
+export type CheckResult = { domain: string; items: Item[]; managed: boolean; golive: GoLiveState };
 type Rec = { type: string; name: string; content: string; priority?: number | null; id?: string | null };
 type Change = { action: "create" | "update" | "delete" | "none"; type: string; name: string; before: Rec | null; after: Rec | null; reason: string };
 type Plan = { zone_name: string; domain: string; changes: Change[]; warnings?: string[] };
 type MxRow = { priority: number; host: string };
 type MxCloudflare = { domain: string; zone: string; managed: boolean; hostname: string; mx_priority: number; golive: GoLiveState; records: MxRow[] };
 type Server = { hostname: string; addresses: string[]; spf_name: string; spf_include: string; domains: string[] };
-type CfStatus = { configured: boolean; status: string | null; zones: string[] };
+export type CfStatus = { configured: boolean; status: string | null; zones: string[] };
 export type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx" | "mta_sts" | "tls_rpt" | "tlsa" | "dmarc_rua" | "dmarc_policy" | "dmarc_auth";
 type Smtp = { reachable: boolean; starttls: boolean; tls_ok: boolean; error: string; cert: { matches: boolean; days_left: number | null } | null } | null;
 type MxResult = {
@@ -43,7 +43,7 @@ type Tab = (typeof TABS)[number];
 
 const STATUS_CLASS: Record<string, string> = { pending: "s-info", ok: "s-ok", weak: "s-warn", missing: "s-bad", bad: "s-bad", error: "s-bad", listed: "s-bad", clean: "s-ok", unusable: "s-mute", skipped: "s-mute" };
 
-function Pill({ s, label }: { s: string; label?: string }) {
+export function Pill({ s, label }: { s: string; label?: string }) {
   const { t } = useTranslation();
   const icon = s === "ok" || s === "clean" ? <Check /> : s === "weak" || s === "pending" ? <Clock /> : s === "unusable" || s === "skipped" ? <Info /> : <X />;
   return <span className={`status ${STATUS_CLASS[s] ?? "s-mute"}`}>{icon}{label ?? t(`dns.status.${s}`, { defaultValue: s })}</span>;
@@ -54,7 +54,7 @@ function Yes({ v }: { v: boolean | null | undefined }) {
   return <span className={`status ${v ? "s-ok" : "s-bad"}`} style={{ padding: 3 }}>{v ? <Check /> : <X />}</span>;
 }
 
-function Problems({ codes }: { codes: string[] }) {
+export function Problems({ codes }: { codes: string[] }) {
   const { t } = useTranslation();
   if (!codes.length) return null;
   return (
@@ -67,7 +67,7 @@ function Problems({ codes }: { codes: string[] }) {
   );
 }
 
-function CopyBtn({ text }: { text: string }) {
+export function CopyBtn({ text }: { text: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   return (
@@ -77,7 +77,7 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-function Code({ children }: { children: ReactNode }) {
+export function Code({ children }: { children: ReactNode }) {
   return <code className="mono" style={{ display: "block", fontSize: 12, background: "var(--surface-sunk)", padding: "8px 10px", borderRadius: "var(--r-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{children}</code>;
 }
 

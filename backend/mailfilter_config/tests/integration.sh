@@ -185,6 +185,52 @@ PY
 check "external banner added above the original text" bash -c "$(declare -f banner_ok); banner_ok /tmp/scan-banner.eml"
 check "external banner header added" bash -c "$(declare -f has); has /tmp/scan-banner.json X-Mailfilter-External"
 check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
+echo "== relay domain (outbound only), SMTP account and sender lock"
+python3 - <<'PY'
+import json; d = json.load(open("/tmp/gateway.json"))
+d["domains"].append({"name": "example.com", "kind": "relay", "sender_lock": True, "destinations": []})
+d["relay_networks"].append({"cidr": "127.0.0.1", "description": "test client", "customer": "example.com"})
+d["smtp_accounts"] = [{"username": "web@example.com", "domain": "example.com",
+                       "password_hash": "{SSHA512}8Q5yQ0g5Zx8Y1nYz6m3xI9b0Y4i4b9cR2qVZ5o8hM3k0f2s7Vt6n1aWb4dE5gH6jK7lM8nP9qR0sT1uV2wX3yZ4AbCdEfGhIjKl"}]
+json.dump(d, open("/tmp/relay.json", "w"))
+PY
+printf 'web01@example.nl:{PLAIN}secret\n' >/etc/mailfilter/smtp-users
+check "apply with relay domain" "$MFC" apply --state /tmp/relay.json --no-reload
+check "postfix check with sender lock" postfix check
+check "relay domain does not receive mail" bash -c '! postmap -q example.com hash:/etc/mailfilter/postfix/relay_domains && ! postmap -q example.com hash:/etc/mailfilter/postfix/transport'
+check "locked relay IP points to its class" bash -c 'postmap -q 127.0.0.1 cidr:/etc/mailfilter/postfix/sender_lock.cidr | grep -q "^mfl_example_com_"'
+check "locked account points to its class" bash -c 'postmap -q web@example.com hash:/etc/mailfilter/postfix/sender_lock_sasl | grep -q "^mfl_example_com_"'
+check "restriction class declared" bash -c 'postconf -h smtpd_restriction_classes | grep -q "^mfl_example_com_"'
+check "hand-made SMTP account kept, web account added" bash -c 'grep -q "^web01@example.nl:" /etc/mailfilter/smtp-users && grep -q "^web@example.com:{SSHA512}" /etc/mailfilter/smtp-users'
+check "dovecot accepts the account file" doveconf -n
+check "DKIM key made for the relay domain" bash -c 'grep -q "^example.com mf" /etc/mailfilter/rspamd/dkim_selectors.map'
+# A real SMTP session on the 2525 relay port: no milter and no DNS-based sender checks in this container.
+postconf -e smtpd_milters= non_smtpd_milters= smtpd_sender_restrictions= >/dev/null
+postfix start >/dev/null 2>&1 || true
+smtp_try() { python3 - "$1" <<'PY'
+import smtplib, sys, time
+for _ in range(20):
+    try:
+        s = smtplib.SMTP("127.0.0.1", 2525, timeout=20); break
+    except OSError:
+        time.sleep(0.5)
+else:
+    print("no SMTP listener"); sys.exit(2)
+s.ehlo("test.example")
+try:
+    s.sendmail(sys.argv[1], ["someone@voorbeeld.nl"], f"From: <{sys.argv[1]}>\r\nSubject: t\r\n\r\nhi\r\n")
+    print("accepted"); sys.exit(0)
+except smtplib.SMTPResponseException as e:
+    print(e.smtp_code, e.smtp_error.decode()); sys.exit(1)
+except smtplib.SMTPDataError as e:
+    print(e); sys.exit(1)
+PY
+}
+check "own domain may be sent from a locked IP" smtp_try news@example.com
+check "bounce (empty sender) may be sent from a locked IP" smtp_try ""
+check "other domain refused from a locked IP" bash -c "$(declare -f smtp_try); out=\$(smtp_try boss@example.org) ; echo \"\$out\"; echo \"\$out\" | grep -q 'may only send mail as @example.com'"
+postsuper -d ALL >/dev/null 2>&1 || true
+postfix stop >/dev/null 2>&1 || true
 pkill -x rspamd || true
 rm -f /etc/rspamd/override.d/worker-normal.inc /etc/rspamd/override.d/options.inc /etc/rspamd/override.d/logging.inc
 exit $fail

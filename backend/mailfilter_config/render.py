@@ -15,9 +15,14 @@ PF = f"{ETC}/postfix"
 
 # Every main.cf parameter this package sets starts with one of these, so
 # stale ones (from a removed domain) can be found and deleted.
-MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_")
+MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_", "mfl_")
 # Standard Postfix parameters this package owns completely (always set).
-MANAGED_PARAMS = ("smtpd_end_of_data_restrictions",)
+MANAGED_PARAMS = ("smtpd_end_of_data_restrictions", "smtpd_restriction_classes")
+SMTP_USERS = f"{ETC}/smtp-users"
+# Accounts made in the web interface live between these lines of the Dovecot
+# passwd-file; lines outside them (added by hand) are left alone.
+USERS_BEGIN = "# BEGIN mailfilter-config accounts (managed by the web interface, do not edit)"
+USERS_END = "# END mailfilter-config accounts"
 BEGIN = "# BEGIN mailfilter-config (managed by the web interface, do not edit)"
 END = "# END mailfilter-config"
 
@@ -31,6 +36,7 @@ class Rendered:
     main_cf: dict[str, str] = field(default_factory=dict)  # postconf -e
     master_cf_block: str = ""
     relay_ports: list[int] = field(default_factory=list)
+    users_block: str = ""  # Dovecot passwd-file lines for SMTP accounts
 
 
 def service_name(prefix: str, domain: str) -> str:
@@ -100,12 +106,14 @@ def render(cfg: GatewayConfig) -> Rendered:
     """Expects a configuration that passed validate.check()."""
     out = Rendered()
     domains: list[Domain] = sorted((d for d in cfg.domains if d.enabled), key=lambda d: d.name)
+    # Only transport domains receive mail; relay domains are outbound only.
+    inbound = [d for d in domains if d.kind == "transport"]
 
     relay_domains, transport, tls_policy, verify = [HEADER], [HEADER], [HEADER], [HEADER]
     master: list[str] = []
 
     # ---- inbound: one queue (transport) per domain -------------------------------
-    for d in domains:
+    for d in inbound:
         svc = service_name("mfq_", d.name)
         first, *fallback = d.destinations
         relay_domains.append(_comment_line(d.customer and f"customer {d.customer}") + f"{d.name} OK\n")
@@ -185,8 +193,36 @@ def render(cfg: GatewayConfig) -> Rendered:
     out.files[f"{PF}/outbound_hold_sasl"] = "".join(hold_sasl)
     out.hash_maps.append(f"{PF}/outbound_hold_sasl")
     # Checked at the end of every message on every listener; only listed senders match.
-    out.main_cf["smtpd_end_of_data_restrictions"] = (
-        f"check_client_access cidr:{PF}/outbound_hold.cidr, check_sasl_access hash:{PF}/outbound_hold_sasl")
+    eod = f"check_client_access cidr:{PF}/outbound_hold.cidr, check_sasl_access hash:{PF}/outbound_hold_sasl"
+
+    # ---- sender lock: linked relay IPs / accounts may only send as their domain -----
+    # HOLD above does not end the checks, so a paused sender is still locked too.
+    # Each locked domain gets a restriction class: OK for its own (sub)domains and
+    # the empty bounce sender, otherwise a clear rejection.
+    lock_ip, lock_sasl, classes = [HEADER], [HEADER], []
+    locked = {d.name for d in domains if d.sender_lock}
+    for name in sorted(locked):
+        cls = service_name("mfl_", name)
+        classes.append(cls)
+        out.main_cf[cls] = (f"check_sender_access inline:{{{name}=OK, <>=OK}}, "
+                            f"check_sender_access static:{{REJECT 5.7.1 This server may only send mail as @{name}}}")
+    for n in sorted(nets, key=lambda n: n.cidr):
+        if n.customer in locked:
+            lock_ip.append(f"{n.cidr} {service_name('mfl_', n.customer)}\n")
+    for a in sorted(cfg.smtp_accounts, key=lambda a: a.username):
+        if a.enabled and a.domain in locked:
+            lock_sasl.append(f"{a.username} {service_name('mfl_', a.domain)}\n")
+    out.files[f"{PF}/sender_lock.cidr"] = "".join(lock_ip)
+    out.files[f"{PF}/sender_lock_sasl"] = "".join(lock_sasl)
+    out.hash_maps.append(f"{PF}/sender_lock_sasl")
+    out.main_cf["smtpd_restriction_classes"] = ", ".join(classes)
+    if classes:
+        eod += f", check_client_access cidr:{PF}/sender_lock.cidr, check_sasl_access hash:{PF}/sender_lock_sasl"
+    out.main_cf["smtpd_end_of_data_restrictions"] = eod
+
+    # ---- SMTP accounts (Dovecot passwd-file block) -----------------------------
+    out.users_block = "".join(f"{a.username}:{a.password_hash}\n"
+                              for a in sorted(cfg.smtp_accounts, key=lambda a: a.username) if a.enabled)
     # ---- custom rules (newsletter filter etc.) ------------------------------------
     out.files.update(render_rule_files(cfg.custom_rules, {d.name for d in domains}))
     return out
@@ -229,6 +265,16 @@ def render_ratelimit(cfg: GatewayConfig, domains: list[Domain]) -> str:
             lines.append(_rate(f"mf_dom_{slug}_day", f"{from_dom}.equal({d.name!r})", int(d.outbound.per_day), "1d"))
     lines.append("}\n")
     return "".join(lines)
+
+
+def splice_users(current: str, block: str) -> str:
+    """Put the web interface's SMTP accounts in the passwd-file between the markers."""
+    managed = f"{USERS_BEGIN}\n{block}{USERS_END}\n"
+    if USERS_BEGIN in current and USERS_END in current:
+        head, rest = current.split(USERS_BEGIN, 1)
+        _, tail = rest.split(USERS_END, 1)
+        return head + managed + tail.lstrip("\n")
+    return (current.rstrip("\n") + "\n" if current.strip() else "") + managed
 
 
 def splice_master_cf(current: str, block: str) -> str:

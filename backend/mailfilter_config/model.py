@@ -15,6 +15,9 @@ from .rules import CustomRule, rule_from_dict
 TLS_MODES = ("may", "encrypt", "verify")
 ALL_TLS_MODES = ("none", "may", "encrypt", "dane", "verify", "secure")
 PROTOCOLS = ("smtp", "lmtp")
+# transport: Mailfilter accepts mail for the domain and delivers it to a mail server.
+# relay: outbound only; no inbound mail, no destination, but DKIM signing and limits.
+DOMAIN_KINDS = ("transport", "relay")
 LISTENER_TLS = ("may", "encrypt", "wrapper")
 
 
@@ -52,7 +55,10 @@ class OutboundLimits:
 @dataclass
 class Domain:
     name: str
-    destinations: list[Destination]
+    destinations: list[Destination] = field(default_factory=list)
+    kind: str = "transport"
+    # Relay IPs and SMTP accounts linked to this domain may only send as @domain.
+    sender_lock: bool = False
     enabled: bool = True
     customer: str | None = None
     tls: str = "may"
@@ -72,6 +78,20 @@ class RelayNetwork:
     enabled: bool = True
     # Networks larger than /16 (IPv4) or /32 (IPv6) are refused unless set.
     allow_broad: bool = False
+
+
+@dataclass
+class SmtpAccount:
+    """A login for sending through the gateway (Dovecot checks the password).
+
+    password_hash is in Dovecot's format, e.g. "{SSHA512}base64..."; the plain
+    password never reaches this package."""
+
+    username: str
+    password_hash: str
+    domain: str
+    enabled: bool = True
+    description: str = ""
 
 
 @dataclass
@@ -140,6 +160,7 @@ class GatewayConfig:
     address_routes: list[AddressRoute] = field(default_factory=list)
     tls_policies: list[TlsPolicy] = field(default_factory=list)
     holds: list[OutboundHold] = field(default_factory=list)
+    smtp_accounts: list[SmtpAccount] = field(default_factory=list)
     defaults: Defaults = field(default_factory=Defaults)
     # Custom rules (newsletter filter etc.) by rule id; missing rules use their default.
     custom_rules: dict[str, CustomRule] = field(default_factory=dict)
@@ -181,6 +202,7 @@ class GatewayConfig:
                             for a in data.get("address_routes", [])],
             tls_policies=[TlsPolicy(**t) for t in data.get("tls_policies", [])],
             holds=[OutboundHold(**h) for h in data.get("holds", [])],
+            smtp_accounts=[SmtpAccount(**a) for a in data.get("smtp_accounts", [])],
             defaults=Defaults(**data.get("defaults", {})),
             custom_rules={k: rule_from_dict(v) for k, v in (data.get("custom_rules") or {}).items()},
             hostname=data.get("hostname", ""),

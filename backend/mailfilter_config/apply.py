@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Callable, Sequence
 
 from .model import GatewayConfig
-from .render import MANAGED_PARAM_PREFIXES, MANAGED_PARAMS, render, splice_master_cf
+from .render import MANAGED_PARAM_PREFIXES, MANAGED_PARAMS, SMTP_USERS, render, splice_master_cf, splice_users
 from .validate import check
 
 STATE_FILE = "/etc/mailfilter/gateway.json"
@@ -151,6 +151,9 @@ class Applier:
         r = render(cfg)
         files = dict(r.files)
         files[MASTER_CF] = splice_master_cf(self.read(MASTER_CF) or "", r.master_cf_block)
+        users_now = self.read(SMTP_USERS)
+        if users_now is not None or r.users_block:
+            files[SMTP_USERS] = splice_users(users_now or "", r.users_block)
         if save_state:
             files[STATE_FILE] = cfg.to_json()
 
@@ -168,6 +171,8 @@ class Applier:
             try:
                 for p in changed:
                     self.write(p, files[p])
+                    if p == SMTP_USERS:  # password hashes: only Dovecot may read them
+                        _chown(self.path(p), "root", "dovecot", 0o640)
                 for m in r.hash_maps:
                     self.run("postmap", "postmap", f"hash:{self.path(m)}")
                 if to_remove:
