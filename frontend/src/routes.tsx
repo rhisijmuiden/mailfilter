@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Dmarc = lazy(() => import("./pages/Dmarc"));
 const Domains = lazy(() => import("./pages/Domains"));
 const Dns = lazy(() => import("./pages/Dns"));
+const MonthlyReport = lazy(() => import("./pages/MonthlyReport"));
 const Mailtrap = lazy(() => import("./pages/Mailtrap"));
 const MailSending = lazy(() => import("./pages/MailSending"));
 const Notifications = lazy(() => import("./pages/Notifications"));
@@ -29,6 +30,7 @@ export type AppRoute = { path: string; element: (me: Me) => ReactNode; adminOnly
 
 export const ROUTES: AppRoute[] = [
   { path: "/", element: (me) => <Dashboard me={me} /> },
+  { path: "/reports/monthly", element: (me) => <MonthlyReport me={me} /> },
   { path: "/trace", element: () => <Trace /> },
   { path: "/quarantine", element: (me) => <Quarantine me={me} /> },
   { path: "/dmarc", element: (me) => <Dmarc me={me} /> },
