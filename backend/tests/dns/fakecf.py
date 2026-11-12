@@ -12,6 +12,7 @@ from mailfilter_dns.cloudflare import Cloudflare
 
 class FakeCloudflare:
     def __init__(self, zones: list[str], records: list[dict] | None = None, token: str = "good"):
+        # "good" acts as a user token, "acct" as an account-owned token
         self.token = token
         self.zones = {f"z-{z}": z for z in zones}
         self.records: dict[str, dict] = {}
@@ -40,14 +41,20 @@ class FakeCloudflare:
 
     def handle(self, req: httpx.Request) -> httpx.Response:
         self.calls.append((req.method, req.url.path))
-        if req.headers.get("authorization") != "Bearer good":
+        auth = req.headers.get("authorization")
+        if auth not in ("Bearer good", "Bearer acct"):
             return httpx.Response(403, json={"success": False, "errors": [{"code": 9109, "message": "Invalid access token"}]})
         parts = req.url.path.split("/")[3:]  # after /client/v4
         q = dict(req.url.params)
         if parts == ["user", "tokens", "verify"]:
+            if auth == "Bearer acct":
+                return httpx.Response(401, json={"success": False, "errors": [{"code": 1000, "message": "Invalid API Token"}]})
+            return self._ok({"id": "t", "status": "active"})
+        if parts == ["accounts", "acc1", "tokens", "verify"] and auth == "Bearer acct":
             return self._ok({"id": "t", "status": "active"})
         if parts == ["zones"]:
-            zs = [{"id": i, "name": n, "status": "active"} for i, n in self.zones.items() if not q.get("name") or q["name"] == n]
+            zs = [{"id": i, "name": n, "status": "active", "account": {"id": "acc1", "name": "RHIS"}}
+                  for i, n in self.zones.items() if not q.get("name") or q["name"] == n]
             return self._ok(zs, {"page": 1, "total_pages": 1})
         if len(parts) >= 3 and parts[0] == "zones" and parts[2] == "dns_records":
             zid = parts[1]

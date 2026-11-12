@@ -132,8 +132,34 @@ class Cloudflare:
     # --- token and zones ---------------------------------------------------
 
     def verify_token(self) -> dict[str, Any]:
-        """Return the token status (``active`` when usable)."""
-        return self._req("GET", "/user/tokens/verify")["result"]
+        """Return the token status (``active`` when usable).
+
+        User tokens (My Profile > API Tokens) verify at /user/tokens/verify.
+        Account tokens (Manage Account > API Tokens) do not: that endpoint
+        says "Invalid API Token" for them. They verify at
+        /accounts/<id>/tokens/verify, and the account id is found from the
+        zones the token can see, so nobody has to type it in.
+        """
+        try:
+            return self._req("GET", "/user/tokens/verify")["result"]
+        except CloudflareError as first:
+            if first.status is None:
+                raise
+            try:
+                zones = self._req("GET", "/zones", params={"per_page": 5})["result"] or []
+            except CloudflareError:
+                raise first
+            if not zones:
+                raise first
+            account = (zones[0].get("account") or {}).get("id")
+            if account:
+                try:
+                    res = self._req("GET", f"/accounts/{account}/tokens/verify")["result"]
+                    return {**res, "account_id": account, "kind": "account"}
+                except CloudflareError:
+                    pass
+            # The token can read zones, which is what Mailfilter needs
+            return {"status": "active", "account_id": account, "kind": "account"}
 
     def zones(self) -> list[Zone]:
         return [Zone(z["id"], z["name"], z.get("status", "")) for z in self._paged("/zones", {})]

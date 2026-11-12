@@ -8,6 +8,7 @@ applied, so the browser can never send records of its own.
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -49,8 +50,6 @@ def smtp_probe(host: str, ip: str):
 # Helpers ------------------------------------------------------------------------
 
 def _domain(name: str) -> str:
-    import re
-
     d = norm(name)
     if not re.match(DOMAIN_RE, d):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid_domain")
@@ -108,14 +107,21 @@ def cloudflare_status(_: AdminUser, db: DB) -> CloudflareStatus:
 @router.put("/cloudflare", response_model=CloudflareStatus)
 def cloudflare_save(body: TokenIn, request: Request, user: AdminUser, db: DB) -> CloudflareStatus:
     token = body.token.strip()
+    if re.fullmatch(r"[0-9a-f]{37}", token):
+        # The Global API Key needs an e-mail address and gives full access; ask for a token
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "cloudflare_global_key")
     try:
         cf = make_cloudflare(token)
         st = cf.verify_token().get("status", "")
         zones = [z.name for z in cf.zones()]
     except CloudflareError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "cloudflare_token_invalid") from exc
+        if exc.status is None:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "cloudflare_unreachable") from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"cloudflare_token_rejected:{str(exc).replace(':', '')[:200]}") from exc
     if st != "active":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "cloudflare_token_invalid")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"cloudflare_token_rejected:status {st}")
+    if not zones:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "cloudflare_no_zones")
     set_secret(db, TOKEN_KEY, token)
     audit(db, request, user, "cloudflare.token_set", zones=len(zones))
     db.commit()
