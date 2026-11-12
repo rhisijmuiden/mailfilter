@@ -196,7 +196,13 @@ def test_backup_check(monkeypatch):
             {"id": "a", "kind": "backup", "state": "done", "created": "2026-11-11T03:00:00Z"}]},
         ("backup", "list"): {"config": {"enabled": True}, "last": {"created": "2026-11-09T03:00:00Z"}},
     }
-    monkeypatch.setattr(ctl, "call", lambda *a, **k: data[a])
+    def call(*a, **k):
+        if a[0] == "events":  # helper without events: fall back to the job list
+            from fastapi import HTTPException
+            raise HTTPException(503, "ctl_unavailable")
+        return data[a]
+
+    monkeypatch.setattr(ctl, "call", call)
     found = {a.code: a for a in notify.check_backups(48, NOW)}
     assert found["backup_failed"].params["message"] == "disk full"
     assert found["backup_overdue"].params["hours"] == 48
@@ -226,3 +232,21 @@ def test_settings_survive_round_trip(users):
         s = notify.load_settings(db)
     assert raw["types"]["queue"]["channels"] == ["webhook"]
     assert s.types["queue"].threshold == 10 and s.types["certificate"].threshold == 14
+
+
+def test_backup_check_with_events(monkeypatch):
+    from mailfilter import ctl
+
+    events = [
+        {"event": "remote.failed", "ok": False, "at": "2026-11-12T03:10:00Z", "message": "530 Login incorrect"},
+        {"event": "backup.succeeded", "ok": True, "at": "2026-11-12T03:05:00Z", "message": ""},
+        {"event": "update.succeeded", "ok": True, "at": "2026-11-11T10:00:00Z"},
+        {"event": "update.failed", "ok": False, "at": "2026-11-10T10:00:00Z", "message": "old"},
+        {"event": "backup.failed", "ok": False, "at": "2026-11-11T03:05:00Z", "message": "old"},
+    ]
+    data = {("events", "--limit", "200"): {"events": events},
+            ("backup", "list"): {"config": {"enabled": True}, "last": {"created": "2026-11-12T03:05:00Z"}}}
+    monkeypatch.setattr(ctl, "call", lambda *a, **k: data[a])
+    [a] = notify.check_backups(48, NOW)
+    assert a.code == "remote_failed" and a.params["message"] == "530 Login incorrect"
+    assert "530" in a.render("nl")[1]

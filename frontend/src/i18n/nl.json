@@ -1423,8 +1423,8 @@
     "threshold_certificate": "Dagen vooraf",
     "type_abuse": "Afzender gepauzeerd",
     "type_abuse_d": "Een server of account is gepauzeerd omdat het ineens spam of heel veel mail verstuurde.",
-    "type_backup": "Backupprobleem",
-    "type_backup_d": "Een backup is mislukt, of er is al een tijd geen geslaagde backup.",
+    "type_backup": "Backup- of updateprobleem",
+    "type_backup_d": "Een backup, kopie op afstand, herstel of update is mislukt, of er is al een tijd geen geslaagde backup.",
     "threshold_backup": "Na uren",
     "general": "Algemeen",
     "language": "Taal van de meldingen",
@@ -1453,6 +1453,9 @@
     "code_abuse": "{{count}} afzender(s) gepauzeerd",
     "code_backup_failed": "Backup mislukt",
     "code_backup_overdue": "Geen recente backup",
+    "code_remote_failed": "Backup-kopie op afstand mislukt",
+    "code_restore_failed": "Herstel mislukt",
+    "code_update_failed": "Update mislukt",
     "code_test": "Testmelding"
   },
   "lists": {

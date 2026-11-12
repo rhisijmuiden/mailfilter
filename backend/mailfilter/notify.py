@@ -155,6 +155,18 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "en": ("Backup failed", "The backup of {created} failed: {message}"),
         "nl": ("Backup mislukt", "De backup van {created} is mislukt: {message}"),
     },
+    "remote_failed": {
+        "en": ("Remote backup copy failed", "The copy of the backup of {created} to the remote location failed: {message}"),
+        "nl": ("Backup-kopie op afstand mislukt", "Het kopiëren van de backup van {created} naar de externe locatie is mislukt: {message}"),
+    },
+    "restore_failed": {
+        "en": ("Restore failed", "The restore of {created} failed: {message}"),
+        "nl": ("Herstel mislukt", "Het herstel van {created} is mislukt: {message}"),
+    },
+    "update_failed": {
+        "en": ("Update failed", "The update of {created} failed and was rolled back: {message}"),
+        "nl": ("Update mislukt", "De update van {created} is mislukt en teruggedraaid: {message}"),
+    },
     "backup_overdue": {
         "en": ("No recent backup", "The last successful backup is from {last} (alert after {hours} hours)."),
         "nl": ("Geen recente backup", "De laatste geslaagde backup is van {last} (melding na {hours} uur)."),
@@ -166,7 +178,8 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
 }
 RESOLVED = {"en": "Resolved", "nl": "Opgelost"}
 LINKS = {"services": "/", "queue": "/trace?status=deferred", "blacklist": "/dns", "certificate": "/dns",
-         "abuse": "/relay", "backup_failed": "/system/backups", "backup_overdue": "/system/backups", "test": "/"}
+         "abuse": "/relay", "backup_failed": "/system/backups", "backup_overdue": "/system/backups",
+         "remote_failed": "/system/backups", "restore_failed": "/system/backups", "update_failed": "/", "test": "/"}
 EMOJI = {"critical": "\U0001F534", "warning": "\U0001F7E0", "info": "\U0001F535", "resolved": "✅"}
 
 
@@ -434,33 +447,60 @@ def check_certificate(days: int, now: datetime) -> list[Alert]:
                   {"days": max(0, int(left)), "expires": expires.strftime("%Y-%m-%d %H:%M UTC")})]
 
 
+def _ctl_events() -> list[dict] | None:
+    """Recent mailfilterctl events (newest first), or None on a helper without events."""
+    from fastapi import HTTPException
+
+    from . import ctl
+
+    try:
+        data = ctl.call("events", "--limit", "200")
+    except HTTPException:
+        return None
+    return data.get("events") if isinstance(data, dict) and isinstance(data.get("events"), list) else None
+
+
+def _when(iso: str | None) -> datetime | None:
+    try:
+        return datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def check_backups(hours: int, now: datetime) -> list[Alert]:
+    """Failed backup, remote copy, restore or update (from mailfilterctl events: the latest
+    event of each kind decides), and no successful backup for `hours`."""
     from fastapi import HTTPException
 
     from . import ctl
 
     out: list[Alert] = []
+    events = _ctl_events()
+    if events is not None:
+        for kind in ("backup", "remote", "restore", "update"):
+            last = next((e for e in events if str(e.get("event", "")).startswith(kind + ".")), None)
+            if last and not last.get("ok", True):
+                when = _when(last.get("at"))
+                out.append(Alert("backup", f"{kind}_failed", f"{kind}_failed", "critical",
+                                 {"created": when.strftime("%Y-%m-%d %H:%M UTC") if when else "?",
+                                  "message": last.get("message") or "?"}))
     try:
-        jobs = [j for j in ctl.call("job", "list").get("jobs", []) if j.get("kind") == "backup"]
+        if events is None:  # older helper: look at the job list instead
+            jobs = [j for j in ctl.call("job", "list").get("jobs", []) if j.get("kind") == "backup"]
+            finished = [j for j in jobs if j.get("state") in ("done", "failed")]
+            if finished and finished[0].get("state") == "failed":
+                j = finished[0]
+                out.append(Alert("backup", "backup_failed", "backup_failed", "critical",
+                                 {"created": (j.get("created") or "")[:16].replace("T", " "),
+                                  "message": j.get("message") or "?"}))
         summary = ctl.call("backup", "list")
     except (HTTPException, AttributeError):
-        return []
-    finished = [j for j in jobs if j.get("state") in ("done", "failed")]
-    if finished and finished[0].get("state") == "failed":
-        j = finished[0]
-        out.append(Alert("backup", "backup_failed", "backup_failed", "critical",
-                         {"created": (j.get("created") or "")[:16].replace("T", " "), "message": j.get("message") or "?",
-                          "job": j.get("id")}))
+        return out
     cfg = summary.get("config") or {}
-    last = (summary.get("last") or {}).get("created")
-    if cfg.get("enabled", True) and last:
-        try:
-            when = datetime.fromisoformat(last.replace("Z", "+00:00"))
-        except ValueError:
-            when = None
-        if when and now - when > timedelta(hours=hours):
-            out.append(Alert("backup", "backup_overdue", "backup_overdue", "warning",
-                             {"last": when.strftime("%Y-%m-%d %H:%M UTC"), "hours": hours}))
+    when = _when((summary.get("last") or {}).get("created"))
+    if cfg.get("enabled", True) and when and now - when > timedelta(hours=hours):
+        out.append(Alert("backup", "backup_overdue", "backup_overdue", "warning",
+                         {"last": when.strftime("%Y-%m-%d %H:%M UTC"), "hours": hours}))
     return out
 
 

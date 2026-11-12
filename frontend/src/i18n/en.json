@@ -1423,8 +1423,8 @@
     "threshold_certificate": "Days before",
     "type_abuse": "Sender paused",
     "type_abuse_d": "A server or account was paused because it suddenly sent spam or a flood of mail.",
-    "type_backup": "Backup problem",
-    "type_backup_d": "A backup failed, or there has been no successful backup for a while.",
+    "type_backup": "Backup or update problem",
+    "type_backup_d": "A backup, remote copy, restore or update failed, or there has been no successful backup for a while.",
     "threshold_backup": "After hours",
     "general": "General",
     "language": "Language of the alerts",
@@ -1453,6 +1453,9 @@
     "code_abuse": "{{count}} sender(s) paused",
     "code_backup_failed": "Backup failed",
     "code_backup_overdue": "No recent backup",
+    "code_remote_failed": "Remote backup copy failed",
+    "code_restore_failed": "Restore failed",
+    "code_update_failed": "Update failed",
     "code_test": "Test notification"
   },
   "lists": {
