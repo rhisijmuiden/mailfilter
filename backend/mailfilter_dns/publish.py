@@ -117,6 +117,61 @@ def plan_dmarc(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
     return _txt_change(recs[0] if recs else None, name, value, "dmarc")
 
 
+def _one_change(existing: DnsRecord | None, after: dict, reason: str, same: bool) -> Change:
+    if existing is None:
+        return Change("create", after["type"], after["name"], None, after, reason)
+    return Change("none" if same else "update", after["type"], after["name"], existing.snapshot(), after, reason)
+
+
+def plan_mta_sts(cf: Cloudflare, zone: Zone, domain: str, txt: str, server: ServerConfig) -> list[Change]:
+    """``_mta-sts.<domain>`` TXT with the policy id, and ``mta-sts.<domain>``
+    pointing to Mailfilter (CNAME, not proxied) so it can serve the policy."""
+    # Order: the policy host first, then the TXT that tells senders to fetch it
+    domain = norm(domain)
+    host = f"mta-sts.{domain}"
+    after = {"type": "CNAME", "name": host, "content": server.hostname, "ttl": 1, "proxied": False}
+    changes: list[Change] = []
+    cnames = cf.records(zone, name=host, type="CNAME")
+    if cnames:
+        c = cnames[0]
+        changes.append(_one_change(c, {**after, "ttl": c.ttl}, "mta_sts_host",
+                                   norm(c.content) == server.hostname and not c.proxied))
+    else:
+        # A CNAME cannot sit next to other records with the same name
+        for t in ("A", "AAAA"):
+            changes += [Change("delete", t, host, r.snapshot(), None, "mta_sts_host") for r in cf.records(zone, name=host, type=t)]
+        changes.append(Change("create", "CNAME", host, None, after, "mta_sts_host"))
+    name = f"_mta-sts.{domain}"
+    cur = [r for r in _txt_records(cf, zone, name) if r.content.replace(" ", "").lower().startswith("v=stsv1")]
+    changes.append(_txt_change(cur[0] if cur else None, name, txt, "mta_sts"))
+    changes += [Change("delete", "TXT", name, r.snapshot(), None, "mta_sts") for r in cur[1:]]
+    return changes
+
+
+def plan_tls_rpt(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
+    from .tlssec import is_tlsrpt
+
+    name = f"_smtp._tls.{norm(domain)}"
+    cur = [r for r in _txt_records(cf, zone, name) if is_tlsrpt(r.content)]
+    if len(cur) > 1:
+        raise ValueError("multiple_tlsrpt")
+    return _txt_change(cur[0] if cur else None, name, value, "tls_rpt")
+
+
+def plan_tlsa(cf: Cloudflare, zone: Zone, host: str, value: str, port: int = 25) -> list[Change]:
+    """``_25._tcp.<host>`` TLSA with the server's key. Records with an old key go."""
+    from .tlssec import norm_tlsa, tlsa_name
+
+    name = tlsa_name(host, port)
+    value = norm_tlsa(value)
+    cur = cf.records(zone, name=name, type="TLSA")
+    keep = next((r for r in cur if norm_tlsa(r.content) == value), None)
+    after = {"type": "TLSA", "name": name, "content": value, "ttl": keep.ttl if keep else 1}
+    changes = [_one_change(keep, after, "tlsa", True)]
+    changes += [Change("delete", "TLSA", name, r.snapshot(), None, "tlsa") for r in cur if r is not keep]
+    return changes
+
+
 def plan_mx(cf: Cloudflare, zone: Zone, domain: str, targets: list[tuple[int, str]]) -> list[Change]:
     """Make the domain's MX records in Cloudflare exactly ``targets``
     ((priority, host) pairs). Records whose host stays are kept or get a new

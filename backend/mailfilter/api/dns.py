@@ -12,10 +12,10 @@ import logging
 import re
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from mailfilter_dns import blacklist, dkim, dmarc, domaincheck, golive, lookup, publish, spf
+from mailfilter_dns import blacklist, dkim, dmarc, domaincheck, golive, lookup, publish, spf, tlssec
 from mailfilter_dns.cloudflare import Cloudflare, CloudflareError
 from mailfilter_dns.config import ServerConfig, relay_domains
 from mailfilter_dns.resolver import DnsError, DnsResolver, Resolver, norm
@@ -25,6 +25,8 @@ from ..deps import DB, AdminUser, CurrentUser
 from ..settings_store import get_secret, set_secret
 
 router = APIRouter(prefix="/dns", tags=["dns"])
+# No login: Caddy asks whether it may get a certificate, and senders fetch MTA-STS policies
+public = APIRouter(prefix="/mta-sts", tags=["dns"])
 log = logging.getLogger("mailfilter.dns")
 
 TOKEN_KEY = "cloudflare_token"
@@ -47,6 +49,18 @@ def make_cloudflare(token: str) -> Cloudflare:
 
 def smtp_probe(host: str, ip: str):
     return lookup.default_probe(host, ip)
+
+
+def fetch_sts_policy(domain: str) -> str:
+    import httpx
+
+    r = httpx.get(f"https://mta-sts.{domain}/.well-known/mta-sts.txt", timeout=10, follow_redirects=False)
+    r.raise_for_status()
+    return r.text
+
+
+def local_tlsa(host: str) -> str | None:
+    return tlssec.local_tlsa(host)
 
 
 # Helpers ------------------------------------------------------------------------
@@ -159,14 +173,16 @@ def _cloudflare_view(cf: Cloudflare, d: str, items: list[dict]) -> None:
     if zone is None:
         return
     key = dkim.local_key(d)
-    names = {"spf": (d, spf.is_spf), "dmarc": (f"_dmarc.{d}", dmarc.is_dmarc)}
+    names = {"spf": (d, "TXT", spf.is_spf), "dmarc": (f"_dmarc.{d}", "TXT", dmarc.is_dmarc),
+             "mta_sts": (f"_mta-sts.{d}", "TXT", lambda t: t.replace(" ", "").lower().startswith("v=stsv1")),
+             "tls_rpt": (f"_smtp._tls.{d}", "TXT", tlssec.is_tlsrpt)}
     if key:
-        names["dkim"] = (key.name, lambda t: "p=" in t.replace(" ", ""))
+        names["dkim"] = (key.name, "TXT", lambda t: "p=" in t.replace(" ", ""))
     for item in items:
         if item["code"] not in names or item["status"] == "ok":
             continue
-        name, match = names[item["code"]]
-        recs = [r.content for r in cf.records(zone, name=name, type="TXT") if match(r.content)]
+        name, rtype, match = names[item["code"]]
+        recs = [r.content for r in cf.records(zone, name=name, type=rtype) if match(r.content)]
         if not recs:
             continue
         published = recs[0]
@@ -183,7 +199,8 @@ def _cloudflare_view(cf: Cloudflare, d: str, items: list[dict]) -> None:
 def check(domain: str, _: AdminUser, db: DB) -> dict:
     d = _domain(domain)
     server = get_server()
-    out = domaincheck.check_domain(d, server, get_resolver()).to_dict()
+    out = domaincheck.check_domain(d, server, get_resolver(), fetch_policy=fetch_sts_policy,
+                                   tlsa_expected=local_tlsa(server.hostname)).to_dict()
     out["managed"] = d in relay_domains()
     out["golive"] = golive.state(d)
     token = get_secret(db, TOKEN_KEY)
@@ -270,7 +287,7 @@ class MxIn(BaseModel):
 
 
 class PublishIn(BaseModel):
-    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf", "mx"]
+    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf", "mx", "mta_sts", "tls_rpt", "tlsa"]
     domain: str | None = None
     value: str | None = Field(default=None, max_length=2000)
     mx: list[MxIn] = Field(default=[], max_length=10)
@@ -278,7 +295,8 @@ class PublishIn(BaseModel):
 
 def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
     server = get_server()
-    target = server.spf_name if body.kind == "server_spf" else _domain(body.domain or "")
+    target = (server.spf_name if body.kind == "server_spf" else server.hostname if body.kind == "tlsa"
+              else _domain(body.domain or ""))
     zone = _zone(cf, target)
     plan = publish.Plan(zone.id, zone.name, target)
     try:
@@ -295,6 +313,18 @@ def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
             if key is None:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "no_dkim_key")
             plan.changes.append(publish.plan_dkim(cf, zone, key))
+        elif body.kind == "mta_sts":
+            pol = tlssec.get_policy(target)
+            if pol is None:
+                raise HTTPException(status.HTTP_409_CONFLICT, "no_mta_sts_policy")
+            plan.changes.extend(publish.plan_mta_sts(cf, zone, target, pol.txt, server))
+        elif body.kind == "tls_rpt":
+            plan.changes.append(publish.plan_tls_rpt(cf, zone, target, tlssec.tlsrpt_value(_split(body.value))))
+        elif body.kind == "tlsa":
+            value = local_tlsa(server.hostname)
+            if value is None:
+                raise HTTPException(status.HTTP_409_CONFLICT, "no_local_cert")
+            plan.changes.extend(publish.plan_tlsa(cf, zone, server.hostname, value))
         elif body.kind == "mx":
             if not body.mx:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "no_mx")
@@ -308,9 +338,15 @@ def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
         raise _cf_error(exc) from exc
     except (spf.SpfSyntaxError, dmarc.DmarcSyntaxError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid_record") from exc
-    except ValueError as exc:  # multiple_spf / multiple_dmarc
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except ValueError as exc:  # multiple_spf / multiple_dmarc, or invalid_email:... from TLS-RPT
+        code = str(exc)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST if code.startswith(("invalid_", "no_")) else status.HTTP_409_CONFLICT,
+                            code) from exc
     return plan
+
+
+def _split(v: str | None) -> list[str]:
+    return [x for x in re.split(r"[\s,;]+", v or "") if x]
 
 
 def _mx_host(host: str) -> str:
@@ -322,9 +358,11 @@ def _mx_host(host: str) -> str:
 
 def _warnings(body: PublishIn, plan: publish.Plan) -> list[str]:
     """Things to point out before an MX change is applied."""
+    server = get_server()
+    if body.kind == "tlsa":
+        return [] if tlssec.signed(server.hostname, get_resolver()) is not False else ["dnssec_off_host"]
     if body.kind != "mx":
         return []
-    server = get_server()
     hosts = [norm(m.host) for m in body.mx]
     out = []
     if server.hostname in hosts and plan.domain not in relay_domains():
@@ -371,6 +409,77 @@ def undo(batch: str, request: Request, user: AdminUser, db: DB) -> dict:
     audit(db, request, user, "dns.undo", batch, changes=len(done))
     db.commit()
     return {"undone": done}
+
+
+# MTA-STS, TLS-RPT and DANE ------------------------------------------------------------
+
+def _tlsrpt_default(d: str) -> str:
+    """Where TLS reports go by default: the DMARC report address, else tlsrpt@<domain>."""
+    try:
+        rec, _ = dmarc.find_dmarc(get_resolver().txt(f"_dmarc.{d}"))
+        rua = dmarc.parse(rec).get("rua", "") if rec else ""
+    except Exception:
+        rua = ""
+    first = rua.split(",")[0].strip()
+    return first.removeprefix("mailto:").split("!")[0] if first.startswith("mailto:") else f"tlsrpt@{d}"
+
+
+@router.get("/tls/{domain}")
+def tls_status(domain: str, _: AdminUser) -> dict:
+    d = _domain(domain)
+    server = get_server()
+    resolver = get_resolver()
+    try:
+        current = [m.host for m in resolver.mx(d)]
+    except DnsError:
+        current = []
+    pol = tlssec.get_policy(d)
+    dane = tlssec.dane_status(d, server.hostname, resolver, expected=local_tlsa(server.hostname))
+    return {
+        "domain": d, "hostname": server.hostname, "managed": d in relay_domains(),
+        "policy": pol.to_dict() if pol else None,
+        "policy_default": {"mode": "testing", "max_age": 604800, "mx": list(dict.fromkeys([server.hostname, *current]))},
+        "policy_url": f"https://mta-sts.{d}/.well-known/mta-sts.txt",
+        "tlsrpt_default": _tlsrpt_default(d),
+        "dane": dane.to_dict(),
+    }
+
+
+class StsIn(BaseModel):
+    mode: Literal["testing", "enforce", "none"] = "testing"
+    mx: list[str] = Field(default=[], max_length=20)
+    max_age: int = Field(default=604800, ge=86400, le=31557600)
+
+
+@router.put("/mta-sts/{domain}")
+def mta_sts_save(domain: str, body: StsIn, request: Request, user: AdminUser, db: DB) -> dict:
+    d = _domain(domain)
+    if d not in relay_domains():
+        raise HTTPException(status.HTTP_409_CONFLICT, "not_relay_domain")
+    try:
+        pol = tlssec.save_policy(d, body.mode, body.mx, body.max_age)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    audit(db, request, user, "dns.mta_sts_policy", d, mode=pol.mode, id=pol.id)
+    db.commit()
+    return pol.to_dict()
+
+
+@public.get("/allowed", include_in_schema=False)
+def mta_sts_allowed(domain: str = "") -> Response:
+    """Caddy asks this before it gets a certificate for a host name on demand."""
+    host = norm(domain)
+    ok = host.startswith("mta-sts.") and host[len("mta-sts."):] in relay_domains()
+    return Response(status_code=200 if ok else 404)
+
+
+@public.get("/policy", include_in_schema=False)
+def mta_sts_policy(request: Request) -> Response:
+    """Caddy rewrites ``https://mta-sts.<domain>/.well-known/mta-sts.txt`` to here."""
+    pol = tlssec.policy_for_host(request.headers.get("host", ""), lambda d: d in relay_domains())
+    if pol is None:
+        return Response("not found\n", status_code=404, media_type="text/plain")
+    return Response(pol.text(), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "max-age=300"})
 
 
 # Go-live -------------------------------------------------------------------------------

@@ -30,6 +30,8 @@ class Resolver(Protocol):
     def a(self, name: str) -> list[str]: ...
     def aaaa(self, name: str) -> list[str]: ...
     def ptr(self, ip: str) -> list[str]: ...
+    def tlsa(self, name: str) -> list[str]: ...
+    def secure(self, name: str, rdtype: str = "A") -> bool: ...
 
 
 def norm(name: str) -> str:
@@ -96,6 +98,28 @@ class DnsResolver:
         name = ipaddress.ip_address(ip).reverse_pointer
         return sorted(norm(rr.target.to_text()) for rr in self._query(name, "PTR"))
 
+    def tlsa(self, name: str) -> list[str]:
+        return sorted(f"{rr.usage} {rr.selector} {rr.mtype} {rr.cert.hex()}" for rr in self._query(name, "TLSA"))
+
+    def secure(self, name: str, rdtype: str = "A") -> bool:
+        """Whether the (validating) resolver marks the answer as DNSSEC-authenticated (AD flag)."""
+        import dns.flags
+        import dns.message
+        import dns.query
+        import dns.rcode
+
+        q = dns.message.make_query(name, rdtype, want_dnssec=True)
+        q.flags |= dns.flags.AD
+        for ns in self._r.nameservers:
+            try:
+                r = dns.query.udp(q, str(ns), timeout=self._r.timeout)
+            except Exception:  # try the next server
+                continue
+            if r.rcode() == dns.rcode.SERVFAIL:
+                raise DnsError(f"{name} {rdtype}: SERVFAIL (DNSSEC broken?)")
+            return bool(r.flags & dns.flags.AD)
+        raise DnsError(f"{name} {rdtype}: no name server answered")
+
 
 class StaticResolver:
     """Resolver with fixed answers, for tests and dry runs.
@@ -131,3 +155,13 @@ class StaticResolver:
 
     def ptr(self, ip):
         return [norm(h) for h in self._get(ip, "PTR")]
+
+    def tlsa(self, name):
+        return self._get(name, "TLSA")
+
+    def secure(self, name, rdtype="A"):
+        """Names listed under ``(name, "SECURE")`` with a true value are signed."""
+        val = self.records.get((norm(name), "SECURE"), False)
+        if isinstance(val, Exception):
+            raise val
+        return bool(val)
