@@ -201,6 +201,8 @@ class Applier:
                 if new_warnings:
                     raise ApplyError("postconf", "\n".join(sorted(new_warnings)))
                 self.run("rspamadm configtest", "rspamadm", "configtest")
+                for p in r.secret_files:
+                    self._check_ldap_table(p)
                 if DOVECOT_MAILTRAP in changed:
                     self.run("doveconf", "doveconf", "-n")
             except Exception:
@@ -261,6 +263,14 @@ class Applier:
             raise ApplyError("ldap",
                              "Postfix on this server cannot read LDAP yet (package postfix-ldap). "
                              "Update Mailfilter (or run the installer again) and try again.")
+
+    def _check_ldap_table(self, path: str) -> None:
+        """A table Postfix cannot read stops every SMTP session, so read it once first.
+        The address is outside the table's domain: nothing is sent to the LDAP server."""
+        res = self.run_cmd(("postmap", "-q", "mailfilter-check@invalid.invalid", f"ldap:{self.path(path)}"))
+        err = "\n".join(ln for ln in (res.stderr or "").splitlines() if "fatal" in ln or "error" in ln.lower())
+        if err:
+            raise ApplyError("ldap", err)
 
     def _remove_stale_ldap_maps(self, keep: set[str], report: Report) -> None:
         """LDAP tables of domains that no longer use LDAP: Postfix no longer reads them,

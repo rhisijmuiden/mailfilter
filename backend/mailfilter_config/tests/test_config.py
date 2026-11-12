@@ -437,3 +437,11 @@ class RecipientApplyTest(ApplyTest):
         with self.assertRaises(ApplyError) as e:
             Applier(srv, root=self.root).apply(GatewayConfig(hostname="mailfilter.rhis.nl", domains=[ldap_domain()]))
         self.assertEqual(e.exception.step, "ldap")
+
+    def test_unreadable_ldap_table_rolls_back(self):
+        srv = FakeServer(fail={"postmap -q"})
+        with self.assertRaises(ApplyError) as e:
+            Applier(srv, root=self.root).apply(GatewayConfig(hostname="mailfilter.rhis.nl", domains=[ldap_domain()]))
+        self.assertEqual(e.exception.step, "ldap")
+        self.assertFalse(os.path.exists(self.root + ldap_map_path("ad.example.nl")))
+        self.assertNotIn(["postfix", "reload"], srv.calls)

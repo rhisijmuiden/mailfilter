@@ -122,7 +122,7 @@ def render_ldap_cf(domain: str, src: LdapSource) -> str:
         "timeout = 10\n",
         # Active Directory answers with referrals to other partitions; following them
         # needs the same login there and slows every lookup down.
-        "chase_referrals = 0\n",
+        "chase_referrals = no\n",
     ]
     if src.bind_dn:
         lines += ["bind = yes\n", f"bind_dn = {src.bind_dn}\n", f"bind_pw = {src.bind_password}\n"]
