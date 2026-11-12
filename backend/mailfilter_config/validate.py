@@ -10,6 +10,7 @@ import ipaddress
 import re
 from dataclasses import dataclass
 
+from .rules import problems as rule_problems
 from .model import ALL_TLS_MODES, LISTENER_TLS, PROTOCOLS, TLS_MODES, GatewayConfig
 
 # Ports the gateway itself uses; an extra relay listener may not take them.
@@ -259,6 +260,8 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
         if int(getattr(dft, attr)) < 1:
             add(f"defaults.{attr}", "limit_invalid", "Limit must be a positive number.",
                 "Limiet moet een positief getal zijn.")
+    for p in rule_problems(cfg.custom_rules, {d.name for d in cfg.domains}):
+        add(*p)
     return problems
 
 

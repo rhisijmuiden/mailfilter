@@ -22,6 +22,7 @@ from mailfilter_dns.resolver import DnsError, DnsResolver, Resolver, norm
 
 from ..audit import audit
 from ..deps import DB, AdminUser, CurrentUser
+from ..dmarc import rua_address
 from ..settings_store import get_secret, set_secret
 
 router = APIRouter(prefix="/dns", tags=["dns"])
@@ -287,7 +288,7 @@ class MxIn(BaseModel):
 
 
 class PublishIn(BaseModel):
-    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf", "mx", "mta_sts", "tls_rpt", "tlsa"]
+    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf", "mx", "mta_sts", "tls_rpt", "tlsa", "dmarc_rua", "dmarc_policy", "dmarc_auth"]
     domain: str | None = None
     value: str | None = Field(default=None, max_length=2000)
     mx: list[MxIn] = Field(default=[], max_length=10)
@@ -295,8 +296,12 @@ class PublishIn(BaseModel):
 
 def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
     server = get_server()
-    target = (server.spf_name if body.kind == "server_spf" else server.hostname if body.kind == "tlsa"
-              else _domain(body.domain or ""))
+    if body.kind == "server_spf":
+        target = server.spf_name
+    elif body.kind in ("tlsa", "dmarc_auth"):
+        target = server.hostname  # dmarc_auth: *._report._dmarc.<hostname>, in the zone of the server's own name
+    else:
+        target = _domain(body.domain or "")
     zone = _zone(cf, target)
     plan = publish.Plan(zone.id, zone.name, target)
     try:
@@ -325,6 +330,14 @@ def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
             if value is None:
                 raise HTTPException(status.HTTP_409_CONFLICT, "no_local_cert")
             plan.changes.extend(publish.plan_tlsa(cf, zone, server.hostname, value))
+        elif body.kind == "dmarc_rua":
+            plan.changes.append(publish.plan_dmarc_merge(cf, zone, target, add_rua=rua_address(server.hostname)))
+        elif body.kind == "dmarc_policy":
+            if body.value not in dmarc.POLICIES:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid_policy")
+            plan.changes.append(publish.plan_dmarc_merge(cf, zone, target, policy=body.value))
+        elif body.kind == "dmarc_auth":
+            plan.changes.append(publish.plan_report_auth(cf, zone, server.hostname))
         elif body.kind == "mx":
             if not body.mx:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "no_mx")
@@ -338,7 +351,7 @@ def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
         raise _cf_error(exc) from exc
     except (spf.SpfSyntaxError, dmarc.DmarcSyntaxError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid_record") from exc
-    except ValueError as exc:  # multiple_spf / multiple_dmarc, or invalid_email:... from TLS-RPT
+    except ValueError as exc:  # multiple_spf / multiple_dmarc, no_dmarc, or invalid_email:... from TLS-RPT
         code = str(exc)
         raise HTTPException(status.HTTP_400_BAD_REQUEST if code.startswith(("invalid_", "no_")) else status.HTTP_409_CONFLICT,
                             code) from exc

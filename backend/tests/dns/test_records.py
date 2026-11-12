@@ -148,3 +148,22 @@ def test_dkim_verify():
 def test_reverse_name():
     assert reverse_name("192.0.2.10") == "10.2.0.192"
     assert reverse_name("2001:db8::1").startswith("1.0.0.0.") and reverse_name("2001:db8::1").endswith("8.b.d.0.1.0.0.2")
+
+
+def test_dmarc_merge_adds_rua_and_keeps_tags():
+    cur = "v=DMARC1; p=none; rua=mailto:x@dmarcian.com; fo=1"
+    assert dmarc.merge(cur, add_rua="dmarc-reports@mailfilter.rhis.nl") == \
+        "v=DMARC1; p=none; rua=mailto:x@dmarcian.com,mailto:dmarc-reports@mailfilter.rhis.nl; fo=1"
+    # idempotent, also with a size limit on our address
+    again = "v=DMARC1; p=none; rua=mailto:dmarc-reports@mailfilter.rhis.nl!10m"
+    assert dmarc.merge(again, add_rua="dmarc-reports@mailfilter.rhis.nl") == again
+    assert dmarc.merge("v=DMARC1; p=quarantine; sp=none", add_rua="a@b.nl") == "v=DMARC1; p=quarantine; sp=none; rua=mailto:a@b.nl"
+    assert dmarc.merge(None, add_rua="a@b.nl") == "v=DMARC1; p=none; rua=mailto:a@b.nl"
+
+
+def test_dmarc_merge_policy_drops_pct():
+    assert dmarc.merge("v=DMARC1; p=quarantine; pct=25; rua=mailto:a@b.nl", policy="reject") == \
+        "v=DMARC1; p=reject; rua=mailto:a@b.nl"
+    with pytest.raises(dmarc.DmarcSyntaxError):
+        dmarc.merge("v=DMARC1; p=bogus", policy="reject")
+    assert dmarc.rua_addresses({"rua": "mailto:A@B.nl!5m, https://x"}) == ["a@b.nl"]

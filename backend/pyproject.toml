@@ -25,6 +25,7 @@ test = ["pytest>=8"]
 
 [project.scripts]
 mailfilter-admin = "mailfilter.cli:main"
+mailfilter-dmarc-ingest = "mailfilter.dmarc.ingest:main"
 
 [tool.setuptools.packages.find]
 # mailfilter (web app) and the sibling packages mailfilter_tracer, _dns, _config, _pmg
@@ -32,6 +33,7 @@ include = ["mailfilter*"]
 
 [tool.setuptools.package-data]
 mailfilter = ["alembic.ini", "migrations/*.mako"]
+mailfilter_config = ["rspamd/*.lua"]
 
 [tool.pytest.ini_options]
 # tests/ = log collector (runs with Debian's python3-psycopg),

@@ -3,7 +3,9 @@ import type { ReactNode } from "react";
 import type { Me } from "./lib/auth";
 import Account from "./pages/Account";
 import Backups from "./pages/Backups";
+import CustomRules from "./pages/CustomRules";
 import Dashboard from "./pages/Dashboard";
+import Dmarc from "./pages/Dmarc";
 import Domains from "./pages/Domains";
 import Dns from "./pages/Dns";
 import MailSending from "./pages/MailSending";
@@ -20,9 +22,11 @@ export const ROUTES: AppRoute[] = [
   { path: "/", element: (me) => <Dashboard me={me} /> },
   { path: "/trace", element: () => <Trace /> },
   { path: "/quarantine", element: (me) => <Quarantine me={me} /> },
+  { path: "/dmarc", element: (me) => <Dmarc me={me} /> },
   { path: "/account", element: (me) => <Account me={me} /> },
   { path: "/domains", element: (me) => <Domains me={me} /> },
   { path: "/relay", element: (me) => <RelayAccess me={me} /> },
+  { path: "/rules", element: () => <CustomRules /> },
   { path: "/throttling", element: () => <Throttling />, adminOnly: true },
   { path: "/users", element: () => <Users />, adminOnly: true },
   { path: "/dns", element: () => <Dns />, adminOnly: true },
