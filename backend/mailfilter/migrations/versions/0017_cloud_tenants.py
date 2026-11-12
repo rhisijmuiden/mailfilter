@@ -1,14 +1,14 @@
 """Cloud mail: Microsoft 365 / Google Workspace tenants behind the gateway.
 
-Revision ID: 0016_cloud_tenants
-Revises: 0015_spam_feedback
+Revision ID: 0017_cloud_tenants
+Revises: 0016_usage_billing
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0016_cloud_tenants"
-down_revision = "0015_spam_feedback"
+revision = "0017_cloud_tenants"
+down_revision = "0016_usage_billing"
 branch_labels = None
 depends_on = None
 
