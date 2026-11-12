@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+- New README in English and Dutch with every feature.
+- Installation guide, user manual and administrator manual in English and Dutch (`docs/`, `docs/nl/`).
+
 ## 1.0.0 (2026-11-12)
 
 First official release of RHIS Mailfilter: an inbound and outbound mail filter gateway and trusted relay for Debian 13.
