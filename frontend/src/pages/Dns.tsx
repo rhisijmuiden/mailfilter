@@ -2,7 +2,7 @@
 // status, Cloudflare settings and the change log. Every write to Cloudflare is
 // shown as "current / new" first and can be undone from the change log.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, Pencil, Plus, RefreshCw, Rocket, Trash2, Undo2, X } from "lucide-react";
+import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, Lock, Pencil, Plus, RefreshCw, Rocket, Save, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
@@ -21,7 +21,7 @@ type MxRow = { priority: number; host: string };
 type MxCloudflare = { domain: string; zone: string; managed: boolean; hostname: string; mx_priority: number; golive: GoLiveState; records: MxRow[] };
 type Server = { hostname: string; addresses: string[]; spf_name: string; spf_include: string; domains: string[] };
 type CfStatus = { configured: boolean; status: string | null; zones: string[] };
-type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx";
+type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx" | "mta_sts" | "tls_rpt" | "tlsa";
 type Smtp = { reachable: boolean; starttls: boolean; tls_ok: boolean; error: string; cert: { matches: boolean; days_left: number | null } | null } | null;
 type MxResult = {
   domain: string; null_mx: boolean; implicit: boolean; error: string;
@@ -36,7 +36,7 @@ export type Blacklist = {
 };
 type Journal = { time: string; batch: string; actor: string; domain: string; action: string; reason: string; before: Rec | null; after: Rec | null; undo?: string }[];
 
-const TABS = ["check", "mx", "spf", "dmarc", "blacklist", "cloudflare", "journal"] as const;
+const TABS = ["check", "mx", "spf", "dmarc", "tls", "blacklist", "cloudflare", "journal"] as const;
 type Tab = (typeof TABS)[number];
 
 // --- small parts -------------------------------------------------------------
@@ -119,6 +119,7 @@ export default function Dns() {
           {tab === "mx" && <MxTab />}
           {tab === "spf" && <SpfTab />}
           {tab === "dmarc" && <DmarcTab />}
+          {tab === "tls" && <TlsTab />}
           {tab === "blacklist" && <BlacklistTab />}
           {tab === "cloudflare" && <CloudflareTab />}
           {tab === "journal" && <JournalTab />}
@@ -137,7 +138,8 @@ function CheckTab() {
   const domain = params.get("domain") ?? server.data?.domains[0] ?? "";
   const q = useQuery({ queryKey: ["dns-check", domain], queryFn: () => api.get<CheckResult>(`/dns/check/${encodeURIComponent(domain)}`), enabled: !!domain });
   const [publish, setPublish] = useState<{ kind: PublishKind; value?: string } | null>(null);
-  const kindFor: Record<string, PublishKind> = { spf: "spf", dkim: "dkim", dmarc: "dmarc" };
+  const kindFor: Record<string, PublishKind> = { spf: "spf", dkim: "dkim", dmarc: "dmarc", dane: "tlsa" };
+  const tlsItems = ["mta_sts", "tls_rpt", "dane"];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <DomainForm initial={domain} domains={server.data?.domains} placeholder={t("dns.domain_ph")} onSubmit={(d) => setParams((p) => { p.set("domain", d); return p; })} />
@@ -163,6 +165,11 @@ function CheckTab() {
                     </td>
                     <td className="nowrap" style={{ textAlign: "right" }}>
                       {i.fix && <CopyBtn text={i.fix} />}
+                      {tlsItems.includes(i.code) && i.status !== "ok" && (
+                        <button className="btn small ghost" type="button" onClick={() => setParams((p) => { p.set("tab", "tls"); return p; })}>
+                          <Lock /> {t("dns.tls.set_up")}
+                        </button>
+                      )}
                       {i.fix && kindFor[i.code] && (
                         <button className="btn small" type="button" onClick={() => setPublish({ kind: kindFor[i.code], value: i.code === "dmarc" ? i.fix! : undefined })}>
                           <Cloud /> {t("dns.publish")}
@@ -550,6 +557,140 @@ function DmarcTab() {
         </>
       )}
     </div>
+  );
+}
+
+// --- MTA-STS, TLS-RPT, DANE ----------------------------------------------------------------
+
+type StsPolicy = { domain: string; mode: "testing" | "enforce" | "none"; mx: string[]; max_age: number; id: string; updated: string; txt: string; policy: string };
+type TlsInfo = {
+  domain: string; hostname: string; managed: boolean; policy: StsPolicy | null; policy_url: string; tlsrpt_default: string;
+  policy_default: { mode: "testing" | "enforce" | "none"; max_age: number; mx: string[] };
+  dane: { host: string; name: string; expected: string | null; published: string[]; host_signed: boolean | null; domain_signed: boolean | null; problems: string[]; status: string };
+};
+
+function TlsTab() {
+  const { t } = useTranslation();
+  const [params, setParams] = useSearchParams();
+  const server = useServer();
+  const domain = params.get("domain") ?? server.data?.domains[0] ?? "";
+  const q = useQuery({ queryKey: ["dns-tls", domain], queryFn: () => api.get<TlsInfo>(`/dns/tls/${encodeURIComponent(domain)}`), enabled: !!domain });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <p className="muted" style={{ margin: 0 }}>{t("dns.tls.help")}</p>
+      <DomainForm initial={domain} domains={server.data?.domains} placeholder={t("dns.domain_ph")} onSubmit={(d) => setParams((p) => { p.set("domain", d); return p; })} />
+      {!domain ? <div className="empty">{t("dns.check_empty")}</div> : q.isLoading ? <Loading /> : q.error ? <ErrorText error={q.error} /> : q.data && (
+        <>
+          {!q.data.managed && <div className="callout warn"><Info /><span>{t("dns.not_managed", { domain })}</span></div>}
+          <StsCard info={q.data} onSaved={() => q.refetch()} />
+          <TlsRptCard info={q.data} />
+          <DaneCard info={q.data} onDone={() => q.refetch()} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function TlsCard({ icon, title, right, children }: { icon: ReactNode; title: string; right?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <span className="status s-info" style={{ padding: 4 }}>{icon}</span>
+        <h2>{title}</h2>
+        {right && <div className="right">{right}</div>}
+      </div>
+      <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
+    </section>
+  );
+}
+
+function StsCard({ info, onSaved }: { info: TlsInfo; onSaved: () => void }) {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const start = info.policy ?? info.policy_default;
+  const [f, setF] = useState({ mode: start.mode, mx: start.mx.join(" "), max_age: start.max_age });
+  useEffect(() => { const s2 = info.policy ?? info.policy_default; setF({ mode: s2.mode, mx: s2.mx.join(" "), max_age: s2.max_age }); }, [info]);
+  const [publish, setPublish] = useState(false);
+  const save = useMutation({
+    mutationFn: () => api.put<StsPolicy>(`/dns/mta-sts/${encodeURIComponent(info.domain)}`, { mode: f.mode, mx: f.mx.split(/[\s,]+/).filter(Boolean), max_age: f.max_age }),
+    onSuccess: () => { toast(t("common.saved")); onSaved(); },
+  });
+  const p = info.policy;
+  const dirty = !p || p.mode !== f.mode || p.max_age !== f.max_age || p.mx.join(" ") !== f.mx.split(/[\s,]+/).filter(Boolean).join(" ");
+  return (
+    <TlsCard icon={<Lock />} title={t("dns.tls.sts_title")} right={p ? <Pill s={p.mode === "enforce" ? "ok" : "weak"} label={t(`dns.tls.mode_${p.mode}`)} /> : <Pill s="missing" />}>
+      <p className="cell-sub" style={{ margin: 0 }}>{t("dns.tls.sts_help", { host: info.hostname })}</p>
+      <Field label={t("dns.tls.mode")} hint={t(`dns.tls.mode_${f.mode}_help`)}>
+        <div className="seg" role="group">
+          {(["testing", "enforce", "none"] as const).map((m) => <button key={m} type="button" aria-pressed={f.mode === m} onClick={() => setF({ ...f, mode: m })}>{t(`dns.tls.mode_${m}`)}</button>)}
+        </div>
+      </Field>
+      <div className="form-grid">
+        <Field label={t("dns.tls.mx")} hint={t("dns.tls.mx_hint")}><input className="input mono" value={f.mx} onChange={(e) => setF({ ...f, mx: e.target.value })} spellCheck={false} /></Field>
+        <Field label={t("dns.tls.max_age")}>
+          <select className="select" value={f.max_age} onChange={(e) => setF({ ...f, max_age: Number(e.target.value) })}>
+            {[86400, 604800, 2592000].map((n) => <option key={n} value={n}>{t(`dns.tls.age_${n}`)}</option>)}
+          </select>
+        </Field>
+      </div>
+      <ErrorText error={save.error} />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn primary" type="button" disabled={!dirty || save.isPending || !info.managed} onClick={() => save.mutate()}><Save /> {t("dns.tls.save_policy")}</button>
+        {p && <button className="btn" type="button" disabled={dirty} onClick={() => setPublish(true)}><Cloud /> {t("dns.publish")}</button>}
+        {p && <a className="btn ghost" href={info.policy_url} target="_blank" rel="noreferrer"><ExternalLink /> {t("dns.tls.open_policy")}</a>}
+      </div>
+      {p && (
+        <>
+          <div className="cell-sub" style={{ fontWeight: 650 }}>{t("dns.tls.policy_file")} · <span className="mono">{info.policy_url}</span></div>
+          <Code>{p.policy}</Code>
+          <div className="cell-sub" style={{ fontWeight: 650 }}>{t("dns.tls.records")}</div>
+          <Code>{`_mta-sts.${info.domain}  TXT  "${p.txt}"\nmta-sts.${info.domain}  CNAME  ${info.hostname}`}</Code>
+        </>
+      )}
+      {publish && <PublishModal kind="mta_sts" domain={info.domain} onClose={() => setPublish(false)} onDone={onSaved} />}
+    </TlsCard>
+  );
+}
+
+function TlsRptCard({ info }: { info: TlsInfo }) {
+  const { t } = useTranslation();
+  const [rua, setRua] = useState(info.tlsrpt_default);
+  useEffect(() => setRua(info.tlsrpt_default), [info.tlsrpt_default]);
+  const [open, setOpen] = useState(false);
+  return (
+    <TlsCard icon={<Info />} title={t("dns.tls.rpt_title")}>
+      <p className="cell-sub" style={{ margin: 0 }}>{t("dns.tls.rpt_help")}</p>
+      <Field label={t("dns.tls.rpt_rua")}><input className="input" value={rua} onChange={(e) => setRua(e.target.value)} spellCheck={false} /></Field>
+      <div><button className="btn" type="button" disabled={!rua.trim()} onClick={() => setOpen(true)}><Cloud /> {t("dns.publish")}</button></div>
+      {open && <PublishModal kind="tls_rpt" domain={info.domain} value={rua} onClose={() => setOpen(false)} />}
+    </TlsCard>
+  );
+}
+
+function DaneCard({ info, onDone }: { info: TlsInfo; onDone: () => void }) {
+  const { t } = useTranslation();
+  const d = info.dane;
+  const [open, setOpen] = useState(false);
+  const zoneRow = (label: string, v: boolean | null) => (
+    <><dt>{label}</dt><dd>{v === null ? <span className="muted">{t("dns.tls.unknown")}</span> : <Pill s={v ? "ok" : "bad"} label={t(v ? "dns.tls.signed" : "dns.tls.unsigned")} />}</dd></>
+  );
+  return (
+    <TlsCard icon={<ShieldCheck />} title={t("dns.tls.dane_title")} right={<Pill s={d.status} />}>
+      <p className="cell-sub" style={{ margin: 0 }}>{t("dns.tls.dane_help", { host: d.host })}</p>
+      <dl className="kv">
+        <dt>{t("dns.tls.record")}</dt><dd className="mono" style={{ fontSize: 12 }}>{d.name} TLSA</dd>
+        <dt>{t("dns.tls.expected")}</dt><dd className="mono" style={{ fontSize: 12, wordBreak: "break-all" }}>{d.expected ?? "–"}</dd>
+        <dt>{t("dns.tls.published")}</dt><dd className="mono" style={{ fontSize: 12, wordBreak: "break-all" }}>{d.published.join(" · ") || "–"}</dd>
+        {zoneRow(t("dns.tls.dnssec_host", { host: d.host }), d.host_signed)}
+        {zoneRow(t("dns.tls.dnssec_domain", { domain: info.domain }), d.domain_signed)}
+      </dl>
+      <Problems codes={d.problems} />
+      {(d.host_signed === false || d.domain_signed === false) && (
+        <div className="callout warn"><Info /><span>{t("dns.tls.dnssec_how")}</span></div>
+      )}
+      <div><button className="btn" type="button" disabled={!d.expected} onClick={() => setOpen(true)}><Cloud /> {t("dns.tls.publish_tlsa")}</button></div>
+      {open && <PublishModal kind="tlsa" domain={info.hostname} onClose={() => setOpen(false)} onDone={onDone} />}
+    </TlsCard>
   );
 }
 

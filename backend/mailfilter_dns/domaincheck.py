@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from typing import Callable
 
 from . import dkim as dkim_mod
 from . import dmarc as dmarc_mod
 from . import spf as spf_mod
+from . import tlssec
 from .config import ServerConfig
 from .lookup import check_ptr
 from .resolver import DnsError, Resolver, norm
@@ -14,7 +16,7 @@ from .resolver import DnsError, Resolver, norm
 
 @dataclass
 class Item:
-    code: str  # mx, spf, dkim, dmarc, ptr, mta_sts, tls_rpt
+    code: str  # mx, spf, dkim, dmarc, ptr, mta_sts, tls_rpt, dane
     status: str  # ok, weak, missing, bad, error
     value: str = ""
     problems: list[str] = field(default_factory=list)
@@ -38,15 +40,21 @@ def _txt(resolver: Resolver, name: str) -> list[str] | DnsError:
 
 
 def check_domain(domain: str, server: ServerConfig, resolver: Resolver,
-                 dkim_key: dkim_mod.DkimKey | None | bool = False) -> DomainCheck:
+                 dkim_key: dkim_mod.DkimKey | None | bool = False,
+                 fetch_policy: Callable[[str], str] | None = None,
+                 tlsa_expected: str | None | bool = False) -> DomainCheck:
+    """``fetch_policy(domain)`` returns the MTA-STS policy file (or raises);
+    without it only the MTA-STS TXT record is checked."""
     domain = norm(domain)
     out = DomainCheck(domain)
+    mx_hosts: list[str] = []
 
     # MX points to Mailfilter
     try:
         mxs = resolver.mx(domain)
         value = " ".join(f"{m.priority} {m.host}." for m in mxs)
         hosts = {m.host for m in mxs}
+        mx_hosts = [m.host for m in mxs]
         if not mxs:
             out.items.append(Item("mx", "missing"))
         elif hosts == {server.hostname}:
@@ -108,11 +116,44 @@ def check_domain(domain: str, server: ServerConfig, resolver: Resolver,
     out.items.append(Item("ptr", "ok" if server.addresses and not bad else "bad" if bad else "missing",
                           " · ".join(vals), [f"ptr:{ip}" for ip in bad]))
 
-    # MTA-STS and TLS reporting (optional, shown as advice)
+    # MTA-STS: TXT record plus the policy file it announces
     t = _txt(resolver, f"_mta-sts.{domain}")
-    sts = [] if isinstance(t, DnsError) else [x for x in t if x.lower().startswith("v=stsv1")]
-    out.items.append(Item("mta_sts", "ok" if sts else "missing", sts[0] if sts else ""))
+    sts = [] if isinstance(t, DnsError) else [x for x in t if x.replace(" ", "").lower().startswith("v=stsv1")]
+    if not sts:
+        out.items.append(Item("mta_sts", "missing"))
+    else:
+        probs: list[str] = ["multiple_mta_sts"] if len(sts) > 1 else []
+        st = "ok"
+        if fetch_policy is not None:
+            try:
+                pol = tlssec.parse_policy(fetch_policy(domain))
+            except Exception as exc:  # any fetch problem means senders cannot use the policy
+                pol = None
+                st = "bad"
+                probs.append(f"policy_unreachable:{type(exc).__name__} {str(exc)[:120]}")
+            if pol is not None:
+                mode = pol.get("mode", "")
+                if pol.get("version") != "STSv1" or mode not in tlssec.MODES:
+                    st = "bad"
+                    probs.append("policy_invalid")
+                elif mode != "enforce":
+                    st = "weak"
+                    probs.append(f"mode_{mode}")
+                for h in mx_hosts:
+                    if not tlssec.mx_matches(h, pol["mx"]):
+                        st = "bad" if mode == "enforce" else st
+                        probs.append(f"mx_not_in_policy:{h}")
+        elif probs:
+            st = "weak"
+        out.items.append(Item("mta_sts", st, sts[0], probs))
+
     t = _txt(resolver, f"_smtp._tls.{domain}")
-    rpt = [] if isinstance(t, DnsError) else [x for x in t if x.lower().startswith("v=tlsrptv1")]
-    out.items.append(Item("tls_rpt", "ok" if rpt else "missing", rpt[0] if rpt else ""))
+    rpt = [] if isinstance(t, DnsError) else [x for x in t if tlssec.is_tlsrpt(x)]
+    out.items.append(Item("tls_rpt", "ok" if len(rpt) == 1 else "bad" if rpt else "missing", rpt[0] if rpt else "",
+                          ["multiple_tlsrpt"] if len(rpt) > 1 else []))
+
+    # DANE for Mailfilter's own host name (what the MX points to)
+    dane = tlssec.dane_status(domain, server.hostname, resolver, expected=tlsa_expected)
+    out.items.append(Item("dane", dane.status, " · ".join(dane.published), dane.problems,
+                          dane.expected if dane.status in ("missing", "bad") and dane.expected else None))
     return out

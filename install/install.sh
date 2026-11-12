@@ -233,8 +233,14 @@ else
   render "$TPL/caddy/Caddyfile.acme" /etc/caddy/Caddyfile
   run systemctl restart caddy
   run certbot certonly --webroot -w /var/www/acme -d "$HOSTNAME_FQDN" \
-      --email "$ADMIN_EMAIL" --agree-tos --no-eff-email --non-interactive --key-type ecdsa
+      --email "$ADMIN_EMAIL" --agree-tos --no-eff-email --non-interactive --key-type ecdsa --reuse-key
   ok "Certificate issued for $HOSTNAME_FQDN"
+fi
+# DANE: the TLSA record holds the hash of the key, so renewals must keep the same key
+RENEWAL=/etc/letsencrypt/renewal/$HOSTNAME_FQDN.conf
+if [[ -f $RENEWAL ]] && ! grep -q '^reuse_key *= *True' "$RENEWAL"; then
+  sed -i '/^reuse_key/d; /^\[renewalparams\]/a reuse_key = True' "$RENEWAL"
+  ok "Certificate renewals keep the same key (needed for DANE)"
 fi
 install -D -m 0755 "$TPL/certbot/deploy-hook.sh" /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh
 if [[ -d /etc/letsencrypt/live ]]; then /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh 2>/dev/null || true; fi
