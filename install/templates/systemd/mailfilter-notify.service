@@ -1,0 +1,18 @@
+[Unit]
+Description=Mailfilter: send alerts by e-mail, Telegram and webhook
+Documentation=https://github.com/rhisijmuiden/mailfilter
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+ExecStart=/var/lib/mailfilter/venv/bin/mailfilter-admin notify-check
+# No NoNewPrivileges: the queue and backup checks use the same sudo helpers as the web app.
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter
+Nice=5
+TimeoutStartSec=5min

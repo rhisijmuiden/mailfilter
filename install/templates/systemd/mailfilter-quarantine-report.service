@@ -1,0 +1,15 @@
+# Managed by Mailfilter. Sends the daily quarantine report (the hour is set in the web interface).
+[Unit]
+Description=Mailfilter daily quarantine report
+After=network.target postgresql.service postfix.service
+
+[Service]
+Type=oneshot
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+ExecStart=/var/lib/mailfilter/venv/bin/mailfilter-admin quarantine-report
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter

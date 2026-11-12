@@ -72,7 +72,7 @@ export function Layout({ me }: { me: Me }) {
               <div key={g} style={{ display: "contents" }}>
                 <div className="group">{t(`nav.group.${g}`)}</div>
                 {list.map((n) => (
-                  <NavLink key={n.to} to={n.to} end={n.to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>
+                  <NavLink key={n.to} to={n.to} end className={({ isActive }) => (isActive ? "active" : "")}>
                     <n.icon aria-hidden />
                     <span>{t(n.label)}</span>
                     {n.badge && !!BADGES[n.badge] && <span className="count">{BADGES[n.badge]}</span>}

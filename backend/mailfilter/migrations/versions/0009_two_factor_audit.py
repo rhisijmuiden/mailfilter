@@ -1,14 +1,14 @@
 """Two-factor login (TOTP) and audit log filtering.
 
-Revision ID: 0007_2fa_audit
-Revises: 0006_dmarc
+Revision ID: 0009_2fa_audit
+Revises: 0008_cluster
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0007_2fa_audit"
-down_revision = "0006_dmarc"
+revision = "0009_2fa_audit"
+down_revision = "0008_cluster"
 branch_labels = None
 depends_on = None
 

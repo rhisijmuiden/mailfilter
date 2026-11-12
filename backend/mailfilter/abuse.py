@@ -29,7 +29,6 @@ from . import queuectl
 from .audit import audit
 from .gateway import apply_changes
 from .models import OutboundHold, TraceMessage, User
-from .settings import get_settings
 from .settings_store import get_setting, set_setting
 
 log = logging.getLogger("mailfilter.abuse")
@@ -179,6 +178,7 @@ def scan(db: Session, now: datetime | None = None) -> list[OutboundHold]:
         audit(db, None, None, "sender_paused", h.value, kind=h.kind, reason=h.reason, **h.detail)
     db.commit()
     notify(db, new)
+    db.commit()
     return new
 
 
@@ -225,16 +225,10 @@ def release(db: Session, h: OutboundHold, user: User, held_mail: Literal["delive
 
 # ---- alert ----------------------------------------------------------------------------
 def notify(db: Session, holds: list[OutboundHold]) -> None:
-    from .mailer import MailError, send
+    """Announce new pauses on every channel chosen in Settings > Notifications."""
+    from .notify import Alert, event
 
     s = load_settings(db)
-    to = set(s.notify)
-    if get_settings().admin_email:
-        to.add(get_settings().admin_email)
-    to |= set(db.execute(select(User.email).where(User.role == "admin", User.is_active.is_(True))).scalars())
-    if not to:
-        return
-    host = get_settings().hostname
     lines_en, lines_nl = [], []
     for h in holds:
         d = h.detail
@@ -244,19 +238,7 @@ def notify(db: Session, holds: list[OutboundHold]) -> None:
         else:
             lines_en.append(f"- {h.value}: {d['total']} messages in {d['minutes']} minutes (usually about {d['usual']})")
             lines_nl.append(f"- {h.value}: {d['total']} berichten in {d['minutes']} minuten (normaal ongeveer {d['usual']})")
-    text = (
-        "Mailfilter paused these senders because they suddenly sent spam or far more mail than usual.\n"
-        "Their mail is kept on hold: nothing was lost and nothing was sent.\n\n"
-        + "\n".join(lines_en)
-        + f"\n\nCheck the server or account, then release it at https://{host}/relay\n\n"
-        "----------------------------------------------------------------------\n\n"
-        "Mailfilter heeft deze afzenders gepauzeerd omdat ze ineens spam of veel meer mail dan normaal verstuurden.\n"
-        "Hun mail wordt vastgehouden: er is niets verloren gegaan en niets verstuurd.\n\n"
-        + "\n".join(lines_nl)
-        + f"\n\nControleer de server of het account en geef hem daarna vrij op https://{host}/relay\n"
-    )
-    subject = f"Mailfilter: {len(holds)} sender(s) paused / afzender(s) gepauzeerd"
-    try:
-        send(db, sorted(to), subject, text)
-    except MailError as e:
-        log.error("alert mail not sent: %s", e)
+    a = Alert("abuse", "abuse", "abuse:" + ",".join(sorted(h.value for h in holds)), "critical",
+              {"count": len(holds), "senders": ", ".join(h.value for h in holds[:5]),
+               "lines_en": "\n".join(lines_en), "lines_nl": "\n".join(lines_nl)})
+    event(db, a, extra_email=s.notify)

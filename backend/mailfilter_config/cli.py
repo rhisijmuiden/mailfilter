@@ -3,6 +3,7 @@
   mailfilter-config apply   [--state FILE | --stdin] [--no-reload] [--json]
   mailfilter-config check   [--state FILE | --stdin] [--json]
   mailfilter-config render  [--state FILE] --out DIR
+  mailfilter-config dkim    --stdin --json   (cluster: export or import DKIM keys)
   mailfilter-config seed    [--relay-net CIDR]... [--relay-port PORT]...
                             [--domain NAME --destination HOST[:PORT]] [--no-reload]
 
@@ -96,7 +97,25 @@ def main(argv: list[str] | None = None) -> int:
             sp.add_argument("--relay-port", action="append", type=int, default=[])
             sp.add_argument("--domain")
             sp.add_argument("--destination")
+    dk = sub.add_parser("dkim", help="export or import DKIM keys (JSON request on stdin)")
+    dk.add_argument("--stdin", action="store_true", required=True)
+    dk.add_argument("--json", action="store_true", required=True)
     args = ap.parse_args(argv)
+
+    if args.cmd == "dkim":
+        from .dkim_sync import handle
+        raw = sys.stdin.read(50_000_001)
+        try:
+            if len(raw) > 50_000_000:
+                raise ValueError("request is too large")
+            print(json.dumps(handle(json.loads(raw))))
+            return 0
+        except (ValueError, TypeError) as e:
+            print(json.dumps({"ok": False, "step": "input", "output": str(e)}))
+            return 1
+        except OSError as e:
+            print(json.dumps({"ok": False, "step": "write", "output": str(e)}))
+            return 2
 
     if args.cmd == "seed":
         cfg = load_state(args.state) if os.path.exists(args.state) else import_legacy()

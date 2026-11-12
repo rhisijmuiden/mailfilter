@@ -9,6 +9,7 @@ import { useMe } from "./lib/auth";
 import Login from "./pages/Login";
 import TwoFactorGate from "./pages/TwoFactorGate";
 import NotFound from "./pages/NotFound";
+import ReportAction from "./pages/ReportAction";
 import { ROUTES } from "./routes";
 import "./styles/index.css";
 
@@ -35,12 +36,18 @@ function App() {
   );
 }
 
+// The links in the daily quarantine report work without logging in.
+function Root() {
+  const m = window.location.pathname.match(/^\/report\/([^/]+)$/);
+  return m ? <ReportAction token={decodeURIComponent(m[1])} /> : <App />;
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ToastProvider>
-          <App />
+          <Root />
         </ToastProvider>
       </BrowserRouter>
     </QueryClientProvider>

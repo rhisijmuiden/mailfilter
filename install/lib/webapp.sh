@@ -24,6 +24,10 @@ install_webapp() {
   run "$MF_VENV/bin/mailfilter-admin" migrate
   ok "Database schema up to date"
 
+  # Allow/block lists from the web interface, read by Rspamd (multimap.conf).
+  install -d -o mailfilter -g mailfilter -m 0755 "$MF_VAR/lists"
+  run runuser -u mailfilter -- "$MF_VENV/bin/mailfilter-admin" write-lists
+
   info "Building the web interface"
   (cd "$MF_SRC/frontend" && run npm ci --no-audit --no-fund --loglevel=error && run npm run build)
   ok "Web interface built"
@@ -36,8 +40,11 @@ install_webapp() {
   chmod 0755 "$MF_SRC/backend/bin/mf-queuectl"
 
   install -m 0644 "$TPL/systemd/mailfilter-web.service" /etc/systemd/system/mailfilter-web.service
+  install -m 0644 "$TPL/systemd/mailfilter-quarantine-report.service" /etc/systemd/system/mailfilter-quarantine-report.service
+  install -m 0644 "$TPL/systemd/mailfilter-quarantine-report.timer" /etc/systemd/system/mailfilter-quarantine-report.timer
   run systemctl daemon-reload
   run systemctl enable mailfilter-web
+  run systemctl enable --now mailfilter-quarantine-report.timer
   run systemctl restart mailfilter-web
 
   # Every minute: pause relay IPs and SMTP accounts that suddenly send spam or a flood of mail
@@ -45,6 +52,18 @@ install_webapp() {
   install -m 0644 "$TPL/systemd/mailfilter-abuse.timer" /etc/systemd/system/mailfilter-abuse.timer
   run systemctl daemon-reload
   run systemctl enable --now mailfilter-abuse.timer
+
+  # Every two minutes: alerts by e-mail, Telegram and webhook (Settings > Notifications)
+  install -m 0644 "$TPL/systemd/mailfilter-notify.service" /etc/systemd/system/mailfilter-notify.service
+  install -m 0644 "$TPL/systemd/mailfilter-notify.timer" /etc/systemd/system/mailfilter-notify.timer
+  run systemctl daemon-reload
+  run systemctl enable --now mailfilter-notify.timer
+
+  # Every minute: cluster nodes check each other and exchange configuration (idle on a single server)
+  install -m 0644 "$TPL/systemd/mailfilter-cluster.service" /etc/systemd/system/mailfilter-cluster.service
+  install -m 0644 "$TPL/systemd/mailfilter-cluster.timer" /etc/systemd/system/mailfilter-cluster.timer
+  run systemctl daemon-reload
+  run systemctl enable --now mailfilter-cluster.timer
 
   if ! "$MF_VENV/bin/mailfilter-admin" has-users; then
     local pw

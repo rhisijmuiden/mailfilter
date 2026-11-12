@@ -48,7 +48,23 @@ Settings live in `/etc/mailfilter/backup.json` and can be changed in the web int
 | `keep_full` | `4` | Number of full backups (with their incrementals) to keep |
 | `location` | `/var/backups/mailfilter` | Folder for the backups |
 
-Remote locations (FTP, FTPS, SCP) come in a later version.
+## Remote copies (SCP, FTPS, FTP)
+
+Under **System > Backups > Remote copy** you set up a second server that receives a copy of every backup. After each backup (also the nightly one) the new full or incremental backup is uploaded; **Copy now** catches up on anything that failed earlier. Old chains are removed remotely after the number of full backups you choose. A failed copy does not fail the local backup: it shows on the Backups page and is sent as a `remote.failed` event (see below).
+
+* **SCP / SFTP** (recommended): Mailfilter makes an SSH key pair in `/etc/mailfilter/backup-ssh/`. Add the public key shown in the settings to `~/.ssh/authorized_keys` on the backup server. The first **Save and test connection** stores the server's fingerprint; a changed key is refused until you press **Forget fingerprint**.
+* **FTPS**: FTP with explicit TLS (TLS 1.2 or newer, encrypted data connections). The certificate is checked unless you switch that off for a self-signed one.
+* **FTP**: only inside a trusted network, the password travels unencrypted.
+
+Files are encrypted with AES-256 (GnuPG) before they leave the server; only `manifest.json` (dates, sizes, checksums) stays readable, so the list of remote backups works without the passphrase. **Store the passphrase in your password manager**: you need it to restore on a new server. Settings live in `/etc/mailfilter/backup-remote.json`, the FTP password and passphrase in `backup-remote.secret.json` (root only).
+
+Remote layout: `<folder>/<chain>/<NNN>/` with `*.gpg` files and `manifest.json`, which is uploaded last and marks a complete backup.
+
+Command line: `mailfilterctl remote show|set|test|list|sync|forget-hostkey`, for example `mailfilterctl remote set protocol=scp host=backup.example.org username=mf enabled=true`.
+
+## Events and hooks
+
+Every finished task emits an event: `backup.succeeded|failed`, `remote.succeeded|failed`, `restore.succeeded|failed`, `update.succeeded|failed`. They are kept in `/var/lib/mailfilterctl/events.jsonl` (`mailfilterctl events`, API `GET /api/system/events`) and given as JSON on stdin (name in `$MF_EVENT`) to every executable in `/etc/mailfilter/hooks.d/` that is owned by root and not writable by others. Hooks have 60 seconds and cannot make a task fail. This is where alerts plug in.
 
 ## Restoring
 
@@ -61,7 +77,7 @@ Choose a backup in the web interface and press **Restore**, or run `mailfilterct
 5. restores the database and the spam filter learning data;
 6. runs the installer with the restored settings and starts everything again.
 
-With `--only files,database,redis` you restore only some parts. This also works on a freshly installed server: install Mailfilter, copy the backup folder to `/var/backups/mailfilter` and restore it.
+With `--only files,database,redis` you restore only some parts. This also works on a freshly installed server: install Mailfilter, copy the backup folder to `/var/backups/mailfilter` and restore it, or set up the remote location with the same passphrase and choose **Show remote backups > Restore** (`mailfilterctl restore ID --from-remote`).
 
 ## E-mail sending
 

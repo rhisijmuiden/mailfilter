@@ -145,7 +145,7 @@ run apt-get update
 PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
-      nodejs npm sudo git zstd curl dnsutils ca-certificates jq crowdsec)
+      nodejs npm sudo git zstd gnupg openssh-client curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
@@ -363,8 +363,10 @@ ok "$(jq '.relay_networks | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0
 chown -R root:root "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
 chmod -R go-w "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
 SUDOERS_TMP=$(mktemp)
-printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s apply --stdin --json\n' \
-  "$(readlink -f "$MF_SRC/backend/bin/mailfilter-config")" >"$SUDOERS_TMP"
+# Second line: a cluster node exports and imports DKIM keys, so all nodes sign with the same key.
+MFC_BIN=$(readlink -f "$MF_SRC/backend/bin/mailfilter-config")
+printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s apply --stdin --json\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s dkim --stdin --json\n' \
+  "$MFC_BIN" "$MFC_BIN" >"$SUDOERS_TMP"
 run visudo -cf "$SUDOERS_TMP"
 install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/mailfilter-config
 rm -f "$SUDOERS_TMP"
@@ -415,6 +417,8 @@ fi
 step "Updates and backups"
 render "$TPL/mailfilterctl.wrapper" /usr/local/sbin/mailfilterctl 0755
 install -d -m 0700 /var/lib/mailfilterctl /var/backups/mailfilter
+# Executables here get every system event (failed backups, updates) as JSON; see ops/mailfilterctl/events.py
+install -d -m 0755 -o root -g root "$MF_ETC/hooks.d"
 install -m 0644 "$TPL/systemd/mailfilter-backup.service" /etc/systemd/system/mailfilter-backup.service
 install -m 0644 "$TPL/systemd/mailfilter-backup.timer" /etc/systemd/system/mailfilter-backup.timer
 install -m 0440 "$TPL/sudoers-mailfilterctl" /etc/sudoers.d/mailfilterctl
@@ -441,7 +445,7 @@ ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minu
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer mailfilter-notify.timer mailfilter-cluster.timer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do

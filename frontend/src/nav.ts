@@ -1,6 +1,6 @@
 // The left menu. Each feature adds its entries here; `group` decides the section.
 import type { LucideIcon } from "lucide-react";
-import { AtSign, DatabaseBackup, FileInput, Gauge, Globe, LayoutDashboard, Network, KeyRound, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { AtSign, BellRing, Boxes, DatabaseBackup, FileInput, Gauge, Globe, KeyRound, LayoutDashboard, ListChecks, MailCheck, Network, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 export type NavGroup = "overview" | "mail" | "config" | "system";
 
@@ -20,6 +20,8 @@ export const NAV: NavItem[] = [
   { to: "/", label: "nav.dashboard", icon: LayoutDashboard, group: "overview" },
   { to: "/trace", label: "nav.trace", icon: Search, group: "mail" },
   { to: "/quarantine", label: "nav.quarantine", icon: ShieldAlert, group: "mail", badge: "quarantine" },
+  { to: "/lists", label: "nav.lists", icon: ListChecks, group: "mail" },
+  { to: "/quarantine/report", label: "nav.quarantine_report", icon: MailCheck, group: "mail" },
   { to: "/dmarc", label: "nav.dmarc", icon: ShieldCheck, group: "mail" },
   { to: "/domains", label: "nav.domains", icon: AtSign, group: "config" },
   { to: "/relay", label: "nav.relay", icon: Network, group: "config" },
@@ -30,6 +32,8 @@ export const NAV: NavItem[] = [
   { to: "/system/security", label: "nav.security", icon: KeyRound, group: "system", adminOnly: true },
   { to: "/audit", label: "nav.audit", icon: ScrollText, group: "system" },
   { to: "/system/mail", label: "nav.mail_sending", icon: Send, group: "system", adminOnly: true },
+  { to: "/system/notifications", label: "nav.notifications", icon: BellRing, group: "system", adminOnly: true },
+  { to: "/system/cluster", label: "nav.cluster", icon: Boxes, group: "system", adminOnly: true },
   { to: "/system/backups", label: "nav.backups", icon: DatabaseBackup, group: "system", adminOnly: true },
   { to: "/system/import-pmg", label: "nav.import_pmg", icon: FileInput, group: "system", adminOnly: true },
 ];
