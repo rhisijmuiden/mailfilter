@@ -24,7 +24,7 @@ import mailfilter_config as mfc
 from mailfilter_config.rules import rule_from_dict
 
 from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, OutboundHold,
-                     RelayNetwork, RelayPort, TlsPolicy)
+                     RelayNetwork, RelayPort, SmtpAccount, TlsPolicy)
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
 
@@ -58,7 +58,8 @@ def build_config(db: Session) -> mfc.GatewayConfig:
         own_addresses=[a for a in (s.public_v4, s.public_v6) if a],
         domains=[
             mfc.Domain(
-                name=r.domain.name, destinations=[_dest(d) for d in r.destinations], enabled=r.enabled,
+                name=r.domain.name, kind=r.kind or "transport", sender_lock=bool(r.sender_lock),
+                destinations=[_dest(d) for d in r.destinations] if r.kind != "relay" else [], enabled=r.enabled,
                 tls=r.tls, verify_recipients=r.verify_recipients, note=r.note,
                 queue=mfc.QueuePolicy(concurrency=r.concurrency, rate_delay=r.rate_delay),
                 outbound=mfc.OutboundLimits(per_hour=r.out_per_hour, per_day=r.out_per_day),
@@ -84,6 +85,9 @@ def build_config(db: Session) -> mfc.GatewayConfig:
         holds=[mfc.OutboundHold(kind=h.kind, value=h.value, reason=hold_reason_text(h))
                for h in db.execute(select(OutboundHold).where(OutboundHold.released_at.is_(None))
                                    .order_by(OutboundHold.id)).scalars()],
+        smtp_accounts=[mfc.SmtpAccount(username=a.username, password_hash=a.password_hash, domain=a.domain.name,
+                                       enabled=a.enabled, description=a.description)
+                       for a in db.execute(select(SmtpAccount).order_by(SmtpAccount.username)).scalars()],
         defaults=defaults(db),
         custom_rules=custom_rules(db),
     )

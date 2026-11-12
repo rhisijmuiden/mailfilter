@@ -19,6 +19,10 @@ class DomainRoute(Base):
 
     __tablename__ = "domain_route"
     domain_id: Mapped[int] = mapped_column(ForeignKey("domain.id", ondelete="CASCADE"), primary_key=True)
+    # transport: receives mail and delivers it to `destinations`; relay: outbound only (no destinations).
+    kind: Mapped[str] = mapped_column(String(10), default="transport")
+    # Relay IPs and SMTP accounts linked to the domain may only send as @domain.
+    sender_lock: Mapped[bool] = mapped_column(Boolean, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     tls: Mapped[str] = mapped_column(String(10), default="may")
     verify_recipients: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -62,6 +66,23 @@ class RelayNetwork(Base):
     allow_broad: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     domain: Mapped[Domain | None] = relationship(lazy="joined")
+
+
+class SmtpAccount(Base):
+    """A login for sending mail through the gateway (ports 587/465 and extra relay ports).
+
+    Belongs to one domain, so customers can manage the accounts of their own
+    domains. Dovecot checks the password against password_hash."""
+
+    __tablename__ = "smtp_account"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True)
+    domain_id: Mapped[int] = mapped_column(ForeignKey("domain.id", ondelete="CASCADE"), index=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(String(200), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    domain: Mapped[Domain] = relationship(lazy="joined")
 
 
 class RelayPort(Base):

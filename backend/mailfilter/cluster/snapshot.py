@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session
 
 from .. import __version__
 from ..models import (AddressRoute, AppSetting, ClusterNode, DestinationPolicy, DigestDomain, Domain, DomainDestination,
-                      DomainRoute, RelayNetwork, RelayPort, SenderListEntry, TlsPolicy, User)
+                      DomainRoute, RelayNetwork, RelayPort, SenderListEntry, SmtpAccount, TlsPolicy, User)
 from ..settings import get_settings
 from ..settings_store import _fernet, set_secret, set_setting
 from . import state
@@ -47,14 +47,15 @@ SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp"
                              "quarantine_report", "security"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
-                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain)
+                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount)
 
 # Changes to these columns alone are not configuration changes.
 LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at", "totp_last_step"}), ClusterNode: ClusterNode.LOCAL,
-                 SenderListEntry: frozenset({"created_at"})}
+                 SenderListEntry: frozenset({"created_at"}), SmtpAccount: frozenset({"created_at"})}
+ACCOUNT_FIELDS = ("password_hash", "description", "enabled")
 LIST_FIELDS = ("list", "comment", "created_by")
 
-ROUTE_FIELDS = ("enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note")
+ROUTE_FIELDS = ("kind", "sender_lock", "enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note")
 DEST_FIELDS = ("host", "port", "mx", "protocol")
 USER_FIELDS = ("name", "password_hash", "role", "language", "is_active")
 
@@ -107,6 +108,8 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
             for n in db.execute(select(RelayNetwork).order_by(RelayNetwork.cidr)).scalars()
         ],
     }
+    gateway["smtp_accounts"] = [{**_pick(a, ("username", *ACCOUNT_FIELDS)), "domain": a.domain.name}
+                                for a in db.execute(select(SmtpAccount).order_by(SmtpAccount.username)).scalars()]
     for section, (model, key, fields) in SIMPLE.items():
         gateway[section] = [_pick(r, (key, *fields)) for r in db.execute(select(model).order_by(getattr(model, key))).scalars()]
 
@@ -201,6 +204,22 @@ def _import_networks(db: Session, items: list[dict], domains: dict[str, Domain])
         owner = domains.get(str(i.get("domain") or "").lower())
         n.domain_id = owner.id if owner else None
         db.add(n)
+
+
+def _import_accounts(db: Session, items: list[dict] | None, domains: dict[str, Domain]) -> None:
+    if items is None:  # snapshot from a version without SMTP accounts: leave ours alone
+        return
+    have = {a.username: a for a in db.execute(select(SmtpAccount)).scalars()}
+    wanted = {str(i["username"]).lower(): i for i in items if domains.get(str(i.get("domain") or "").lower())}
+    for name, a in have.items():
+        if name not in wanted:
+            db.delete(a)
+    db.flush()
+    for name, i in wanted.items():
+        a = have.get(name) or SmtpAccount(username=name)
+        _put(a, i, ACCOUNT_FIELDS)
+        a.domain_id = domains[str(i["domain"]).lower()].id
+        db.add(a)
 
 
 def _import_simple(db: Session, model, key: str, fields: tuple[str, ...], items: list[dict]) -> None:
@@ -353,6 +372,7 @@ def apply_snapshot(db: Session, snap: dict[str, Any], *, joining: bool = False) 
     g = snap.get("gateway") or {}
     domains = _import_domains(db, g.get("domains", []))
     _import_networks(db, g.get("relay_networks", []), domains)
+    _import_accounts(db, g.get("smtp_accounts"), domains)
     for section, (model, key, fields) in SIMPLE.items():
         _import_simple(db, model, key, fields, g.get(section, []))
     _import_users(db, snap.get("users", []), domains)

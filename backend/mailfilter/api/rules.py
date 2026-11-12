@@ -41,7 +41,7 @@ class DomainChoice(BaseModel):
 def _domains(db, user: User) -> list[str]:
     """Domains that mail is filtered for (configured in Domains) that this user may see."""
     names = list(db.execute(select(Domain.name).join(DomainRoute, DomainRoute.domain_id == Domain.id)
-                            .order_by(Domain.name)).scalars())
+                            .where(DomainRoute.kind == "transport").order_by(Domain.name)).scalars())
     allowed = visible_domains(user)
     return names if allowed is None else [n for n in names if n in allowed]
 

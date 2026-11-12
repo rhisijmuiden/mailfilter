@@ -7,6 +7,9 @@ the mail server straight away (see mailfilter.gateway.apply_changes).
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import secrets
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -21,7 +24,7 @@ from ..audit import audit
 from ..deps import DB, AdminUser, CurrentUser, visible_domains
 from ..gateway import DEFAULTS_KEY, LAST_APPLY_KEY, apply_changes, defaults, ensure_imported, problems_detail
 from ..models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, RelayNetwork, RelayPort,
-                      TlsPolicy, User)
+                      SmtpAccount, TlsPolicy, User)
 from ..settings_store import get_setting, set_setting
 
 router = APIRouter(prefix="/gateway", tags=["gateway"])
@@ -39,7 +42,11 @@ class DestinationIO(BaseModel):
 
 class DomainIn(BaseModel):
     name: str = Field(min_length=3, max_length=253)
-    destinations: list[DestinationIO] = Field(min_length=1, max_length=10)
+    # transport: receives mail and delivers it to `destinations`; relay: outbound only.
+    kind: Literal["transport", "relay"] = "transport"
+    # Transport domains need at least one; mailfilter_config says so in both languages.
+    destinations: list[DestinationIO] = Field(default=[], max_length=10)
+    sender_lock: bool = False
     enabled: bool = True
     tls: Literal["may", "encrypt", "verify"] = "may"
     verify_recipients: bool = True
@@ -55,6 +62,7 @@ class DomainOut(DomainIn):
     configured: bool  # False: the domain exists (e.g. for users) but mail is not routed yet
     users: list[str] = []
     relay_networks: int = 0
+    smtp_accounts: int = 0
 
 
 class NetworkIn(BaseModel):
@@ -141,11 +149,13 @@ def _commit(db, request: Request, user: User, action: str, target: str, **detail
 def _domain_out(db, dom: Domain, route: DomainRoute | None) -> DomainOut:
     users = list(db.execute(select(User.email).join(User.domains).where(Domain.id == dom.id).order_by(User.email)).scalars())
     nets = db.execute(select(func.count()).select_from(RelayNetwork).where(RelayNetwork.domain_id == dom.id)).scalar_one()
+    accounts = db.execute(select(func.count()).select_from(SmtpAccount).where(SmtpAccount.domain_id == dom.id)).scalar_one()
     if route is None:
         return DomainOut(id=dom.id, name=dom.name, configured=False, destinations=[DestinationIO(host="-")],
-                         users=users, relay_networks=nets)
+                         users=users, relay_networks=nets, smtp_accounts=accounts)
     return DomainOut(
-        id=dom.id, name=dom.name, configured=True, users=users, relay_networks=nets,
+        id=dom.id, name=dom.name, configured=True, users=users, relay_networks=nets, smtp_accounts=accounts,
+        kind=route.kind or "transport", sender_lock=bool(route.sender_lock),
         destinations=[DestinationIO(host=d.host, port=d.port, mx=d.mx, protocol=d.protocol) for d in route.destinations],
         enabled=route.enabled, tls=route.tls, verify_recipients=route.verify_recipients, concurrency=route.concurrency,
         rate_delay=route.rate_delay, out_per_hour=route.out_per_hour, out_per_day=route.out_per_day, note=route.note,
@@ -153,10 +163,12 @@ def _domain_out(db, dom: Domain, route: DomainRoute | None) -> DomainOut:
 
 
 def _set_route(route: DomainRoute, body: DomainIn) -> None:
-    for f in ("enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note"):
+    for f in ("kind", "sender_lock", "enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour",
+              "out_per_day", "note"):
         setattr(route, f, getattr(body, f))
+    dests = body.destinations if body.kind == "transport" else []  # a relay domain delivers nothing
     route.destinations = [DomainDestination(domain_id=route.domain_id, position=i, host=d.host.strip(), port=d.port,
-                                            mx=d.mx, protocol=d.protocol) for i, d in enumerate(body.destinations)]
+                                            mx=d.mx, protocol=d.protocol) for i, d in enumerate(dests)]
 
 
 def _scoped_domain(db, user: User, name: str | None) -> Domain | None:
@@ -220,7 +232,7 @@ def create_domain(body: DomainIn, request: Request, admin: AdminUser, db: DB) ->
     route = DomainRoute(domain_id=dom.id)
     _set_route(route, body)
     db.add(route)
-    _commit(db, request, admin, "domain_created", name, destinations=[d.host for d in body.destinations])
+    _commit(db, request, admin, "domain_created", name, kind=body.kind, destinations=[d.host for d in route.destinations])
     return _domain_out(db, dom, route)
 
 
@@ -234,8 +246,8 @@ def update_domain(domain_id: int, body: DomainIn, request: Request, admin: Admin
         route = DomainRoute(domain_id=domain_id)
         db.add(route)
     _set_route(route, body)
-    _commit(db, request, admin, "domain_updated", dom.name, destinations=[d.host for d in body.destinations],
-            enabled=body.enabled)
+    _commit(db, request, admin, "domain_updated", dom.name, kind=body.kind,
+            destinations=[d.host for d in route.destinations], enabled=body.enabled, sender_lock=body.sender_lock)
     return _domain_out(db, dom, route)
 
 
@@ -316,6 +328,128 @@ def delete_network(net_id: int, request: Request, user: CurrentUser, db: DB) -> 
     cidr = n.cidr
     db.delete(n)
     _commit(db, request, user, "relay_network_deleted", cidr)
+
+
+# ---- DNS records for a domain (also for customers) ------------------------------------
+@router.get("/domains/{domain_id}/records")
+def domain_records(domain_id: int, user: CurrentUser, db: DB) -> dict:
+    """The DKIM record Mailfilter signs with and what SPF and DMARC should contain.
+
+    Read from this server only (no DNS lookups), so customers can see what to
+    put in their DNS; admins check and publish through the DNS toolbox."""
+    from mailfilter_dns import dkim as dkim_mod
+
+    from ..api.dns import get_server
+    from ..dmarc import rua_address
+
+    dom = db.get(Domain, domain_id)
+    scope = visible_domains(user)
+    if dom is None or (scope is not None and dom.name not in scope):
+        raise _not_found()
+    server = get_server()
+    key = dkim_mod.local_key(dom.name)
+    return {
+        "domain": dom.name,
+        "dkim": {"name": key.name, "selector": key.selector, "type": "TXT", "value": key.record,
+                 "key_type": key.key_type} if key else None,
+        "spf_include": server.spf_include,
+        "spf_new": f"v=spf1 {server.spf_include} ~all",
+        "dmarc_name": f"_dmarc.{dom.name}",
+        "dmarc_suggested": f"v=DMARC1; p=none; rua=mailto:{rua_address(server.hostname)}",
+    }
+
+
+# ---- SMTP accounts ---------------------------------------------------------------------
+class AccountIn(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    domain: str = Field(min_length=3, max_length=253)
+    description: str = Field(default="", max_length=200)
+    enabled: bool = True
+
+
+class AccountOut(AccountIn):
+    id: int
+
+
+class AccountCreated(AccountOut):
+    password: str  # shown once
+
+
+def make_password() -> str:
+    return secrets.token_urlsafe(18)  # 24 characters, ~144 bits
+
+
+def dovecot_hash(password: str) -> str:
+    """Dovecot's {SSHA512}: base64(sha512(password + salt) + salt). Passwords are
+    always generated (long and random), so a fast salted hash is enough."""
+    salt = secrets.token_bytes(16)
+    return "{SSHA512}" + base64.b64encode(hashlib.sha512(password.encode() + salt).digest() + salt).decode()
+
+
+def _acc_out(a: SmtpAccount) -> AccountOut:
+    return AccountOut(id=a.id, username=a.username, domain=a.domain.name, description=a.description, enabled=a.enabled)
+
+
+def _visible_account(db, user: User, acc_id: int) -> SmtpAccount:
+    a = db.get(SmtpAccount, acc_id)
+    scope = visible_domains(user)
+    if a is None or (scope is not None and a.domain.name not in scope):
+        raise _not_found()
+    return a
+
+
+@router.get("/smtp-accounts", response_model=list[AccountOut])
+def list_accounts(user: CurrentUser, db: DB, domain: str | None = None) -> list[AccountOut]:
+    q = select(SmtpAccount).join(Domain, SmtpAccount.domain_id == Domain.id).order_by(SmtpAccount.username)
+    scope = visible_domains(user)
+    if scope is not None:
+        q = q.where(Domain.name.in_(scope or [""]))
+    if domain:
+        q = q.where(func.lower(Domain.name) == domain.strip().lower())
+    return [_acc_out(a) for a in db.execute(q).scalars()]
+
+
+@router.post("/smtp-accounts", response_model=AccountCreated, status_code=201)
+def create_account(body: AccountIn, request: Request, user: CurrentUser, db: DB) -> AccountCreated:
+    dom = _scoped_domain(db, user, body.domain)
+    username = body.username.strip().lower()
+    if db.execute(select(SmtpAccount).where(SmtpAccount.username == username)).scalar_one_or_none():
+        raise HTTPException(status.HTTP_409_CONFLICT, "account_exists")
+    password = make_password()
+    a = SmtpAccount(username=username, domain_id=dom.id, password_hash=dovecot_hash(password),
+                    description=body.description.strip(), enabled=body.enabled)
+    db.add(a)
+    _commit(db, request, user, "smtp_account_added", username, domain=dom.name)
+    db.refresh(a)
+    return AccountCreated(**_acc_out(a).model_dump(), password=password)
+
+
+@router.put("/smtp-accounts/{acc_id}", response_model=AccountOut)
+def update_account(acc_id: int, body: AccountIn, request: Request, user: CurrentUser, db: DB) -> AccountOut:
+    a = _visible_account(db, user, acc_id)
+    dom = _scoped_domain(db, user, body.domain)
+    a.domain_id, a.description, a.enabled = dom.id, body.description.strip(), body.enabled
+    _commit(db, request, user, "smtp_account_updated", a.username, enabled=a.enabled)
+    db.refresh(a)
+    return _acc_out(a)
+
+
+@router.post("/smtp-accounts/{acc_id}/password", response_model=AccountCreated)
+def reset_account_password(acc_id: int, request: Request, user: CurrentUser, db: DB) -> AccountCreated:
+    a = _visible_account(db, user, acc_id)
+    password = make_password()
+    a.password_hash = dovecot_hash(password)
+    _commit(db, request, user, "smtp_account_password_reset", a.username)
+    db.refresh(a)
+    return AccountCreated(**_acc_out(a).model_dump(), password=password)
+
+
+@router.delete("/smtp-accounts/{acc_id}", status_code=204)
+def delete_account(acc_id: int, request: Request, user: CurrentUser, db: DB) -> None:
+    a = _visible_account(db, user, acc_id)
+    name = a.username
+    db.delete(a)
+    _commit(db, request, user, "smtp_account_deleted", name)
 
 
 # ---- extra relay ports -------------------------------------------------------------
