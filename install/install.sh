@@ -441,7 +441,7 @@ ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minu
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
