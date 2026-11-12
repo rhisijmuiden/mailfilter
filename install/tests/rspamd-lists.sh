@@ -58,6 +58,13 @@ expect_none spam@bad.example piet@klant.nl
 expect_none factuur@leverancier.nl piet@klant.nl
 out=$(printf '%s' "$msg" | rspamc -h 127.0.0.1:11334 -i 192.0.2.10 -F spam@bad.example -r jan@klant.nl 2>&1 || true)
 if grep -q "Action: reject" <<<"$out"; then echo "PASS blocked sender is refused"; else echo "FAIL blocked sender not refused"; fail=1; fi
+# Spam reports (lua.local.d/mailfilter_reports.lua): mail only for the report
+# addresses is accepted unfiltered, even from a blocked sender; mail that also
+# goes to a real mailbox is filtered as usual.
+out=$(printf '%s' "$msg" | rspamc -h 127.0.0.1:11334 -i 192.0.2.10 -F spam@bad.example -r spam@mailfilter01.example.nl 2>&1 || true)
+if grep -q "Symbol: MF_SPAM_REPORT" <<<"$out" && grep -q "Action: no action" <<<"$out"; then echo "PASS spam report accepted unfiltered"; else echo "FAIL spam report not accepted"; indent "$out"; fail=1; fi
+out=$(printf '%s' "$msg" | rspamc -h 127.0.0.1:11334 -i 192.0.2.10 -F spam@bad.example -r notspam@mailfilter01.example.nl -r jan@klant.nl 2>&1 || true)
+if grep -q "Action: reject" <<<"$out" && ! grep -q "Symbol: MF_SPAM_REPORT" <<<"$out"; then echo "PASS report address next to a real mailbox is filtered"; else echo "FAIL report address next to a real mailbox skipped the filter"; indent "$out"; fail=1; fi
 if [[ $fail != 0 ]]; then
   echo "--- rspamd log"; tail -40 /tmp/rspamd.log
   echo "--- multimap rules Rspamd loaded"; rspamadm configdump multimap 2>&1 | grep -E '^MF_LIST|selector' | head -30

@@ -21,12 +21,13 @@ mynetworks = 127.0.0.0/8 [::1]/128 cidr:/etc/mailfilter/postfix/relay_networks.c
 
 # Domains we accept mail for, and where we deliver it (managed in "Domains")
 relay_domains = hash:/etc/mailfilter/postfix/relay_domains
-transport_maps = inline:{ dmarc-reports@{{HOSTNAME}}=mfdmarc: }, hash:/etc/mailfilter/postfix/transport
+transport_maps = inline:{ dmarc-reports@{{HOSTNAME}}=mfdmarc:, spam@{{HOSTNAME}}=mfreport:, notspam@{{HOSTNAME}}=mfreport: }, hash:/etc/mailfilter/postfix/transport
 
-# DMARC reports that other providers send about our domains (rua=mailto:dmarc-reports@{{HOSTNAME}}).
-# Only this one address exists on the server's own name; the mfdmarc pipe in master.cf stores them.
+# DMARC reports that other providers send about our domains (rua=mailto:dmarc-reports@{{HOSTNAME}}),
+# and spam reports from end users (spam@ and notspam@, Outlook's Report button forwards there).
+# Only these addresses exist on the server's own name; the mfdmarc and mfreport pipes in master.cf handle them.
 virtual_mailbox_domains = {{HOSTNAME}}
-virtual_mailbox_maps = inline:{ dmarc-reports@{{HOSTNAME}}=dmarc }
+virtual_mailbox_maps = inline:{ dmarc-reports@{{HOSTNAME}}=dmarc, spam@{{HOSTNAME}}=report, notspam@{{HOSTNAME}}=report }
 # Check with the destination server that a recipient exists before accepting (no backscatter).
 # Switched on per domain in recipient_verify (domain -> reject_unverified_recipient).
 address_verify_map = lmdb:$data_directory/verify_cache
@@ -107,6 +108,8 @@ broken_sasl_auth_clients = no
 
 # Mailtrap pipe: one delivery per message with all its recipients
 mftrap_destination_recipient_limit = 1000
+# Spam report pipe: one recipient per delivery (the address says spam or not spam)
+mfreport_destination_recipient_limit = 1
 
 # Queues: Postfix schedules each destination domain separately, so one slow or
 # broken destination never blocks the others. Limits per destination:
