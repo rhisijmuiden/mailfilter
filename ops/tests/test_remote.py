@@ -190,7 +190,7 @@ def _ftp_server(tmp_path, tls):
     pytest.importorskip("pyftpdlib")
     from pyftpdlib.authorizers import DummyAuthorizer
     from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
-    from pyftpdlib.servers import ThreadedFTPServer
+    from pyftpdlib.servers import FTPServer
 
     home = tmp_path / "ftp-home"
     home.mkdir()
@@ -213,7 +213,9 @@ def _ftp_server(tmp_path, tls):
     Handler.authorizer = auth
     Handler.passive_ports = None
     Handler.auth_failed_timeout = 0  # answer a wrong password at once
-    server = ThreadedFTPServer(("127.0.0.1", 0), Handler)
+    # One event loop, not ThreadedFTPServer: its per-session threads share the
+    # pyOpenSSL context and now and then broke TLS handshakes (FTPS test flaked).
+    server = FTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, kwargs={"timeout": 0.2}, daemon=True).start()
     return server, home
 
