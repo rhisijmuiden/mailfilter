@@ -24,7 +24,7 @@ import mailfilter_config as mfc
 from mailfilter_config.rules import rule_from_dict
 
 from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, MailTrap, OutboundHold,
-                     RelayNetwork, RelayPort, SmtpAccount, TlsPolicy)
+                     RelayNetwork, RelayPort, SmtpAccount, TlsPolicy, User)
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
 
@@ -56,8 +56,21 @@ def _dest(d) -> mfc.Destination:
     return mfc.Destination(host=d.host, port=d.port, mx=d.mx, protocol=d.protocol)
 
 
+def customer_sender_domains(db: Session) -> dict[str, list[str]]:
+    """For every domain that belongs to a customer account: all domains of the
+    customer(s) it belongs to. Relay networks of such a domain may only send
+    with those domains as envelope sender."""
+    out: dict[str, set[str]] = {}
+    for u in db.execute(select(User).where(User.role == "customer")).scalars():
+        names = {d.name.lower() for d in u.domains}
+        for name in names:
+            out.setdefault(name, set()).update(names)
+    return {k: sorted(v) for k, v in out.items()}
+
+
 def build_config(db: Session) -> mfc.GatewayConfig:
     s = get_settings()
+    customer_senders = customer_sender_domains(db)
     routes = db.execute(select(DomainRoute).join(Domain).order_by(Domain.name)).scalars().all()
     return mfc.GatewayConfig(
         hostname=s.hostname if s.hostname != "localhost" else "",
@@ -74,7 +87,8 @@ def build_config(db: Session) -> mfc.GatewayConfig:
         ],
         relay_networks=[
             mfc.RelayNetwork(cidr=n.cidr, description=n.description, customer=n.domain.name if n.domain else None,
-                             enabled=n.enabled, allow_broad=n.allow_broad)
+                             enabled=n.enabled, allow_broad=n.allow_broad,
+                             senders=customer_senders.get(n.domain.name.lower(), []) if n.domain else [])
             for n in db.execute(select(RelayNetwork).order_by(RelayNetwork.id)).scalars()
         ],
         relay_ports=[mfc.RelayPort(port=p.port, tls=p.tls, description=p.description)

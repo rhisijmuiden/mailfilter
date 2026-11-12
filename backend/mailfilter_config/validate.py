@@ -201,6 +201,15 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
                 f"'{n.cidr}' is geen IP-adres of netwerk.")
             continue
         n.cidr = str(net.network_address) if net.prefixlen == net.max_prefixlen else str(net)
+        senders = []
+        for d in n.senders or []:
+            nd = normalise_domain(str(d))
+            if not nd:
+                add(f"{f}.senders", "sender_domain_invalid", f"'{d}' is not a valid domain name.",
+                    f"'{d}' is geen geldige domeinnaam.")
+            elif nd not in senders:
+                senders.append(nd)
+        n.senders = sorted(senders)
         if n.cidr in nets_seen:
             add(f"{f}.cidr", "network_duplicate", f"{n.cidr} is listed twice.", f"{n.cidr} staat er twee keer in.")
         nets_seen.add(n.cidr)

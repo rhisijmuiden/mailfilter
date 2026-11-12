@@ -12,7 +12,8 @@ from sqlalchemy import delete, func, select
 from .. import twofactor
 from ..audit import audit
 from ..deps import DB, AdminUser
-from ..models import AuthSession, Domain, User
+from ..gateway import apply_changes, customer_sender_domains, ensure_imported
+from ..models import AuthSession, Domain, RelayNetwork, User
 from ..security import MIN_PASSWORD_LENGTH, generate_password, hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -61,6 +62,17 @@ def _domains(db, names: list[str]) -> list[Domain]:
     return found
 
 
+def _relock(db, before: dict[str, list[str]]) -> None:
+    """Relay networks of customer domains may only send as that customer's
+    domains: when the customer/domain links change, write the gateway again."""
+    after = customer_sender_domains(db)
+    changed = {d for d in set(before) | set(after) if before.get(d) != after.get(d)}
+    if changed and db.execute(select(RelayNetwork.id).join(Domain, RelayNetwork.domain_id == Domain.id)
+                              .where(func.lower(Domain.name).in_(changed)).limit(1)).first():
+        ensure_imported(db)
+        apply_changes(db)
+
+
 @router.get("/domain-options", response_model=list[str])
 def domain_options(_: AdminUser, db: DB) -> list[str]:
     return list(db.execute(select(Domain.name).order_by(Domain.name)).scalars())
@@ -77,6 +89,7 @@ def create_user(body: UserIn, request: Request, admin: AdminUser, db: DB) -> Use
     if db.execute(select(User).where(func.lower(User.email) == email)).scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, "email_exists")
     password = body.password or generate_password()
+    before = customer_sender_domains(db)
     u = User(
         email=email, name=body.name.strip(), role=body.role, language=body.language,
         is_active=body.is_active, password_hash=hash_password(password),
@@ -84,6 +97,7 @@ def create_user(body: UserIn, request: Request, admin: AdminUser, db: DB) -> Use
     u.domains = _domains(db, body.domains)
     db.add(u)
     db.flush()
+    _relock(db, before)
     audit(db, request, admin, "user_created", email, role=body.role, domains=body.domains)
     db.commit()
     return UserCreated(**out(u).model_dump(), password=None if body.password else password)
@@ -96,6 +110,7 @@ def update_user(user_id: int, body: UserIn, request: Request, admin: AdminUser, 
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
     if u.id == admin.id and (body.role != "admin" or not body.is_active):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "cannot_demote_self")
+    before = customer_sender_domains(db)
     u.email = body.email.strip().lower()
     u.name = body.name.strip()
     u.role = body.role
@@ -107,6 +122,8 @@ def update_user(user_id: int, body: UserIn, request: Request, admin: AdminUser, 
         db.execute(delete(AuthSession).where(AuthSession.user_id == u.id))
     if not u.is_active:
         db.execute(delete(AuthSession).where(AuthSession.user_id == u.id))
+    db.flush()
+    _relock(db, before)
     audit(db, request, admin, "user_updated", u.email, role=u.role, domains=body.domains, active=u.is_active)
     db.commit()
     return out(u)
@@ -119,8 +136,11 @@ def delete_user(user_id: int, request: Request, admin: AdminUser, db: DB) -> Non
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
     if u.id == admin.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "cannot_delete_self")
+    before = customer_sender_domains(db)
     audit(db, request, admin, "user_deleted", u.email)
     db.delete(u)
+    db.flush()
+    _relock(db, before)
     db.commit()
 
 

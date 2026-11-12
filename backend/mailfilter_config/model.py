@@ -78,6 +78,10 @@ class RelayNetwork:
     enabled: bool = True
     # Networks larger than /16 (IPv4) or /32 (IPv6) are refused unless set.
     allow_broad: bool = False
+    # Sender domains this network may use (envelope sender). Filled for networks
+    # of customer domains: all domains of that customer. Empty = no lock here
+    # (the domain's own sender_lock still applies).
+    senders: list[str] = field(default_factory=list)
 
 
 @dataclass
