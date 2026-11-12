@@ -19,7 +19,7 @@ OUTBOUND_TRANSPORTS = ("smtp",)
 @dataclass
 class Recipient:
     address: str
-    status: str = "queued"  # queued, sent, deferred, bounced, expired, quarantined, rejected
+    status: str = "queued"  # queued, sent, deferred, bounced, expired, quarantined, held, rejected
     dsn: str = ""
     reply: str = ""
     relay_host: str = ""
@@ -54,7 +54,7 @@ class Message:
 
     @property
     def status(self) -> str:
-        """Overall status: delivered, partly_delivered, deferred, bounced, quarantined, rejected or queued."""
+        """Overall status: delivered, partly_delivered, deferred, bounced, quarantined, held, rejected or queued."""
         states = {r.status for r in self.recipients.values()}
         if not states:
             return "rejected" if self.done and not self.recipients else "queued"
@@ -62,6 +62,8 @@ class Message:
             return "delivered"
         if "quarantined" in states:
             return "quarantined"
+        if "held" in states:  # outbound sender paused by Mailfilter; not a spam verdict
+            return "held"
         if states <= {"rejected"}:
             return "rejected"
         if "sent" in states and states & {"bounced", "expired", "rejected"}:
@@ -141,6 +143,12 @@ class Tracker:
             r = msg.rcpt(d["to"])
             r.status, r.reply, r.updated, r.explain = "quarantined", d["reply"], ev.ts, "quarantine"
             msg.sender = msg.sender if msg.sender is not None else d["sender"]
+        elif ev.kind == "access_hold":
+            r = msg.rcpt(d["to"])
+            r.status, r.reply, r.updated, r.explain = "held", d["reply"], ev.ts, "outbound_paused"
+            msg.sender = msg.sender if msg.sender is not None else d["sender"]
+            msg.client_host, msg.client_ip = msg.client_host or d.get("host", ""), msg.client_ip or d.get("ip")
+            msg.direction = "outbound"
         elif ev.kind == "milter_reject":
             r = msg.rcpt(d["to"])
             r.status, r.dsn, r.reply, r.updated = "rejected", d["dsn"], d["reply"], ev.ts
