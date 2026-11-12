@@ -4,6 +4,7 @@
   mailfilter-admin create-admin EMAIL          create an admin (prints a generated password)
   mailfilter-admin set-password EMAIL          set a new generated password
   mailfilter-admin has-users                   exit 0 when at least one user exists
+  mailfilter-admin abuse-scan                  pause senders that suddenly send spam (run by a timer)
 """
 
 from __future__ import annotations
@@ -42,12 +43,19 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("set-password")
     s.add_argument("email")
     sub.add_parser("has-users")
+    sub.add_parser("abuse-scan")
     args = p.parse_args(argv)
 
     if args.cmd == "migrate":
         migrate()
         return 0
     with session() as db:
+        if args.cmd == "abuse-scan":
+            from .abuse import scan
+
+            for h in scan(db):
+                print(f"paused {h.kind} {h.value}: {h.reason}")
+            return 0
         if args.cmd == "has-users":
             return 0 if db.execute(select(func.count(User.id))).scalar_one() else 1
         email = args.email.strip().lower()

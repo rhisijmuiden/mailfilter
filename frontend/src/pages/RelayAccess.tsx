@@ -3,6 +3,7 @@ import { Network, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import GatewayError from "../components/GatewayError";
+import PausedSenders, { PauseButton } from "../components/PausedSenders";
 import { Card, Loading, PageHead, useToast } from "../components/ui";
 import { api } from "../lib/api";
 import type { Me } from "../lib/auth";
@@ -14,6 +15,7 @@ export default function RelayAccess({ me }: { me: Me }) {
   return (
     <>
       <PageHead title={t("relay.title")} sub={admin ? t("relay.sub") : t("relay.sub_customer")} />
+      <PausedSenders admin={admin} />
       <Networks admin={admin} />
       {admin && <Ports />}
     </>
@@ -106,10 +108,13 @@ function Networks({ admin }: { admin: boolean }) {
                     </label>
                   </td>
                   <td style={{ textAlign: "right" }}>
-                    <button className="icon-btn" aria-label={t("common.delete")}
-                      onClick={() => window.confirm(t("relay.delete_confirm", { cidr: n.cidr })) && del.mutate(n.id)}>
-                      <Trash2 />
-                    </button>
+                    <span style={{ display: "inline-flex", gap: 6 }}>
+                      {admin && !n.cidr.includes("/") && <PauseButton ip={n.cidr} />}
+                      <button className="icon-btn" aria-label={t("common.delete")}
+                        onClick={() => window.confirm(t("relay.delete_confirm", { cidr: n.cidr })) && del.mutate(n.id)}>
+                        <Trash2 />
+                      </button>
+                    </span>
                   </td>
                 </tr>
               ))}

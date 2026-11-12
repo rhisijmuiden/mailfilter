@@ -15,6 +15,8 @@ PF = f"{ETC}/postfix"
 # Every main.cf parameter this package sets starts with one of these, so
 # stale ones (from a removed domain) can be found and deleted.
 MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_")
+# Standard Postfix parameters this package owns completely (always set).
+MANAGED_PARAMS = ("smtpd_end_of_data_restrictions",)
 BEGIN = "# BEGIN mailfilter-config (managed by the web interface, do not edit)"
 END = "# END mailfilter-config"
 
@@ -172,6 +174,18 @@ def render(cfg: GatewayConfig) -> Rendered:
     )
 
     out.files["/etc/rspamd/local.d/ratelimit.conf"] = render_ratelimit(cfg, domains)
+
+    # ---- paused senders: their mail goes to the hold queue (nothing is lost) --------
+    hold_ip, hold_sasl = [HEADER], [HEADER]
+    for h in sorted(cfg.holds, key=lambda h: (h.kind, h.value)):
+        text = f"HOLD Paused by Mailfilter: {_clean(h.reason) or 'unusual outbound mail'}\n"
+        (hold_ip if h.kind == "ip" else hold_sasl).append(f"{h.value} {text}")
+    out.files[f"{PF}/outbound_hold.cidr"] = "".join(hold_ip)
+    out.files[f"{PF}/outbound_hold_sasl"] = "".join(hold_sasl)
+    out.hash_maps.append(f"{PF}/outbound_hold_sasl")
+    # Checked at the end of every message on every listener; only listed senders match.
+    out.main_cf["smtpd_end_of_data_restrictions"] = (
+        f"check_client_access cidr:{PF}/outbound_hold.cidr, check_sasl_access hash:{PF}/outbound_hold_sasl")
     return out
 
 
