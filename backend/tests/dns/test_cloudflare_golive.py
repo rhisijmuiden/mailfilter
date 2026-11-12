@@ -27,6 +27,13 @@ def test_bad_token():
     assert e.value.status == 403 and 9109 in e.value.codes
 
 
+def test_account_token_verifies_via_account():
+    fake = FakeCloudflare(["rhis.nl"], token="acct")
+    res = fake.client().verify_token()
+    assert res["status"] == "active" and res["account_id"] == "acc1"
+    assert ("GET", "/client/v4/accounts/acc1/tokens/verify") in fake.calls
+
+
 def test_zone_for_subdomain():
     cf = FakeCloudflare(["rhis.nl"]).client()
     assert cf.zone_for("mf2026._domainkey.rhis.nl").name == "rhis.nl"

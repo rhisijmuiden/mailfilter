@@ -20,6 +20,7 @@ from mailfilter_dns.probe import CertInfo, SmtpProbe  # noqa: E402
 from mailfilter_dns.resolver import StaticResolver  # noqa: E402
 
 TOKEN = "good-token-0123456789abcdef"
+ACCOUNT_TOKEN = "account-token-0123456789abcdef"
 SERVER = ServerConfig("mailfilter.rhis.nl", ["203.0.113.10"], ["2a02:58:1f:10::25"], "_spf.mailfilter.rhis.nl")
 
 
@@ -40,8 +41,7 @@ def env(tmp_path, monkeypatch):
 
     def make_cf(token):
         cf = fake.client()
-        if token != TOKEN:
-            cf._headers["Authorization"] = "Bearer wrong"
+        cf._headers["Authorization"] = {TOKEN: "Bearer good", ACCOUNT_TOKEN: "Bearer acct"}.get(token, "Bearer wrong")
         return cf
 
     monkeypatch.setattr(dns_api, "make_cloudflare", make_cf)
@@ -68,12 +68,20 @@ def test_customer_cannot_use_toolbox(customer, env):
 
 def test_token_is_verified_and_stored_encrypted(admin, env):
     assert admin.get("/api/dns/cloudflare").json()["configured"] is False
-    assert admin.put("/api/dns/cloudflare", json={"token": "x" * 30}).json()["detail"] == "cloudflare_token_invalid"
+    assert admin.put("/api/dns/cloudflare", json={"token": "x" * 30}).json()["detail"].startswith("cloudflare_token_rejected:")
+    assert admin.put("/api/dns/cloudflare", json={"token": "0123456789abcdef0123456789abcdef01234"}).json()["detail"] == "cloudflare_global_key"
     r = admin.put("/api/dns/cloudflare", json={"token": TOKEN})
     assert r.status_code == 200 and r.json()["zones"] == ["rhis.nl"]
     assert admin.get("/api/dns/cloudflare").json()["status"] == "active"
     assert admin.delete("/api/dns/cloudflare").status_code == 204
     assert admin.post("/api/dns/publish/plan", json={"kind": "spf", "domain": "rhis.nl"}).json()["detail"] == "cloudflare_not_configured"
+
+
+def test_account_owned_token_is_accepted(admin, env):
+    r = admin.put("/api/dns/cloudflare", json={"token": ACCOUNT_TOKEN})
+    assert r.status_code == 200, r.text
+    assert admin.get("/api/dns/cloudflare").json()["status"] == "active"
+    assert admin.post("/api/dns/publish/plan", json={"kind": "spf", "domain": "rhis.nl"}).status_code == 200
 
 
 def test_publish_spf_merge(admin, env):
