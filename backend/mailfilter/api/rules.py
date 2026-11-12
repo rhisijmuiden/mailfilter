@@ -1,5 +1,6 @@
-"""Custom rules (Configuration > Custom rules): newsletter filter and other
-switchable Rspamd rules, globally and per domain.
+"""Custom rules (Configuration > Custom rules): newsletter filter, phishing
+protection, attachment policy, ARC and other switchable Rspamd rules,
+globally and per domain.
 
 Admins change everything. Customers see the rules and choose on, off or
 "follow the default" for their own domains. Every change goes through
@@ -15,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from mailfilter_config.rules import BY_ID, RULES, CustomRule, effective
+from mailfilter_config.rules import BY_ID, RULES, CustomRule, effective, problems
 
 from ..audit import audit
 from ..deps import DB, AdminUser, CurrentUser, visible_domains
@@ -54,14 +55,19 @@ def _out(db, user: User) -> dict:
         rules.append({
             "id": spec["id"], "group": spec["group"], "direction": spec["direction"], "symbol": spec["symbol"],
             "title": spec["title"], "summary": spec["summary"], "details": spec["details"],
-            "default": spec["default"], "enabled": r.enabled,
-            "options": [{**o, "value": r.options.get(o["id"], o["default"])} for o in spec["options"]],
+            "default": spec["default"], "enabled": r.enabled, "per_domain": spec["per_domain"],
+            # Lists (protected names, extra domains) are the admin's business only.
+            "options": [{**o, "value": r.options.get(o["id"], o["default"])} for o in spec["options"]
+                        if user.is_admin or o["type"] != "list"],
             "domains": {d: r.domains[d] for d in domains if d in r.domains},
         })
     return {"rules": rules, "domains": domains, "can_edit_global": user.is_admin}
 
 
 def _save(db, request: Request, user: User, chosen: dict[str, CustomRule], rule_id: str, **detail) -> None:
+    # Normalise lists and texts (".EXE" -> "exe") so the page shows what is applied;
+    # mistakes are reported by apply_changes.
+    problems(chosen, set(db.execute(select(Domain.name)).scalars()))
     set_setting(db, RULES_KEY, {k: v.__dict__ for k, v in chosen.items()})
     apply_changes(db)
     audit(db, request, user, "custom_rule_updated", rule_id, **detail)
@@ -102,6 +108,10 @@ def put_domain_choice(rule_id: str, domain: str, body: DomainChoice, request: Re
     """On, off or default for one domain; customers may do this for their own domains."""
     _rule(rule_id)
     ensure_imported(db)
+    if not BY_ID[rule_id]["per_domain"]:
+        raise HTTPException(422, {"code": "invalid_config", "problems": [
+            {"field": "domains", "code": "rule_not_per_domain", "en": "This rule can only be switched for everyone.",
+             "nl": "Deze regel kan alleen voor iedereen tegelijk aan of uit."}]})
     domain = domain.strip().lower()
     if domain not in _domains(db, user):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")

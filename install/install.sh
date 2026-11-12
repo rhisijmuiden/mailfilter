@@ -190,7 +190,7 @@ install -d -m 0755 "$MF_ETC/nftables"
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
 for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
 for f in relay_networks.cidr client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
-for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
+for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs arc_trusted; do touch "$MF_ETC/rspamd/$f.map"; done
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
 ok "Lists and maps in $MF_ETC"
