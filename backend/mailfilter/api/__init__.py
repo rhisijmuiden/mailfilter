@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import (abuse, apikeys, audit, auth, backup, bimi, cluster, dashboard, digest, dkim, dmarc, dns, feedback, gateway, lists, mailtrap,
+from . import (abuse, apikeys, audit, auth, backup, bimi, cloud, cluster, dashboard, digest, dkim, dmarc, dns, feedback, gateway, lists, mailtrap,
                monthly, notify, pmg_import, quarantine, rules, search, smtp, system, trace, usage, users, v1)
 
 router = APIRouter(prefix="/api")
@@ -10,6 +10,7 @@ router.include_router(auth.router)
 router.include_router(users.router)
 router.include_router(audit.router)
 router.include_router(gateway.router)
+router.include_router(cloud.router)
 router.include_router(abuse.router)
 router.include_router(system.router)
 router.include_router(trace.router)

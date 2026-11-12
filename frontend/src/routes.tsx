@@ -7,6 +7,7 @@ const Account = lazy(() => import("./pages/Account"));
 const ApiAccess = lazy(() => import("./pages/ApiAccess"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Backups = lazy(() => import("./pages/Backups"));
+const CloudMail = lazy(() => import("./pages/CloudMail"));
 const Cluster = lazy(() => import("./pages/Cluster"));
 const CustomRules = lazy(() => import("./pages/CustomRules"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -47,6 +48,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/billing", element: (me) => <Usage me={me} tab="billing" />, adminOnly: true },
   { path: "/domains", element: (me) => <Domains me={me} /> },
   { path: "/relay", element: (me) => <RelayAccess me={me} /> },
+  { path: "/cloud", element: (me) => <CloudMail me={me} /> },
   { path: "/rules", element: () => <CustomRules /> },
   { path: "/throttling", element: () => <Throttling />, adminOnly: true },
   { path: "/users", element: () => <Users />, adminOnly: true },

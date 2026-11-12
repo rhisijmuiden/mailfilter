@@ -141,3 +141,22 @@ class OutboundHold(Base):
     released_by: Mapped[int | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True)
     # After a release the detector leaves this sender alone until then.
     quiet_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CloudTenant(Base):
+    """A domain whose mailboxes live in Microsoft 365 or Google Workspace, behind the
+    gateway. Inbound mail is delivered to the provider through the domain's normal
+    route; with `enabled` the provider's servers may send the domain's outgoing
+    mail through the gateway (only for this tenant, see mailfilter_config.cloud).
+
+    `steps` keeps the wizard's progress: per step {"at", "by"} when someone said it
+    is done, plus facts the checks found (e.g. {"dns": {"mx_since": ...}})."""
+
+    __tablename__ = "cloud_tenant"
+    domain_id: Mapped[int] = mapped_column(ForeignKey("domain.id", ondelete="CASCADE"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(10))  # m365 or google
+    tenant_id: Mapped[str] = mapped_column(String(36), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    steps: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    domain: Mapped[Domain] = relationship(lazy="joined")
