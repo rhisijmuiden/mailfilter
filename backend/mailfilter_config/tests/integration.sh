@@ -75,12 +75,16 @@ echo "== custom rules: newsletter filter in a real Rspamd scan"
 python3 - <<'PY'
 import json; d = json.load(open("/tmp/gateway.json"))
 d["custom_rules"] = {"newsletter_no_unsubscribe": {"enabled": True, "options": {"score": 5}, "domains": {}},
-                     "newsletter_subject": {"enabled": True, "options": {"tag": "[Nieuwsbrief]"}, "domains": {}}}
+                     "newsletter_subject": {"enabled": True, "options": {"tag": "[Nieuwsbrief]"}, "domains": {}},
+                     "phishing_display_name": {"enabled": True, "options": {"names": ["Reinder de Directeur"]}, "domains": {}},
+                     "external_banner": {"enabled": True, "options": {"language": "nl"}, "domains": {}},
+                     "arc_seal_inbound": {"enabled": True, "options": {}, "domains": {}}}
 json.dump(d, open("/tmp/rules.json", "w"))
 PY
 check "apply with custom rules" "$MFC" apply --state /tmp/rules.json --no-reload
 check "rules Lua and settings written" bash -c 'test -f /etc/rspamd/lua.local.d/mailfilter_rules.lua && grep -q "\"score\": 5.0" /etc/rspamd/mailfilter_rules.json'
 check "rspamadm configtest with rules" rspamadm configtest
+check "protection Lua and ARC config written" bash -c 'test -f /etc/rspamd/lua.local.d/mailfilter_protection.lua && grep -q "sign_inbound = true;" /etc/rspamd/local.d/arc.conf && grep -q google.com /etc/mailfilter/rspamd/arc_trusted.map && grep -q "\"rhis.nl\"" /etc/rspamd/mailfilter_rules.json'
 # A scanning worker next to the milter proxy, only for this test.
 mkdir -p /etc/rspamd/override.d
 printf 'enabled = true;\nbind_socket = "127.0.0.1:11333";\n' >/etc/rspamd/override.d/worker-normal.inc
@@ -126,6 +130,61 @@ scan /tmp/nl-good.eml >/tmp/scan-good.json 2>&1 || true
 check "newsletter without unsubscribe scored" bash -c 'grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-bad.json || { cat /tmp/scan-bad.json; grep -i "mailfilter_rules\\|error" /run/rspamd/test.log | tail -30; exit 1; }'
 check "newsletter header and subject tag added" bash -c 'grep -q "X-Mailfilter-Newsletter" /tmp/scan-bad.json && grep -q "Nieuwsbrief" /tmp/scan-bad.json || { cat /tmp/scan-bad.json; exit 1; }'
 check "newsletter with unsubscribe not scored" bash -c 'grep -q "\"MF_NEWSLETTER\"" /tmp/scan-good.json && ! grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-good.json || { cat /tmp/scan-good.json; exit 1; }'
+echo "== phishing protection and attachment policy in a real Rspamd scan"
+cat >/tmp/ph-lookalike.eml <<'EML'
+From: Reinder <reinder@rhls.nl>
+To: info@rhis.nl
+Subject: Factuur betalen
+Message-ID: <3@rhls.nl>
+Date: Wed, 12 Nov 2026 10:00:00 +0100
+Content-Type: text/plain; charset=utf-8
+
+Wil je deze factuur vandaag nog betalen? Zie http://185.12.3.4/factuur
+EML
+cat >/tmp/ph-name.eml <<'EML'
+From: "Reinder de Directeur" <directeur.rhis@freemail.example>
+To: info@rhis.nl
+Subject: Even snel
+Message-ID: <4@freemail.example>
+Date: Wed, 12 Nov 2026 10:00:00 +0100
+Content-Type: text/plain; charset=utf-8
+
+Ben je even beschikbaar voor een betaling?
+EML
+attach() { # file name, content type, base64 content
+  printf 'From: Leverancier <factuur@supplier.example>\nTo: info@rhis.nl\nSubject: Factuur\nMessage-ID: <%s@supplier.example>\nDate: Wed, 12 Nov 2026 10:00:00 +0100\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary="b1"\n\n--b1\nContent-Type: text/plain; charset=utf-8\n\nZie bijlage.\n--b1\nContent-Type: %s; name="%s"\nContent-Disposition: attachment; filename="%s"\nContent-Transfer-Encoding: base64\n\n%s\n--b1--\n' "$RANDOM" "$2" "$1" "$1" "$3"
+}
+attach factuur.pdf.exe application/octet-stream "$(printf 'MZ\220\0\3\0\0\0 this is not a real program' | base64 -w0)" >/tmp/att-exe.eml
+attach offerte.docm application/vnd.ms-word.document.macroEnabled.12 "$(printf 'PK\3\4 word/vbaProject.bin' | base64 -w0)" >/tmp/att-macro.eml
+scan2() { rspamc -h 127.0.0.1:11333 -j --ip 198.51.100.7 --from "$2" --rcpt info@rhis.nl "$1"; }
+scan2 /tmp/ph-lookalike.eml reinder@rhls.nl >/tmp/scan-ph1.json 2>&1 || true
+scan2 /tmp/ph-name.eml directeur.rhis@freemail.example >/tmp/scan-ph2.json 2>&1 || true
+scan2 /tmp/att-exe.eml factuur@supplier.example >/tmp/scan-exe.json 2>&1 || true
+scan2 /tmp/att-macro.eml factuur@supplier.example >/tmp/scan-macro.json 2>&1 || true
+rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from directeur.rhis@freemail.example --rcpt info@rhis.nl /tmp/ph-name.eml >/tmp/scan-banner.eml 2>&1 || true
+has() { grep -q "$2" "$1" || { cat "$1"; exit 1; }; }
+# rspamc may print more after the JSON reply (stderr is in the same file): read the first object only.
+action_is() { python3 -c 'import json,sys; t=open(sys.argv[1]).read(); a=json.JSONDecoder().raw_decode(t[t.index("{"):])[0].get("action"); sys.exit(a != sys.argv[2])' "$1" "$2" || { head -c 4000 "$1"; exit 1; }; }
+check "lookalike domain recognised" bash -c "$(declare -f has); has /tmp/scan-ph1.json MF_LOOKALIKE_DOMAIN"
+check "link to an IP address recognised" bash -c "$(declare -f has); has /tmp/scan-ph1.json MF_SUSPICIOUS_LINK"
+check "fake sender name recognised" bash -c "$(declare -f has); has /tmp/scan-ph2.json MF_DISPLAYNAME_SPOOF"
+check "dangerous attachment refused" bash -c "$(declare -f has action_is); has /tmp/scan-exe.json MF_ATTACHMENT_BLOCKED && action_is /tmp/scan-exe.json reject"
+check "macro document quarantined" bash -c "$(declare -f has action_is); has /tmp/scan-macro.json MF_ATTACHMENT_MACRO && action_is /tmp/scan-macro.json quarantine"
+scan2 /tmp/ph-name.eml directeur.rhis@freemail.example >/tmp/scan-banner.json 2>&1 || true
+# The rewritten message: banner first, then the original text, both readable after decoding.
+banner_ok() { python3 - "$1" <<'PY' || { head -c 3000 "$1"; exit 1; }
+import quopri, re, sys
+# rspamc shows the new body but not the milter's header changes (Content-Transfer-Encoding),
+# so decode the quoted-printable body ourselves.
+raw = open(sys.argv[1], "rb").read().replace(b"\r\n", b"\n")
+body = quopri.decodestring(raw.split(b"\n\n", 1)[1]).decode("utf-8", "replace")
+print(repr(body[:300]))
+sys.exit(not (body.startswith("Waarschuwing: dit bericht") and "Ben je even beschikbaar" in body))
+PY
+}
+check "external banner added above the original text" bash -c "$(declare -f banner_ok); banner_ok /tmp/scan-banner.eml"
+check "external banner header added" bash -c "$(declare -f has); has /tmp/scan-banner.json X-Mailfilter-External"
+check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
 pkill -x rspamd || true
 rm -f /etc/rspamd/override.d/worker-normal.inc /etc/rspamd/override.d/options.inc /etc/rspamd/override.d/logging.inc
 exit $fail

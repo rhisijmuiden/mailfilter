@@ -479,7 +479,18 @@
     "MF_NEWSLETTER": "Newsletter",
     "MF_NEWSLETTER_NO_UNSUB": "Newsletter without unsubscribe option",
     "MF_NEWSLETTER_NO_ONECLICK": "Newsletter without one-click unsubscribe",
-    "MF_NEWSLETTER_NO_DKIM": "Newsletter not signed by the sender's domain"
+    "MF_NEWSLETTER_NO_DKIM": "Newsletter not signed by the sender's domain",
+    "MF_LOOKALIKE_DOMAIN": "Sender domain looks like one of yours",
+    "MF_DISPLAYNAME_SPOOF": "Fake sender name",
+    "MF_SUSPICIOUS_LINK": "Suspicious link",
+    "MF_EXTERNAL_BANNER": "External sender banner added",
+    "MF_ATTACHMENT_BLOCKED": "Dangerous attachment type",
+    "MF_ATTACHMENT_MACRO": "Office file with macros",
+    "MF_ATTACHMENT_ENCRYPTED": "Password-protected archive",
+    "ARC_ALLOW_TRUSTED": "Forwarded by a trusted provider (ARC)",
+    "ARC_ALLOW": "Valid ARC seal",
+    "ARC_REJECT": "Invalid ARC seal",
+    "ARC_SIGNED": "ARC-sealed by Mailfilter"
   },
   "dns": {
     "title": "DNS toolbox",
@@ -1239,7 +1250,8 @@
     "safety": "Make a safety backup of the current state first (recommended)",
     "confirm_word": "restore",
     "type_to_confirm": "Type \"{{word}}\" to confirm",
-    "restore_go": "Restore now"
+    "restore_go": "Restore now",
+    "remote_later": "Copying backups to FTP, FTPS or SCP comes in a later version."
   },
   "smtp": {
     "title": "E-mail sending",
@@ -1391,10 +1403,16 @@
     "intro": "Every rule explains what it does. A rule with a spam score adds that score; from 8 a message goes to quarantine, from 15 it is refused. Changes are checked by Rspamd and take effect straight away; if Rspamd does not accept a change, nothing is changed.",
     "intro_customer": "These rules are set by your administrator. Per domain you can choose to follow that setting or switch a rule on or off for your own domains.",
     "group": {
-      "newsletter": "Newsletters"
+      "newsletter": "Newsletters",
+      "phishing": "Phishing and CEO fraud",
+      "attachments": "Attachments",
+      "arc": "Forwarded mail (ARC)"
     },
     "group_sub": {
-      "newsletter": "Recognise newsletters and catch the ones that break the rules"
+      "newsletter": "Recognise newsletters and catch the ones that break the rules",
+      "phishing": "Catch messages that pretend to come from you or your colleagues",
+      "attachments": "Stop dangerous files before they reach anyone",
+      "arc": "Keep forwarded mail working with DMARC"
     },
     "dir": {
       "inbound": "Incoming mail",
@@ -1411,7 +1429,10 @@
     "per_domain_hint": "Default follows the switch above. For a message to several domains, the rule applies when it is on for at least one of them.",
     "symbol": "Shows in the mail trace as",
     "saved": "Rule saved and applied",
-    "admin_only": "Only an administrator can change this"
+    "admin_only": "Only an administrator can change this",
+    "list_hint": "One per line, or separated by commas",
+    "global_only": "This rule applies to all domains at once.",
+    "reset_default": "Back to the standard list"
   },
   "holds": {
     "paused_title": "{{value}} is paused",
