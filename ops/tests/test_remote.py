@@ -190,6 +190,7 @@ def _ftp_server(tmp_path, tls):
     pytest.importorskip("pyftpdlib")
     from pyftpdlib.authorizers import DummyAuthorizer
     from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
+    from pyftpdlib.ioloop import IOLoop
     from pyftpdlib.servers import ThreadedFTPServer
 
     home = tmp_path / "ftp-home"
@@ -213,8 +214,11 @@ def _ftp_server(tmp_path, tls):
     Handler.authorizer = auth
     Handler.passive_ports = None
     Handler.auth_failed_timeout = 0  # answer a wrong password at once
-    server = ThreadedFTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, kwargs={"timeout": 0.2}, daemon=True).start()
+    # Own IOLoop per server: pyftpdlib's default is a process-wide singleton, so the previous test's
+    # server thread shutting down could close this server's loop mid-transfer (flaky FTPS test in CI).
+    server = ThreadedFTPServer(("127.0.0.1", 0), Handler, ioloop=IOLoop())
+    server.thread = threading.Thread(target=server.serve_forever, kwargs={"timeout": 0.2}, daemon=True)
+    server.thread.start()
     return server, home
 
 
@@ -240,6 +244,7 @@ def test_ftp_and_ftps(env, tmp_path, protocol):
                 remote.test(**QUIET)
     finally:
         server.close_all()
+        server.thread.join(5)
 
 
 # ---------------------------------------------------------------- SCP (SFTP)
