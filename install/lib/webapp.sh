@@ -47,10 +47,14 @@ install_webapp() {
   install -m 0644 "$TPL/systemd/mailfilter-quarantine-report.timer" /etc/systemd/system/mailfilter-quarantine-report.timer
   install -m 0644 "$TPL/systemd/mailfilter-monthly-report.service" /etc/systemd/system/mailfilter-monthly-report.service
   install -m 0644 "$TPL/systemd/mailfilter-monthly-report.timer" /etc/systemd/system/mailfilter-monthly-report.timer
+  install -m 0644 "$TPL/systemd/mailfilter-dkim-rotate.service" /etc/systemd/system/mailfilter-dkim-rotate.service
+  install -m 0644 "$TPL/systemd/mailfilter-dkim-rotate.timer" /etc/systemd/system/mailfilter-dkim-rotate.timer
   run systemctl daemon-reload
   run systemctl enable mailfilter-web
   run systemctl enable --now mailfilter-quarantine-report.timer
   run systemctl enable --now mailfilter-monthly-report.timer
+  # Every six hours: replace DKIM keys older than the interval set on the DNS page
+  run systemctl enable --now mailfilter-dkim-rotate.timer
   run systemctl restart mailfilter-web
 
   # Every minute: pause relay IPs and SMTP accounts that suddenly send spam or a flood of mail
