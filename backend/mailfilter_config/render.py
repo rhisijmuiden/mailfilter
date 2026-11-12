@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import cloud
-from .model import Domain, GatewayConfig, QueuePolicy
+from .model import Domain, GatewayConfig, LdapSource, QueuePolicy
 from .rules import render_files as render_rule_files
 
 ETC = "/etc/mailfilter"
@@ -19,7 +19,12 @@ PF = f"{ETC}/postfix"
 # stale ones (from a removed domain) can be found and deleted.
 MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_", "mfl_", "mft_", "mfc_")
 # Standard Postfix parameters this package owns completely (always set).
-MANAGED_PARAMS = ("smtpd_end_of_data_restrictions", "smtpd_restriction_classes")
+MANAGED_PARAMS = ("smtpd_end_of_data_restrictions", "smtpd_restriction_classes", "relay_recipient_maps",
+                  "address_verify_positive_expire_time", "address_verify_positive_refresh_time",
+                  "address_verify_negative_expire_time", "address_verify_negative_refresh_time")
+# One Postfix LDAP table per domain that checks recipients in LDAP / Active Directory.
+# They hold the bind password: root:postfix 0640, stale ones are removed after an apply.
+LDAP_DIR = f"{PF}/ldap"
 SMTP_USERS = f"{ETC}/smtp-users"
 # Accounts made in the web interface live between these lines of the Dovecot
 # passwd-file; lines outside them (added by hand) are left alone.
@@ -51,6 +56,7 @@ class Rendered:
     users_block: str = ""  # Dovecot passwd-file lines for SMTP accounts
     open_ports: list[int] = field(default_factory=list)  # other ports to open in the firewall (IMAP)
     mailboxes: list[str] = field(default_factory=list)  # Mailtrap Maildirs that must exist
+    secret_files: list[str] = field(default_factory=list)  # root:postfix 0640 (LDAP passwords)
 
 
 def service_name(prefix: str, domain: str) -> str:
@@ -99,6 +105,40 @@ def _transport_service(svc: str, syslog: str, extra: list[str] | None = None) ->
     return "\n".join(lines)
 
 
+def ldap_map_path(domain: str) -> str:
+    return f"{LDAP_DIR}/{service_name('', domain)}.cf"
+
+
+def render_ldap_cf(domain: str, src: LdapSource) -> str:
+    """Postfix ldap_table(5) file: does `domain` have this address? (validated input)."""
+    lines = [
+        HEADER,
+        f"# Recipients of {domain} ({'Active Directory' if src.preset == 'ad' else 'LDAP'})\n",
+        f"server_host = {' '.join(src.servers)}\n",
+        "version = 3\n",
+        f"search_base = {src.base_dn}\n",
+        # Only addresses of this domain are looked up; others never reach the server.
+        f"domain = {domain}\n",
+        f"query_filter = {src.filter()}\n",
+        f"result_attribute = {src.result_attribute}\n",
+        "timeout = 10\n",
+        # Active Directory answers with referrals to other partitions; following them
+        # needs the same login there and slows every lookup down.
+        "chase_referrals = no\n",
+    ]
+    if src.bind_dn:
+        lines += ["bind = yes\n", f"bind_dn = {src.bind_dn}\n", f"bind_pw = {src.bind_password}\n"]
+    else:
+        lines.append("bind = no\n")
+    plain = all(s.startswith("ldap://") for s in src.servers)
+    if src.security == "starttls" and plain:
+        lines.append("start_tls = yes\n")
+    if src.security != "none" or not plain:
+        lines += ["tls_ca_cert_dir = /etc/ssl/certs\n",
+                  f"tls_require_cert = {'yes' if src.verify_cert else 'no'}\n"]
+    return "".join(lines)
+
+
 def _listener(port: int, tls: str) -> str:
     opts = [f"syslog_name=postfix/port-{port}"]
     if tls == "wrapper":
@@ -124,6 +164,10 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
     inbound = [d for d in domains if d.kind == "transport"]
 
     relay_domains, transport, tls_policy, verify = [HEADER], [HEADER], [HEADER], [HEADER]
+    # Which addresses exist (relay_recipient_maps): "@domain" accepts all of a domain
+    # (no check, or checked with the mail server below); a list names each address;
+    # LDAP domains have their own table. A domain that matches nowhere is refused.
+    recipients, ldap_maps = [HEADER], []
     master: list[str] = []
 
     # ---- inbound: one queue (transport) per domain -------------------------------
@@ -144,8 +188,18 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
         if d.tls != "may":
             for dest in d.destinations:
                 tls_policy.append(f"{dest.nexthop()} {d.tls}\n")
-        if d.verify_recipients:
+        if d.recipient_check == "callout":
             verify.append(f"{d.name} reject_unverified_recipient\n")
+        if d.recipient_check == "list":
+            recipients.append(f"# {d.name}: {len(d.recipients)} address(es)\n")
+            recipients += [f"{a} OK\n" for a in d.recipients]
+        elif d.recipient_check == "ldap" and d.ldap:
+            path = ldap_map_path(d.name)
+            out.files[path] = render_ldap_cf(d.name, d.ldap)
+            out.secret_files.append(path)
+            ldap_maps.append(f"proxy:ldap:{path}")
+        else:
+            recipients.append(f"@{d.name} OK\n")
 
     # ---- outbound: throttled queues for big remote domains ------------------------
     for p in sorted(cfg.destination_policies, key=lambda p: p.domain):
@@ -171,9 +225,17 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
     out.master_cf_block = "\n\n".join(master)
 
     for name, lines in (("relay_domains", relay_domains), ("transport", transport),
-                        ("tls_policy", tls_policy), ("recipient_verify", verify)):
+                        ("tls_policy", tls_policy), ("recipient_verify", verify),
+                        ("relay_recipients", recipients)):
         out.files[f"{PF}/{name}"] = "".join(lines)
         out.hash_maps.append(f"{PF}/{name}")
+    out.main_cf["relay_recipient_maps"] = ", ".join([f"hash:{PF}/relay_recipients", *ldap_maps])
+    rc = cfg.recipient_cache
+    out.main_cf["address_verify_positive_expire_time"] = f"{int(rc.positive_days)}d"
+    out.main_cf["address_verify_positive_refresh_time"] = f"{max(1, int(rc.positive_days) * 12)}h"
+    # A new mailbox should work soon: an unknown address is asked again after this time.
+    out.main_cf["address_verify_negative_expire_time"] = f"{int(rc.negative_minutes)}m"
+    out.main_cf["address_verify_negative_refresh_time"] = f"{int(rc.negative_minutes)}m"
 
     # ---- mail archive: an extra (bcc) recipient per archived domain ----------------
     # Used as sender_bcc_maps and recipient_bcc_maps (main.cf), so mail to and from the

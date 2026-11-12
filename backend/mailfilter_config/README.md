@@ -14,7 +14,7 @@ as root from `backend/bin/mailfilter-config` without the web app's virtualenv.
 | Throttled outbound queues (e.g. gmail.com) | `mfo_*` services and parameters |
 | Single addresses routed elsewhere (SMTP or LMTP) | `transport` |
 | TLS per destination | `/etc/mailfilter/postfix/tls_policy` |
-| Recipient verification per domain (no backscatter) | `/etc/mailfilter/postfix/recipient_verify` |
+| Recipient check per domain (no backscatter): ask the mail server (cached), LDAP / Active Directory, a fixed list or off | `recipient_verify`, `relay_recipients`, `postfix/ldap/<domain>.cf` (root:postfix 0640), `relay_recipient_maps` and the `address_verify_*` cache times in `main.cf` |
 | Relay access (IPv4 and IPv6) | `relay_networks.list`, `postfix/relay_networks.cidr`, `rspamd/local_addrs.map` |
 | Extra relay ports (syslog name `postfix/port-NNNN`) | managed block of `master.cf`, nft set `relay_ports` |
 | Outbound limits per relay IP, SMTP account and sender domain | `/etc/rspamd/local.d/ratelimit.conf` |

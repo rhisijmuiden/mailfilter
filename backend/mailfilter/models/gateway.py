@@ -25,7 +25,14 @@ class DomainRoute(Base):
     sender_lock: Mapped[bool] = mapped_column(Boolean, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     tls: Mapped[str] = mapped_column(String(10), default="may")
+    # Kept in step with recipient_check (True unless "off") for older cluster nodes.
     verify_recipients: Mapped[bool] = mapped_column(Boolean, default=True)
+    # callout, ldap, list or off (see mailfilter_config.RECIPIENT_CHECKS)
+    recipient_check: Mapped[str] = mapped_column(String(10), default="callout")
+    # mailfilter_config.LdapSource fields without bind_password, which is Fernet-encrypted below.
+    recipient_ldap: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    recipient_ldap_password: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recipient_list: Mapped[list] = mapped_column(JSONB, default=list)
     concurrency: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rate_delay: Mapped[int | None] = mapped_column(Integer, nullable=True)
     out_per_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)

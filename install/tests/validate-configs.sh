@@ -16,7 +16,7 @@ echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-se
 apt-get update -qq
 # FTP/FTPS tests need pyftpdlib as a test server; they run in the mailfilterctl CI job with the PyPI release,
 # because the Debian package hangs on repeated TLS logins. SFTP and encryption are tested here on Debian 13.
-apt-get install -y -qq --no-install-recommends postfix postfix-lmdb rspamd dovecot-core dovecot-imapd unbound dns-root-data caddy nftables ssl-cert ca-certificates python3 \
+apt-get install -y -qq --no-install-recommends postfix postfix-lmdb postfix-ldap rspamd dovecot-core dovecot-imapd unbound dns-root-data caddy nftables ssl-cert ca-certificates python3 \
   sudo systemd python3-pytest zstd git gnupg openssh-client openssh-server >/dev/null
 echo "Versions: $(dpkg-query -W -f='${Package} ${Version}, ' postfix rspamd dovecot-core caddy unbound nftables)"
 
@@ -28,7 +28,7 @@ MF_SRC=$SRC
 install -d /etc/mailfilter/postfix /etc/mailfilter/rspamd /etc/mailfilter/nftables /var/lib/rspamd/dkim
 # The same empty files the installer creates; mailfilter-config fills them further down
 touch /etc/mailfilter/relay_networks.list /etc/mailfilter/nftables/relay_ports.nft /etc/mailfilter/rspamd/local_addrs.map
-for f in relay_domains transport sender_block tls_policy recipient_verify archive_bcc; do touch /etc/mailfilter/postfix/$f; done
+for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients archive_bcc; do touch /etc/mailfilter/postfix/$f; done
 touch /etc/mailfilter/postfix/relay_networks.cidr /etc/mailfilter/postfix/client_block.cidr /etc/mailfilter/postfix/postscreen_access.cidr /etc/mailfilter/postfix/cloud_relay.cidr
 cp "$TPL/postfix/dnsbl_reply" "$TPL/postfix/bounce.cf" /etc/mailfilter/postfix/
 for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors arc_trusted; do touch /etc/mailfilter/rspamd/$f.map; done
@@ -36,7 +36,7 @@ touch /etc/mailfilter/rspamd/ratelimit_overrides.conf /etc/mailfilter/smtp-users
 
 render "$TPL/postfix/main.cf" /etc/postfix/main.cf
 render "$TPL/postfix/master.cf" /etc/postfix/master.cf
-for f in relay_domains transport sender_block tls_policy recipient_verify archive_bcc; do postmap hash:/etc/mailfilter/postfix/$f; done
+for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients archive_bcc; do postmap hash:/etc/mailfilter/postfix/$f; done
 postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
 [[ -f /etc/aliases ]] || printf 'postmaster: root\nroot: admin@example.nl\n' >/etc/aliases
 newaliases

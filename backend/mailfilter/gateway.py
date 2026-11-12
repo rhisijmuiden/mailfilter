@@ -25,6 +25,7 @@ from mailfilter_config.rules import rule_from_dict
 
 from .models import (AddressRoute, ArchiveDomain, CloudTenant, DestinationPolicy, Domain, DomainDestination, DomainRoute, MailTrap, OutboundHold,
                      RelayNetwork, RelayPort, SmtpAccount, TlsPolicy, User)
+from . import recipients
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
 
@@ -79,7 +80,7 @@ def build_config(db: Session) -> mfc.GatewayConfig:
             mfc.Domain(
                 name=r.domain.name, kind=r.kind or "transport", sender_lock=bool(r.sender_lock),
                 destinations=[_dest(d) for d in r.destinations] if r.kind != "relay" else [], enabled=r.enabled,
-                tls=r.tls, verify_recipients=r.verify_recipients, note=r.note,
+                tls=r.tls, note=r.note, **(recipients.domain_fields(r) if r.kind != "relay" else {}),
                 queue=mfc.QueuePolicy(concurrency=r.concurrency, rate_delay=r.rate_delay),
                 outbound=mfc.OutboundLimits(per_hour=r.out_per_hour, per_day=r.out_per_day),
             )
@@ -120,6 +121,7 @@ def build_config(db: Session) -> mfc.GatewayConfig:
         archive_domains=list(db.execute(select(ArchiveDomain.name).where(ArchiveDomain.enabled.is_(True))
                                         .order_by(ArchiveDomain.name)).scalars()),
         defaults=defaults(db),
+        recipient_cache=recipients.cache(db),
         custom_rules=custom_rules(db),
     )
 
@@ -195,7 +197,9 @@ def ensure_imported(db: Session, state_file: Path | None = None) -> None:
         db.flush()
         by_name[d.name] = dom
         if db.get(DomainRoute, dom.id) is None:
-            route = DomainRoute(domain_id=dom.id, enabled=d.enabled, tls=d.tls, verify_recipients=d.verify_recipients,
+            mode = d.recipient_check if d.recipient_check != "ldap" else "callout"  # LDAP login: set up again
+            route = DomainRoute(domain_id=dom.id, enabled=d.enabled, tls=d.tls, verify_recipients=mode != "off",
+                                recipient_check=mode, recipient_list=list(d.recipients),
                                 concurrency=d.queue.concurrency, rate_delay=d.queue.rate_delay,
                                 out_per_hour=d.outbound.per_hour, out_per_day=d.outbound.per_day, note=d.note)
             route.destinations = [DomainDestination(domain_id=dom.id, position=i, host=x.host, port=x.port, mx=x.mx,
