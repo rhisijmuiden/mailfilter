@@ -23,8 +23,8 @@ from sqlalchemy.orm import Session
 import mailfilter_config as mfc
 from mailfilter_config.rules import rule_from_dict
 
-from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, RelayNetwork,
-                     RelayPort, TlsPolicy)
+from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, OutboundHold,
+                     RelayNetwork, RelayPort, TlsPolicy)
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
 
@@ -81,9 +81,22 @@ def build_config(db: Session) -> mfc.GatewayConfig:
                         for a in db.execute(select(AddressRoute).order_by(AddressRoute.address)).scalars()],
         tls_policies=[mfc.TlsPolicy(destination=t.destination, level=t.level, note=t.note)
                       for t in db.execute(select(TlsPolicy).order_by(TlsPolicy.destination)).scalars()],
+        holds=[mfc.OutboundHold(kind=h.kind, value=h.value, reason=hold_reason_text(h))
+               for h in db.execute(select(OutboundHold).where(OutboundHold.released_at.is_(None))
+                                   .order_by(OutboundHold.id)).scalars()],
         defaults=defaults(db),
         custom_rules=custom_rules(db),
     )
+
+
+def hold_reason_text(h) -> str:
+    """Short English reason Postfix logs with every held message."""
+    d = h.detail or {}
+    if h.reason == "spam":
+        return f"{d.get('spam', '?')} of {d.get('total', '?')} messages were spam in {d.get('minutes', '?')} minutes"
+    if h.reason == "volume":
+        return f"{d.get('total', '?')} messages in {d.get('minutes', '?')} minutes, usually {d.get('usual', 0)}"
+    return "paused by an administrator"
 
 
 def problems_detail(problems: list[mfc.Problem]) -> dict[str, Any]:

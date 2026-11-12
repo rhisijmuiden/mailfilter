@@ -41,6 +41,10 @@ newaliases
 check "postfix check" postfix check
 check "postconf warnings" bash -c '! postconf -n 2>&1 >/dev/null | grep -i warning'
 check "bounce templates" postconf -b
+# shellcheck disable=SC2016  # expanded by the inner bash
+check "DMARC report address goes to the mfdmarc pipe" bash -c 'postconf -xh transport_maps | grep -q "dmarc-reports@mailfilter01.example.nl=mfdmarc:" && postconf -M mfdmarc/unix | grep -q mailfilter-dmarc-ingest'
+# shellcheck disable=SC2016
+check "DMARC report address lives on the host name" bash -c '[[ $(postconf -xh virtual_mailbox_domains) == mailfilter01.example.nl ]]'
 check "master.cf has the mailfilter-config block" grep -q '^# BEGIN mailfilter-config' /etc/postfix/master.cf
 
 RSPAMD_PASSWORD_HASH=$(rspamadm pw -q -p test)

@@ -21,7 +21,12 @@ mynetworks = 127.0.0.0/8 [::1]/128 cidr:/etc/mailfilter/postfix/relay_networks.c
 
 # Domains we accept mail for, and where we deliver it (managed in "Domains")
 relay_domains = hash:/etc/mailfilter/postfix/relay_domains
-transport_maps = hash:/etc/mailfilter/postfix/transport
+transport_maps = inline:{ dmarc-reports@{{HOSTNAME}}=mfdmarc: }, hash:/etc/mailfilter/postfix/transport
+
+# DMARC reports that other providers send about our domains (rua=mailto:dmarc-reports@{{HOSTNAME}}).
+# Only this one address exists on the server's own name; the mfdmarc pipe in master.cf stores them.
+virtual_mailbox_domains = {{HOSTNAME}}
+virtual_mailbox_maps = inline:{ dmarc-reports@{{HOSTNAME}}=dmarc }
 # Check with the destination server that a recipient exists before accepting (no backscatter).
 # Switched on per domain in recipient_verify (domain -> reject_unverified_recipient).
 address_verify_map = lmdb:$data_directory/verify_cache
@@ -78,8 +83,12 @@ smtpd_tls_mandatory_ciphers = high
 tls_preempt_cipherlist = no
 smtpd_tls_session_cache_database = lmdb:${data_directory}/smtpd_scache
 
-# TLS for outgoing connections
-smtp_tls_security_level = may
+# TLS for outgoing connections. "dane": where the receiving domain publishes
+# TLSA records in DNSSEC-signed zones, encryption with that certificate is
+# required; everywhere else this is the same as "may". Needs the validating
+# local resolver (unbound).
+smtp_tls_security_level = dane
+smtp_dns_support_level = dnssec
 smtp_tls_loglevel = 1
 smtp_tls_protocols = >=TLSv1.2
 smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt

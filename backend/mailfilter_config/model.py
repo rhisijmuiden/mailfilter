@@ -111,6 +111,17 @@ class TlsPolicy:
 
 
 @dataclass
+class OutboundHold:
+    """A paused sender: its outgoing mail is accepted but kept in Postfix's hold
+    queue until an admin releases it. kind "ip" is one sending IP address,
+    kind "account" an SMTP login."""
+
+    kind: str  # ip or account
+    value: str
+    reason: str = ""
+
+
+@dataclass
 class Defaults:
     relay_ip_per_minute: int = 30
     relay_ip_per_hour: int = 1000
@@ -128,6 +139,7 @@ class GatewayConfig:
     destination_policies: list[DestinationPolicy] = field(default_factory=list)
     address_routes: list[AddressRoute] = field(default_factory=list)
     tls_policies: list[TlsPolicy] = field(default_factory=list)
+    holds: list[OutboundHold] = field(default_factory=list)
     defaults: Defaults = field(default_factory=Defaults)
     # Custom rules (newsletter filter etc.) by rule id; missing rules use their default.
     custom_rules: dict[str, CustomRule] = field(default_factory=dict)
@@ -168,6 +180,7 @@ class GatewayConfig:
                                          **{k: v for k, v in a.items() if k != "destination"})
                             for a in data.get("address_routes", [])],
             tls_policies=[TlsPolicy(**t) for t in data.get("tls_policies", [])],
+            holds=[OutboundHold(**h) for h in data.get("holds", [])],
             defaults=Defaults(**data.get("defaults", {})),
             custom_rules={k: rule_from_dict(v) for k, v in (data.get("custom_rules") or {}).items()},
             hostname=data.get("hostname", ""),

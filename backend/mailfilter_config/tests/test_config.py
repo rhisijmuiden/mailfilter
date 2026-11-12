@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 import unittest
 
-from mailfilter_config import (AddressRoute, TlsPolicy, Applier, ApplyError, ConfigError, Destination, DestinationPolicy, Domain,
+from mailfilter_config import (OutboundHold, AddressRoute, TlsPolicy, Applier, ApplyError, ConfigError, Destination, DestinationPolicy, Domain,
                                GatewayConfig, OutboundLimits, QueuePolicy, RelayNetwork, RelayPort, render,
                                validate)
 from mailfilter_config.cli import import_legacy, parse_destination
@@ -26,6 +26,8 @@ def sample() -> GatewayConfig:
         destination_policies=[DestinationPolicy("gmail.com", QueuePolicy(concurrency=5, rate_delay=1))],
         address_routes=[AddressRoute("Info@RHIS.nl", Destination("10.0.0.9", 24, protocol="lmtp"), "Helpdesk")],
         tls_policies=[TlsPolicy(".bank.nl", "secure"), TlsPolicy("[10.0.0.7]:25", "encrypt")],
+        holds=[OutboundHold("ip", "203.0.113.25", "45 spam messages in 15 minutes"),
+               OutboundHold("account", "Webshop@Klant.nl", "volume spike")],
     )
 
 
@@ -94,6 +96,14 @@ class ValidateTest(unittest.TestCase):
         cfg.domains[0].destinations[1].protocol = "lmtp"
         self.assertIn("protocol_mixed", codes(cfg))
 
+    def test_holds(self):
+        cfg = sample()
+        self.assertEqual(validate(cfg), [])
+        self.assertEqual(cfg.holds[1].value, "webshop@klant.nl")
+        for bad in (OutboundHold("ip", "127.0.0.1"), OutboundHold("ip", "nope"), OutboundHold("x", "a")):
+            self.assertTrue(codes(GatewayConfig(holds=[bad])) & {"hold_local", "hold_invalid"})
+        self.assertIn("hold_duplicate", codes(GatewayConfig(holds=[OutboundHold("ip", "192.0.2.1")] * 2)))
+
     def test_messages_in_both_languages(self):
         for p in validate(GatewayConfig(relay_networks=[RelayNetwork("0.0.0.0/0")])):
             self.assertTrue(p.en and p.nl and p.en != p.nl)
@@ -122,6 +132,12 @@ class RenderTest(unittest.TestCase):
             for line in self.r.files[path].splitlines():
                 if not line.startswith("#"):
                     self.assertNotIn("#", line, f"{path}: {line}")
+
+    def test_hold_maps(self):
+        self.assertIn("203.0.113.25 HOLD Paused by Mailfilter: 45 spam messages in 15 minutes\n",
+                      self.r.files["/etc/mailfilter/postfix/outbound_hold.cidr"])
+        self.assertIn("webshop@klant.nl HOLD", self.r.files["/etc/mailfilter/postfix/outbound_hold_sasl"])
+        self.assertIn("check_sasl_access", self.r.main_cf["smtpd_end_of_data_restrictions"])
 
     def test_routes(self):
         transport = self.r.files["/etc/mailfilter/postfix/transport"]

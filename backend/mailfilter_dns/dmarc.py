@@ -122,3 +122,54 @@ def judge(record: str | None) -> tuple[str, list[str]]:
     if "rua" not in tags:
         probs.append("no_reports")
     return ("ok" if not probs or probs == ["no_reports"] else "weak"), probs
+
+
+def rua_addresses(tags: dict[str, str]) -> list[str]:
+    """The mailto addresses in rua=, lower case, without size limits (``!10m``)."""
+    out = []
+    for uri in tags.get("rua", "").split(","):
+        uri = uri.strip()
+        if uri.lower().startswith("mailto:"):
+            out.append(uri[7:].split("!")[0].strip().lower())
+    return out
+
+
+def merge(record: str | None, *, add_rua: str | None = None, policy: str | None = None) -> str:
+    """Change an existing record and keep everything else in it.
+
+    ``add_rua`` appends a report address (other addresses stay, so a DMARC
+    service the domain already uses keeps getting its reports). ``policy``
+    sets ``p=`` and removes ``pct=``, so the new policy applies to all mail.
+    Without a record, a new one starts at ``p=none``.
+    """
+    if policy is not None and policy not in POLICIES:
+        raise ValueError("policy must be none, quarantine or reject")
+    if record:
+        parse(record)  # raises DmarcSyntaxError
+        parts = [p.strip() for p in record.split(";") if p.strip()]
+    else:
+        parts = ["v=DMARC1", "p=none"]
+
+    def key(part: str) -> str:
+        return part.split("=", 1)[0].strip().lower()
+
+    if policy is not None:
+        parts = [f"p={policy}" if key(p) == "p" else p for p in parts if key(p) != "pct"]
+    if add_rua:
+        addr = _mailto(add_rua)
+        idx = next((i for i, p in enumerate(parts) if key(p) == "rua"), None)
+        if idx is None:
+            # after p= / sp=, where people expect it
+            after = max(i for i, p in enumerate(parts) if key(p) in ("v", "p", "sp"))
+            parts.insert(after + 1, f"rua={addr}")
+        else:
+            cur = parts[idx].split("=", 1)[1]
+            if addr[7:].lower() not in rua_addresses({"rua": cur}):
+                parts[idx] = "rua=" + ",".join([u.strip() for u in cur.split(",") if u.strip()] + [addr])
+    return "; ".join(parts)
+
+
+def report_auth_name(policy_domain: str, rua_domain: str) -> str:
+    """Name of the record that allows reports for ``policy_domain`` to go to
+    an address in another domain (RFC 7489 7.1)."""
+    return f"{policy_domain}._report._dmarc.{rua_domain}"

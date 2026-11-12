@@ -40,6 +40,12 @@ install_webapp() {
   run systemctl enable mailfilter-web
   run systemctl restart mailfilter-web
 
+  # Every minute: pause relay IPs and SMTP accounts that suddenly send spam or a flood of mail
+  install -m 0644 "$TPL/systemd/mailfilter-abuse.service" /etc/systemd/system/mailfilter-abuse.service
+  install -m 0644 "$TPL/systemd/mailfilter-abuse.timer" /etc/systemd/system/mailfilter-abuse.timer
+  run systemctl daemon-reload
+  run systemctl enable --now mailfilter-abuse.timer
+
   if ! "$MF_VENV/bin/mailfilter-admin" has-users; then
     local pw
     pw=$("$MF_VENV/bin/mailfilter-admin" create-admin "$ADMIN_EMAIL" --name Admin)

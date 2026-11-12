@@ -63,7 +63,7 @@ function legFor(status: string | null): Leg {
   switch (status) {
     case "sent": return "ok";
     case "deferred": case "queued": return "warn";
-    case "quarantined": return "stop";
+    case "quarantined": case "held": return "stop";
     case "rejected": return "none";
     default: return "bad";
   }
@@ -74,7 +74,7 @@ export function RoutePicture({ route, message }: { route: RouteNode[]; message: 
   const { t } = useTranslation();
   const [source, filter, ...dests] = route;
   const rejected = message.status === "rejected";
-  const quarantined = message.status === "quarantined";
+  const quarantined = message.status === "quarantined" || message.status === "held";
   const firstDest = dests[0];
   const leg2: Leg = rejected ? "none" : quarantined ? "stop" : legFor(firstDest?.status ?? "queued");
   const spam = filter.detail ? t("trace.route_score", { score: filter.detail }) : t("trace.route_checked");

@@ -33,7 +33,8 @@ cat >/tmp/gateway.json <<'JSON'
   "relay_ports": [{"port": 2525, "tls": "may"}, {"port": 10465, "tls": "wrapper"}],
   "destination_policies": [{"domain": "gmail.com", "queue": {"concurrency": 5, "rate_delay": 1}}],
   "address_routes": [{"address": "info@rhis.nl", "destination": {"host": "10.0.0.9", "port": 24, "protocol": "lmtp"}}],
-  "tls_policies": [{"destination": ".bank.nl", "level": "secure"}]
+  "tls_policies": [{"destination": ".bank.nl", "level": "secure"}],
+  "holds": [{"kind": "ip", "value": "203.0.113.25", "reason": "spam burst"}, {"kind": "account", "value": "webshop@rhis.nl", "reason": "volume spike"}]
 }
 JSON
 MFC="$SRC/backend/bin/mailfilter-config"
@@ -47,6 +48,9 @@ check "extra listener 10465 with implicit TLS" bash -c 'postconf -P "10465/inet/
 check "queue limit in main.cf" bash -c 'postconf -n | grep -q "^mfq_rhis_nl_.*_destination_concurrency_limit = 3"'
 check "transport lookup" bash -c 'postmap -q rhis.nl hash:/etc/mailfilter/postfix/transport | grep -q "^mfq_rhis_nl_.*:\[mail.rhis.nl\]:25$"'
 check "relay network lookup (IPv6)" bash -c 'postmap -q 2a02:58:1f:42::99 cidr:/etc/mailfilter/postfix/relay_networks.cidr | grep -q OK'
+check "paused IP is held" bash -c 'postmap -q 203.0.113.25 cidr:/etc/mailfilter/postfix/outbound_hold.cidr | grep -q "^HOLD Paused by Mailfilter"'
+check "paused account is held" bash -c 'postmap -q webshop@rhis.nl hash:/etc/mailfilter/postfix/outbound_hold_sasl | grep -q "^HOLD"'
+check "hold check runs for every message" bash -c 'postconf -h smtpd_end_of_data_restrictions | grep -q check_sasl_access'
 check "rspamadm configtest" rspamadm configtest
 check "rspamd per-domain rate loaded" bash -c 'rspamadm configdump ratelimit | grep -q "equal"'
 check "DKIM key made for new domain" bash -c 'ls /var/lib/rspamd/dkim/rhis.nl.mf*.key && grep -q "^rhis.nl mf" /etc/mailfilter/rspamd/dkim_selectors.map && grep -q "v=DKIM1" /etc/mailfilter/dkim-rhis.nl.mf*.txt'

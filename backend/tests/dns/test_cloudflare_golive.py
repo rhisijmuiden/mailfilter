@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from fakecf import FakeCloudflare
 
@@ -25,6 +26,13 @@ def test_bad_token():
     with pytest.raises(CloudflareError) as e:
         fake.client().verify_token()
     assert e.value.status == 403 and 9109 in e.value.codes
+
+
+def test_account_token_verifies_via_account():
+    fake = FakeCloudflare(["rhis.nl"], token="acct")
+    res = fake.client().verify_token()
+    assert res["status"] == "active" and res["account_id"] == "acc1"
+    assert ("GET", "/client/v4/accounts/acc1/tokens/verify") in fake.calls
 
 
 def test_zone_for_subdomain():
@@ -59,6 +67,33 @@ def test_publish_spf_merge_apply_and_undo(tmp_path):
     assert txt_value(rec["content"]) == "v=spf1 mx include:spf.transip.email -all"
     with pytest.raises(ValueError, match="already_undone"):
         publish.undo_batch(cf, done[0]["batch"], journal=j)
+
+
+def test_create_of_existing_identical_record_is_not_an_error():
+    from mailfilter_dns.cloudflare import DnsRecord
+
+    fake = FakeCloudflare(["rhis.nl"], [{"type": "TXT", "name": "_dmarc.rhis.nl", "content": '"v=DMARC1; p=none"'}])
+    cf = fake.client()
+    zone = cf.zone_for("rhis.nl")
+    rec = cf.create(zone, DnsRecord("TXT", "_dmarc.rhis.nl", "v=DMARC1; p=none"))
+    assert rec.content == "v=DMARC1; p=none" and len(fake.find("_dmarc.rhis.nl", "TXT")) == 1
+
+
+def test_records_filter_by_name_even_if_api_ignores_it():
+    fake = FakeCloudflare(["rhis.nl"], [
+        {"type": "TXT", "name": "rhis.nl", "content": "v=spf1 -all"},
+        {"type": "TXT", "name": "_dmarc.rhis.nl", "content": "v=DMARC1; p=none"},
+    ])
+    cf = fake.client()
+    zone = cf.zone_for("rhis.nl")
+    real = fake.handle
+
+    def ignore_name(req):  # an API that drops the name filter
+        url = req.url.copy_remove_param("name.exact")
+        return real(httpx.Request(req.method, url, headers=req.headers, content=req.content))
+
+    cf._c = httpx.Client(transport=httpx.MockTransport(ignore_name))
+    assert [r.name for r in cf.records(zone, name="_dmarc.rhis.nl", type="TXT")] == ["_dmarc.rhis.nl"]
 
 
 def test_publish_refuses_two_spf_records():

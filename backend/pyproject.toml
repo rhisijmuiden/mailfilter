@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mailfilter"
-version = "0.3.0"
+version = "1.0.0"
 description = "RHIS Mailfilter: web app, mail trace log collector and import tools"
 requires-python = ">=3.11"
 dependencies = [
@@ -25,6 +25,7 @@ test = ["pytest>=8"]
 
 [project.scripts]
 mailfilter-admin = "mailfilter.cli:main"
+mailfilter-dmarc-ingest = "mailfilter.dmarc.ingest:main"
 
 [tool.setuptools.packages.find]
 # mailfilter (web app) and the sibling packages mailfilter_tracer, _dns, _config, _pmg

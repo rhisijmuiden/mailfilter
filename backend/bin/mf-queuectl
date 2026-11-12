@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Mailfilter queue helper. The web app (user "mailfilter") may run exactly this
 # script as root via sudo; it only allows these actions on valid queue IDs:
+#   mf-queuectl summary            JSON object: number of messages per queue (active, deferred, hold…)
 #   mf-queuectl list-hold          JSON lines of messages in the hold queue (quarantine)
 #   mf-queuectl show ID            the full message (headers and body)
 #   mf-queuectl release ID         release from quarantine, delivery continues
@@ -18,9 +19,10 @@ in_hold() {
 }
 
 case $action in
+  summary) postqueue -j | jq -cs 'reduce .[] as $m ({}; .[$m.queue_name] += 1)' ;;
   list-hold) postqueue -j | jq -c 'select(.queue_name == "hold") | {queue_id, arrival_time, message_size, sender, recipients: [.recipients[].address]}' ;;
   show) need_id; in_hold; postcat -bh -q "$id" ;;
   release) need_id; in_hold; postsuper -H "$id" >/dev/null 2>&1 ;;
   delete) need_id; in_hold; postsuper -d "$id" hold >/dev/null 2>&1 ;;
-  *) echo "usage: mf-queuectl list-hold|show ID|release ID|delete ID" >&2; exit 2 ;;
+  *) echo "usage: mf-queuectl summary|list-hold|show ID|release ID|delete ID" >&2; exit 2 ;;
 esac
