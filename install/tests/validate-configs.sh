@@ -49,6 +49,7 @@ check "DMARC report address goes to the mfdmarc pipe" bash -c 'postconf -xh tran
 check "DMARC report address lives on the host name" bash -c '[[ $(postconf -xh virtual_mailbox_domains) == mailfilter01.example.nl ]]'
 # shellcheck disable=SC2016
 check "Spam report addresses go to the mfreport pipe" bash -c 'postconf -xh transport_maps | grep -q "spam@mailfilter01.example.nl=mfreport:" && postconf -xh transport_maps | grep -q "notspam@mailfilter01.example.nl=mfreport:" && postconf -M mfreport/unix | grep -q mailfilter-spam-report && [[ $(postconf -xh mfreport_destination_recipient_limit) == 1 ]]'
+# shellcheck disable=SC2016
 check "archive copies go to the mfarchive pipe" bash -c 'postconf -xh transport_maps | grep -q "archive.mailfilter.invalid=mfarchive:" && postconf -M mfarchive/unix | grep -q mailfilter-archive-deliver && [[ $(postconf -xh recipient_bcc_maps) == hash:/etc/mailfilter/postfix/archive_bcc ]]'
 check "master.cf has the mailfilter-config block" grep -q '^# BEGIN mailfilter-config' /etc/postfix/master.cf
 
