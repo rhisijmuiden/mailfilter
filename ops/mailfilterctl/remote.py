@@ -574,6 +574,26 @@ def sync(log=print, step=None) -> dict:
     return {"message": msg, "uploaded": uploaded, "removed": removed}
 
 
+def _check_remote_manifest(rm: dict, step_id: str, must_encrypt: bool) -> None:
+    """A downloaded manifest decides file names on this server, and restoring runs
+    as root: only accept the names Mailfilter itself writes. With encryption on,
+    refuse unencrypted backups, so the remote server cannot hand us its own files."""
+    try:
+        ok = rm.get("id") == step_id and isinstance(rm.get("remote_files"), dict) and isinstance(rm.get("files"), dict)
+        encrypted = bool(rm.get("encrypted"))
+        for rname, meta in (rm.get("remote_files") or {}).items():
+            src = meta.get("source")
+            ok = ok and src in backup.DATA_FILES and rname == (src + ".gpg" if encrypted else src)
+        ok = ok and all(name in backup.DATA_FILES for name in rm.get("files") or {})
+    except (AttributeError, TypeError):
+        ok = False
+    if not ok:
+        raise CtlError(f"The remote copy of {step_id} has an unexpected manifest; it will not be downloaded")
+    if must_encrypt and not encrypted:
+        raise CtlError(f"The remote copy of {step_id} is not encrypted while encryption is switched on; "
+                       "it will not be downloaded")
+
+
 def fetch(backup_id: str, log=print, step=None) -> None:
     """Download a remote backup and the steps it builds on into the local backup folder."""
     step = step or (lambda text, *_, **__: log(text))
@@ -599,6 +619,7 @@ def fetch(backup_id: str, log=print, step=None) -> None:
                 try:
                     t.get(f"{rel}/manifest.json", work / "manifest.json")
                     rm = json.loads((work / "manifest.json").read_text())
+                    _check_remote_manifest(rm, f"{chain_id}.{i:03d}", must_encrypt=config()["encrypt"])
                     for rname, meta in rm["remote_files"].items():
                         t.get(f"{rel}/{rname}", work / rname)
                         if sha256(work / rname) != meta["sha256"]:

@@ -190,8 +190,7 @@ def _ftp_server(tmp_path, tls):
     pytest.importorskip("pyftpdlib")
     from pyftpdlib.authorizers import DummyAuthorizer
     from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
-    from pyftpdlib.ioloop import IOLoop
-    from pyftpdlib.servers import ThreadedFTPServer
+    from pyftpdlib.servers import FTPServer
 
     home = tmp_path / "ftp-home"
     home.mkdir()
@@ -214,11 +213,10 @@ def _ftp_server(tmp_path, tls):
     Handler.authorizer = auth
     Handler.passive_ports = None
     Handler.auth_failed_timeout = 0  # answer a wrong password at once
-    # Own IOLoop per server: pyftpdlib's default is a process-wide singleton, so the previous test's
-    # server thread shutting down could close this server's loop mid-transfer (flaky FTPS test in CI).
-    server = ThreadedFTPServer(("127.0.0.1", 0), Handler, ioloop=IOLoop())
-    server.thread = threading.Thread(target=server.serve_forever, kwargs={"timeout": 0.2}, daemon=True)
-    server.thread.start()
+    # One event loop, not ThreadedFTPServer: its per-session threads share the
+    # pyOpenSSL context and now and then broke TLS handshakes (FTPS test flaked).
+    server = FTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, kwargs={"timeout": 0.2}, daemon=True).start()
     return server, home
 
 
@@ -244,7 +242,6 @@ def test_ftp_and_ftps(env, tmp_path, protocol):
                 remote.test(**QUIET)
     finally:
         server.close_all()
-        server.thread.join(5)
 
 
 # ---------------------------------------------------------------- SCP (SFTP)
@@ -314,3 +311,27 @@ def test_scp_with_key_and_pinned_host_key(env, sshd):
         remote.test(**QUIET)
     remote.forget_host_key()
     assert remote.test(**QUIET)["ok"]
+
+
+def test_remote_manifest_cannot_choose_file_names(env, file_remote):
+    """A remote server must not be able to make root write files elsewhere."""
+    remote.set_config({"encrypt": False})
+    b = cli._job_backup(_FakeJob({"type": "full"}))["backup"]
+    mp = file_remote / b["chain"] / "000" / "manifest.json"
+    m = json.loads(mp.read_text())
+    name, meta = next(iter(m["remote_files"].items()))
+    m["remote_files"] = {"../../../../evil": {**meta, "source": "../../../../evil"}}
+    mp.write_text(json.dumps(m))
+    shutil.rmtree(backup.location())
+    with pytest.raises(CtlError, match="unexpected manifest"):
+        remote.fetch(b["id"], **QUIET)
+    assert not list(env.parent.rglob("evil"))
+
+
+def test_unencrypted_remote_refused_when_encryption_is_on(env, file_remote):
+    remote.set_config({"encrypt": False})
+    b = cli._job_backup(_FakeJob({"type": "full"}))["backup"]
+    remote.set_config({"encrypt": True})
+    shutil.rmtree(backup.location())
+    with pytest.raises(CtlError, match="not encrypted"):
+        remote.fetch(b["id"], **QUIET)

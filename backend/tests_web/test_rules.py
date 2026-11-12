@@ -93,3 +93,33 @@ def test_customer_sets_own_domain_only(customer, routed, helper):
     assert helper["calls"][-1]["custom_rules"]["newsletter_no_dkim"]["domains"] == {"klant.nl": False}
     r = customer.put("/api/rules/newsletter_no_dkim/domains/klant.nl", json={"state": "default"})
     assert rule(r.json(), "newsletter_no_dkim")["domains"] == {}
+
+
+def test_protection_rules_listed_with_choices_and_lists(admin, routed):
+    data = admin.get("/api/rules").json()
+    r = rule(data, "attachments_dangerous")
+    opts = {o["id"]: o for o in r["options"]}
+    assert opts["action"]["value"] == "reject" and {c["id"] for c in opts["action"]["choices"]} == {"reject", "quarantine"}
+    assert "exe" in opts["extensions"]["value"]
+    assert rule(data, "arc_seal_inbound")["per_domain"] is False
+    assert {r["group"] for r in data["rules"]} >= {"newsletter", "phishing", "attachments", "arc"}
+
+
+def test_list_option_is_normalised_before_storing(admin, routed, helper):
+    r = admin.put("/api/rules/phishing_display_name",
+                  json={"enabled": True, "options": {"score": 5, "names": "Jan  de Vries\nPiet Jansen, Piet Jansen"}})
+    assert r.status_code == 200, r.text
+    assert helper["calls"][-1]["custom_rules"]["phishing_display_name"]["options"]["names"] == ["Jan de Vries", "Piet Jansen"]
+    with session() as db:
+        assert get_setting(db, "custom_rules")["phishing_display_name"]["options"]["names"] == ["Jan de Vries", "Piet Jansen"]
+
+
+def test_global_only_rule_has_no_domain_choice(admin, customer, routed):
+    r = admin.put("/api/rules/arc_seal_inbound/domains/rhis.nl", json={"state": "on"})
+    assert r.status_code == 422 and r.json()["detail"]["problems"][0]["code"] == "rule_not_per_domain"
+
+
+def test_customer_does_not_see_protected_names(admin, customer, routed, helper):
+    admin.put("/api/rules/phishing_display_name", json={"enabled": True, "options": {"names": ["Jan de Vries"]}})
+    r = rule(customer.get("/api/rules").json(), "phishing_display_name")
+    assert [o["id"] for o in r["options"]] == ["score"]

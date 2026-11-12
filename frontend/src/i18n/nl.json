@@ -457,7 +457,18 @@
     "MF_NEWSLETTER": "Nieuwsbrief",
     "MF_NEWSLETTER_NO_UNSUB": "Nieuwsbrief zonder afmeldmogelijkheid",
     "MF_NEWSLETTER_NO_ONECLICK": "Nieuwsbrief zonder one-click afmelden",
-    "MF_NEWSLETTER_NO_DKIM": "Nieuwsbrief niet ondertekend door het domein van de afzender"
+    "MF_NEWSLETTER_NO_DKIM": "Nieuwsbrief niet ondertekend door het domein van de afzender",
+    "MF_LOOKALIKE_DOMAIN": "Afzenderdomein lijkt op dat van jou",
+    "MF_DISPLAYNAME_SPOOF": "Valse afzendernaam",
+    "MF_SUSPICIOUS_LINK": "Verdachte link",
+    "MF_EXTERNAL_BANNER": "Banner externe afzender toegevoegd",
+    "MF_ATTACHMENT_BLOCKED": "Gevaarlijk bijlagetype",
+    "MF_ATTACHMENT_MACRO": "Office-bestand met macro's",
+    "MF_ATTACHMENT_ENCRYPTED": "Archief met wachtwoord",
+    "ARC_ALLOW_TRUSTED": "Doorgestuurd door vertrouwde provider (ARC)",
+    "ARC_ALLOW": "Geldig ARC-zegel",
+    "ARC_REJECT": "Ongeldig ARC-zegel",
+    "ARC_SIGNED": "Met ARC verzegeld door Mailfilter"
   },
   "dns": {
     "title": "DNS-toolbox",
@@ -1217,7 +1228,8 @@
     "safety": "Eerst een veiligheidsbackup van de huidige situatie maken (aanbevolen)",
     "confirm_word": "terugzetten",
     "type_to_confirm": "Typ \"{{word}}\" om te bevestigen",
-    "restore_go": "Nu terugzetten"
+    "restore_go": "Nu terugzetten",
+    "remote_later": "Backups naar FTP, FTPS of SCP kopiëren komt in een latere versie."
   },
   "smtp": {
     "title": "E-mail verzenden",
@@ -1369,10 +1381,16 @@
     "intro": "Bij elke regel staat wat hij doet. Een regel met een spamscore telt die score op; vanaf 8 gaat een bericht in quarantaine, vanaf 15 wordt het geweigerd. Rspamd controleert elke wijziging en die werkt meteen; accepteert Rspamd hem niet, dan verandert er niets.",
     "intro_customer": "Deze regels stelt je beheerder in. Per domein kun je die instelling volgen of een regel voor je eigen domeinen aan of uit zetten.",
     "group": {
-      "newsletter": "Nieuwsbrieven"
+      "newsletter": "Nieuwsbrieven",
+      "phishing": "Phishing en CEO-fraude",
+      "attachments": "Bijlagen",
+      "arc": "Doorgestuurde mail (ARC)"
     },
     "group_sub": {
-      "newsletter": "Nieuwsbrieven herkennen en de nieuwsbrieven die zich niet aan de regels houden tegenhouden"
+      "newsletter": "Nieuwsbrieven herkennen en de nieuwsbrieven die zich niet aan de regels houden tegenhouden",
+      "phishing": "Berichten tegenhouden die doen alsof ze van jou of je collega's komen",
+      "attachments": "Gevaarlijke bestanden tegenhouden voordat iemand ze opent",
+      "arc": "Doorgestuurde mail laten werken met DMARC"
     },
     "dir": {
       "inbound": "Inkomende mail",
@@ -1389,7 +1407,10 @@
     "per_domain_hint": "Standaard volgt de schakelaar hierboven. Bij een bericht aan meerdere domeinen geldt de regel als hij voor minstens een ervan aan staat.",
     "symbol": "Zichtbaar in de mailtrace als",
     "saved": "Regel opgeslagen en toegepast",
-    "admin_only": "Alleen een beheerder kan dit wijzigen"
+    "admin_only": "Alleen een beheerder kan dit wijzigen",
+    "list_hint": "Eén per regel, of gescheiden door komma's",
+    "global_only": "Deze regel geldt voor alle domeinen tegelijk.",
+    "reset_default": "Terug naar de standaardlijst"
   },
   "holds": {
     "paused_title": "{{value}} is gepauzeerd",
