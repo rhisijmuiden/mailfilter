@@ -8,6 +8,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from . import cloud
 from .model import Domain, GatewayConfig, QueuePolicy
 from .rules import render_files as render_rule_files
 
@@ -16,7 +17,7 @@ PF = f"{ETC}/postfix"
 
 # Every main.cf parameter this package sets starts with one of these, so
 # stale ones (from a removed domain) can be found and deleted.
-MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_", "mfl_", "mft_")
+MANAGED_PARAM_PREFIXES = ("mfq_", "mfo_", "mfl_", "mft_", "mfc_")
 # Standard Postfix parameters this package owns completely (always set).
 MANAGED_PARAMS = ("smtpd_end_of_data_restrictions", "smtpd_restriction_classes")
 SMTP_USERS = f"{ETC}/smtp-users"
@@ -255,6 +256,7 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
     out.files[f"{PF}/sender_lock_sasl"] = "".join(lock_sasl)
     out.hash_maps.append(f"{PF}/sender_lock_sasl")
     classes += render_mailtrap(cfg, out, mail_ids)
+    classes += render_cloud(cfg, out, domains)
     if classes:
         # Left out when empty: `postconf -n` prints an empty value without " = ", so
         # setting "" would look changed on every apply. Unset, it is removed (managed).
@@ -271,6 +273,37 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
     # ---- custom rules (newsletter filter etc.) ------------------------------------
     out.files.update(render_rule_files(cfg.custom_rules, {d.name for d in domains}))
     return out
+
+
+def render_cloud(cfg: GatewayConfig, out: Rendered, domains: list[Domain]) -> list[str]:
+    """Microsoft 365 / Google Workspace tenants (see cloud.py). Returns the restriction classes.
+
+    cloud_relay.cidr sends the provider's mail servers to a class that says OK
+    (may relay) only for the tenants' own domains and the empty bounce sender;
+    anything else gets DUNNO and is handled like any other incoming mail, so
+    normal mail from other Microsoft/Google customers keeps arriving."""
+    tenants = [t for t in cfg.cloud_tenants if t.enabled]
+    names = {d.name for d in domains}
+    classes: list[str] = []
+    lines = [HEADER]
+    settings: dict = {"networks": {}, "m365": {}, "google": [], "local_domains": sorted(names)}
+    for provider in cloud.PROVIDERS:
+        mine = sorted({t.domain for t in tenants if t.provider == provider and t.domain in names})
+        if not mine:
+            continue
+        cls = f"mfc_{provider}"
+        classes.append(cls)
+        allowed = ", ".join(f"{n}=OK" for n in mine)
+        out.main_cf[cls] = f"check_sender_access inline:{{{allowed}, <>=OK}}"
+        lines.append(f"# {'Microsoft 365' if provider == 'm365' else 'Google Workspace'}: {', '.join(mine)}\n")
+        lines += [f"{n} {cls}\n" for n in cloud.NETWORKS[provider]]
+        settings["networks"][provider] = list(cloud.NETWORKS[provider])
+    settings["m365"] = {t.domain: t.tenant_id for t in tenants if t.provider == "m365" and t.domain in names}
+    settings["google"] = sorted(t.domain for t in tenants if t.provider == "google" and t.domain in names)
+    out.files[cloud.CIDR_MAP] = "".join(lines)
+    out.files[cloud.SETTINGS_PATH] = json.dumps(settings, indent=2, sort_keys=True) + "\n"
+    out.files[cloud.LUA_PATH] = cloud.LUA_SOURCE.read_text(encoding="utf-8")
+    return classes
 
 
 def render_mailtrap(cfg: GatewayConfig, out: Rendered, mail_ids: tuple[int, int]) -> list[str]:

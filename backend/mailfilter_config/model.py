@@ -85,6 +85,18 @@ class RelayNetwork:
 
 
 @dataclass
+class CloudTenant:
+    """A Microsoft 365 or Google Workspace tenant that sends its outgoing mail
+    through the Mailfilter (see cloud.py). One entry per domain."""
+
+    provider: str  # m365 or google
+    domain: str
+    # Microsoft 365 only: the tenant ID (GUID) relayed mail must carry.
+    tenant_id: str = ""
+    enabled: bool = True
+
+
+@dataclass
 class SmtpAccount:
     """A login for sending through the gateway (Dovecot checks the password).
 
@@ -193,6 +205,7 @@ class GatewayConfig:
     holds: list[OutboundHold] = field(default_factory=list)
     smtp_accounts: list[SmtpAccount] = field(default_factory=list)
     mailtraps: list[MailTrap] = field(default_factory=list)
+    cloud_tenants: list[CloudTenant] = field(default_factory=list)
     # Main switch. Off: mail from Mailtrap senders is refused (never relayed).
     mailtrap_enabled: bool = True
     # Domains whose mail (in and out) is copied to the mail archive (mfarchive pipe).
@@ -243,6 +256,7 @@ class GatewayConfig:
             holds=[OutboundHold(**h) for h in data.get("holds", [])],
             smtp_accounts=[SmtpAccount(**a) for a in data.get("smtp_accounts", [])],
             mailtraps=[MailTrap(**t) for t in data.get("mailtraps", [])],
+            cloud_tenants=[CloudTenant(**t) for t in data.get("cloud_tenants", [])],
             mailtrap_enabled=bool(data.get("mailtrap_enabled", True)),
             archive_domains=[str(d) for d in data.get("archive_domains", [])],
             defaults=Defaults(**data.get("defaults", {})),

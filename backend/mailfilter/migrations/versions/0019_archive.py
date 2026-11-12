@@ -6,15 +6,15 @@ Triggers make the archive tamper-resistant in the database itself:
   retention date and when its domain has no legal hold.
 - archive_seal and archive_purge: rows can never be changed or deleted.
 
-Revision ID: 0018_archive
+Revision ID: 0019_archive
 Revises: 0017_api_keys
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql as pg
 
-revision = "0018_archive"
-down_revision = "0017_api_keys"
+revision = "0019_archive"
+down_revision = "0018_cloud_tenants"
 branch_labels = None
 depends_on = None
 

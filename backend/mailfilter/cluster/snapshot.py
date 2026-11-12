@@ -38,7 +38,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import __version__
-from ..models import (AddressRoute, ApiKey, AppSetting, ArchiveDomain, BillingCustomer, ClusterNode, Reseller, DestinationPolicy, DigestDomain, Domain, DomainDestination,
+from ..models import (AddressRoute, ApiKey, AppSetting, ArchiveDomain, BillingCustomer, CloudTenant, ClusterNode, Reseller, DestinationPolicy, DigestDomain, Domain, DomainDestination,
                       DomainRoute, RelayNetwork, RelayPort, SenderListEntry, SmtpAccount, TlsPolicy, User)
 from ..settings import get_settings
 from ..settings_store import _fernet, set_secret, set_setting
@@ -51,17 +51,19 @@ SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp"
                              "quarantine_report", "security", "dkim_rotation", "billing.tariffs"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
-                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, Reseller, BillingCustomer, ApiKey, ArchiveDomain)
+                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, Reseller, BillingCustomer, ApiKey, CloudTenant, ArchiveDomain)
 
 # Changes to these columns alone are not configuration changes.
 LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at", "totp_last_step"}), ClusterNode: ClusterNode.LOCAL,
                  Reseller: frozenset({"created_at"}), BillingCustomer: frozenset({"created_at"}),
                  SenderListEntry: frozenset({"created_at"}), SmtpAccount: frozenset({"created_at"}),
                  ApiKey: frozenset({"created_at", "last_used_at", "last_used_ip"}),
+                 CloudTenant: frozenset({"created_at"}),
                  # The chain state changes with every archived message and is per node.
                  ArchiveDomain: frozenset({"last_seq", "head", "retain_floor", "created_at"})}
 ARCHIVE_FIELDS = ("enabled", "retention_years", "legal_hold", "legal_hold_since", "legal_hold_note")
 ACCOUNT_FIELDS = ("password_hash", "description", "enabled")
+CLOUD_FIELDS = ("provider", "tenant_id", "enabled", "steps")
 LIST_FIELDS = ("list", "comment", "created_by")
 
 ROUTE_FIELDS = ("kind", "sender_lock", "enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note")
@@ -120,6 +122,9 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
     }
     gateway["smtp_accounts"] = [{**_pick(a, ("username", *ACCOUNT_FIELDS)), "domain": a.domain.name}
                                 for a in db.execute(select(SmtpAccount).order_by(SmtpAccount.username)).scalars()]
+    gateway["cloud_tenants"] = [{**_pick(t, CLOUD_FIELDS), "domain": t.domain.name}
+                                for t in db.execute(select(CloudTenant)).scalars()]
+    gateway["cloud_tenants"].sort(key=lambda t: t["domain"])
     for section, (model, key, fields) in SIMPLE.items():
         gateway[section] = [_pick(r, (key, *fields)) for r in db.execute(select(model).order_by(getattr(model, key))).scalars()]
 
@@ -252,6 +257,22 @@ def _import_accounts(db: Session, items: list[dict] | None, domains: dict[str, D
         _put(a, i, ACCOUNT_FIELDS)
         a.domain_id = domains[str(i["domain"]).lower()].id
         db.add(a)
+
+
+def _import_cloud(db: Session, items: list[dict] | None, domains: dict[str, Domain]) -> None:
+    if items is None:  # snapshot from a version without cloud mail: leave ours alone
+        return
+    have = {t.domain_id: t for t in db.execute(select(CloudTenant)).scalars()}
+    wanted = {domains[str(i.get("domain") or "").lower()].id: i for i in items
+              if domains.get(str(i.get("domain") or "").lower())}
+    for did, t in have.items():
+        if did not in wanted:
+            db.delete(t)
+    db.flush()
+    for did, i in wanted.items():
+        t = have.get(did) or CloudTenant(domain_id=did)
+        _put(t, i, CLOUD_FIELDS)
+        db.add(t)
 
 
 def _import_simple(db: Session, model, key: str, fields: tuple[str, ...], items: list[dict]) -> None:
@@ -487,6 +508,7 @@ def apply_snapshot(db: Session, snap: dict[str, Any], *, joining: bool = False) 
     domains = _import_domains(db, g.get("domains", []))
     _import_networks(db, g.get("relay_networks", []), domains)
     _import_accounts(db, g.get("smtp_accounts"), domains)
+    _import_cloud(db, g.get("cloud_tenants"), domains)
     for section, (model, key, fields) in SIMPLE.items():
         _import_simple(db, model, key, fields, g.get(section, []))
     resellers = _import_billing(db, snap.get("billing"), domains)

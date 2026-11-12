@@ -39,6 +39,7 @@ const GROUPS: [string, RegExp][] = [
   ["lists", /^list_/],
   ["mailtrap", /^mailtrap_/],
   ["archive", /^archive\./],
+  ["cloud", /^cloud_/],
   ["api", /^api_key_/],
 ];
 
