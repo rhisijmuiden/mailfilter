@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from . import __version__
+from .api import links as links_api
 from .api import router
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -31,3 +32,5 @@ def health() -> dict[str, str]:
 
 
 app.include_router(router)
+# Click links of link protection: https://<host>/l/<token>, outside /api.
+app.include_router(links_api.public)

@@ -258,7 +258,7 @@ def render(cfg: GatewayConfig, mail_ids: tuple[int, int] = (0, 0)) -> Rendered:
                if cfg.mailtrap_enabled and t.enabled and t.smtp_login and t.password_hash]
     out.users_block = "".join(f"{u}:{h}\n" for u, h in sorted(logins))
     # ---- custom rules (newsletter filter etc.) ------------------------------------
-    out.files.update(render_rule_files(cfg.custom_rules, {d.name for d in domains}))
+    out.files.update(render_rule_files(cfg.custom_rules, {d.name for d in domains}, cfg.hostname))
     return out
 
 

@@ -13,6 +13,7 @@ Symbols:
   MF_DISPLAYNAME_SPOOF     outside sender pretends to be someone of yours
   MF_SUSPICIOUS_LINK       link that hides where it goes
   MF_EXTERNAL_BANNER       "External sender" banner added (score 0)
+  MF_LINK_PROTECT          links rewritten for the check at click time (score 0)
   MF_ATTACHMENT_BLOCKED    dangerous file type (rejected or quarantined)
   MF_ATTACHMENT_MACRO      Office file with macros
   MF_ATTACHMENT_ENCRYPTED  password-protected archive
@@ -21,13 +22,14 @@ Symbols:
 local rspamd_logger = require "rspamd_logger"
 local rspamd_util = require "rspamd_util"
 local lua_mime = require "lua_mime"
+local rspamd_cryptobox_hash = require "rspamd_cryptobox_hash"
 local ucl = require "ucl"
 
 local N = 'mailfilter_protection'
 local SETTINGS = '/etc/rspamd/mailfilter_rules.json'
 local GROUP = 'mailfilter'
 
-local rules, protected_list = {}, {}
+local rules, protected_list, link_host = {}, {}, nil
 do
   local parser = ucl.parser()
   local ok, err = parser:parse_file(SETTINGS)
@@ -35,6 +37,7 @@ do
     local obj = parser:get_object() or {}
     rules = obj.rules or {}
     protected_list = obj.protected_domains or {}
+    link_host = obj.link_host
   else
     rspamd_logger.infox(rspamd_config, '%s: cannot read %s (%s); protection rules are off', N, SETTINGS, err)
   end
@@ -451,12 +454,232 @@ local function can_rewrite(task)
   return tp and #tp > 0
 end
 
--- Adds the banner on top of every text and HTML part (the structure follows
--- lua_mime.add_text_footer) and hands Rspamd the new message.
-local function add_banner(task, suspicious)
+---------------------------------------------------------------------------
+-- Link protection: links are checked again when someone clicks them
+---------------------------------------------------------------------------
+
+-- Shared with the web app, which checks the signature of every click link.
+-- Owner _rspamd, group mailfilter, mode 0440 (made by the installer).
+local LINK_KEY_FILE = '/etc/mailfilter/link-protection.key'
+local LINK_MAX = 2048 -- longer links are left alone
+-- Symbols whose options name a dangerous link host (Rspamd's own and ours).
+local LINK_SYMBOLS = { 'MF_SUSPICIOUS_LINK', 'PHISHING', 'PH_SURBL_MULTI', 'MW_SURBL_MULTI', 'ABUSE_SURBL',
+                       'SURBL_MULTI', 'URIBL_BLACK', 'URIBL_RED', 'DBL_PHISH', 'DBL_MALWARE', 'DBL_BOTNET',
+                       'DBL_ABUSE_PHISH', 'DBL_ABUSE_MALWARE', 'DBL_ABUSE_BOTNET', 'DBL_SPAM', 'DBL_ABUSE',
+                       'SEM_URIBL', 'SEM_URIBL_FRESH15' }
+
+local link_key_cache, link_key_warned
+local function link_key(task)
+  if not link_key_cache then
+    -- Read again until it works: the installer may make the key after Rspamd started.
+    local f = io.open(LINK_KEY_FILE, 'r')
+    if f then
+      local k = (f:read('*a') or ''):gsub('%s', '')
+      f:close()
+      if #k >= 32 and #k <= 64 then
+        link_key_cache = k
+      end
+    end
+    if not link_key_cache and not link_key_warned then
+      link_key_warned = true
+      rspamd_logger.warnx(task, '%s: no usable key in %s; links are not rewritten', N, LINK_KEY_FILE)
+    end
+  end
+  return link_key_cache
+end
+
+local function b64url(s)
+  return (tostring(rspamd_util.encode_base64(s)):gsub('%s', ''):gsub('%+', '-'):gsub('/', '_'):gsub('=', ''))
+end
+
+local function url_host(u)
+  local auth = u:match('^[hH][tT][tT][pP][sS]?://([^/?#]+)')
+  if not auth then
+    return nil
+  end
+  auth = auth:gsub('^.*@', '')
+  local host = auth:match('^%[([^%]]+)%]') or auth:gsub(':%d*$', '')
+  return clean_host(host)
+end
+
+local function in_list(host, set)
+  if set[host] then
+    return true
+  end
+  for d in pairs(set) do
+    if #host > #d and host:sub(-(#d + 1)) == '.' .. d then
+      return true
+    end
+  end
+  return false
+end
+
+local link_skip_cache
+local function link_skip()
+  if not link_skip_cache then
+    link_skip_cache = set_of(option('link_protection', 'skip_links', {}))
+  end
+  return link_skip_cache
+end
+
+-- Whether this link gets a click link.
+local function link_rewritable(u)
+  if #u > LINK_MAX then
+    return false
+  end
+  local host = url_host(u)
+  if not host or host == link_host or is_own(host) or in_list(host, link_skip()) then
+    return false
+  end
+  return true
+end
+
+local function sender_skipped(task)
+  local skip = set_of(option('link_protection', 'skip_senders', {}))
+  if next(skip) == nil then
+    return false
+  end
+  for _, f in ipairs({ from_mime(task) or {}, ((task:get_from('smtp') or {})[1]) or {} }) do
+    local d = clean_host(f.domain)
+    if d and in_list(d, skip) then
+      return true
+    end
+  end
+  return false
+end
+
+local function link_wanted(task, domains)
+  if not (link_host and link_host ~= '' and rule_on('link_protection', domains)) then
+    return false
+  end
+  local f = from_mime(task)
+  if f and f.domain and f.domain ~= '' and is_own(f.domain) then
+    return false
+  end
+  if sender_skipped(task) or not can_rewrite(task) then
+    return false
+  end
+  local any = false
+  for _, u in ipairs(task:get_urls({ 'http', 'https' }) or {}) do
+    if link_rewritable(tostring(u:get_text())) then
+      any = true
+      break
+    end
+  end
+  return any and link_key(task) ~= nil
+end
+
+-- Builds the click links for one message: https://<host>/l/<payload>.<signature>.
+-- The payload holds the link, the message and its recipients, so nothing has
+-- to be stored per link; the signature stops anyone from making their own.
+local function link_maker(task, domains, fake_sender)
+  local key = link_key(task)
+  local rcpts = task:get_recipients('smtp') or {}
+  local flagged = {}
+  for _, sym in ipairs(LINK_SYMBOLS) do
+    local s = task:get_symbol(sym)
+    if s and s[1] and s[1].options then
+      for _, o in ipairs(s[1].options) do
+        flagged[#flagged + 1] = tostring(o):lower()
+      end
+    end
+  end
+  local base = {
+    m = task:get_message_id() or '',
+    q = task:get_queue_id() or '',
+    d = domains,
+    t = math.floor(rspamd_util.get_time()),
+  }
+  if #rcpts == 1 and rcpts[1].addr then
+    base.r = rcpts[1].addr:lower()
+  end
+  local cache = {}
+  return function(u)
+    u = u:gsub('^%s+', ''):gsub('%s+$', '')
+    if not link_rewritable(u) then
+      return nil
+    end
+    if cache[u] then
+      return cache[u]
+    end
+    local host = url_host(u)
+    -- 1: Rspamd or a phishing rule named this link, 2: the sender is fake
+    local f = fake_sender and 2 or 0
+    for _, o in ipairs(flagged) do
+      if o:find(host, 1, true) then
+        f = f + 1
+        break
+      end
+    end
+    local p = { u = u, f = f }
+    for k, v in pairs(base) do
+      p[k] = v
+    end
+    local payload = b64url(ucl.to_format(p, 'json-compact'))
+    local h = rspamd_cryptobox_hash.create_keyed(key)
+    h:update(payload)
+    local link = string.format('https://%s/l/%s.%s', link_host, payload, b64url(tostring(h:bin()):sub(1, 16)))
+    cache[u] = link
+    return link
+  end
+end
+
+-- href="..." of <a> and <area>; the visible text stays as it is.
+local function rewrite_html_links(s, mk)
+  local n = 0
+  local function quoted(prefix, q, val)
+    local new = mk((val:gsub('&amp;', '&'):gsub('&#38;', '&')))
+    if new then
+      n = n + 1
+      return prefix .. q .. new .. q
+    end
+    return nil
+  end
+  local function bare(prefix, val)
+    local new = mk((val:gsub('&amp;', '&')))
+    if new then
+      n = n + 1
+      return prefix .. '"' .. new .. '"'
+    end
+    return nil
+  end
+  s = s:gsub('<([aA][rReEaA]*)(%s[^>]*)>', function(tag, attrs)
+    local t = tag:lower()
+    if t ~= 'a' and t ~= 'area' then
+      return nil
+    end
+    local a2, c = attrs:gsub('(%s[hH][rR][eE][fF]%s*=%s*)(["\'])(.-)%2', quoted)
+    if c == 0 then
+      a2 = attrs:gsub('(%s[hH][rR][eE][fF]%s*=%s*)([^%s"\'>]+)', bare)
+    end
+    return '<' .. tag .. a2 .. '>'
+  end)
+  return s, n
+end
+
+local function rewrite_text_links(s, mk)
+  local n = 0
+  s = s:gsub('[hH][tT][tT][pP][sS]?://[^%s<>"\']+', function(u)
+    local trail = u:match('[%.,;:!%?%)%]]+$') or ''
+    local new = mk(u:sub(1, #u - #trail))
+    if new then
+      n = n + 1
+      return new .. trail
+    end
+    return nil
+  end)
+  return s, n
+end
+
+---------------------------------------------------------------------------
+-- Changing the body (banner and link protection)
+---------------------------------------------------------------------------
+
+-- Runs transform(text, is_html) -> new text or nil over every text and HTML
+-- part (the structure follows lua_mime.add_text_footer) and hands Rspamd the
+-- new message. Parts the transform leaves alone are copied byte for byte.
+local function rewrite_body(task, transform, headers)
   local nl = newline(task)
-  local text = banner_text(suspicious)
-  local html = html_banner(text, suspicious)
   local out = {}
   local single_ct
   local boundaries = {}
@@ -467,16 +690,13 @@ local function add_banner(task, suspicious)
     local tp = part:get_text()
     local is_html = tp:is_html()
     local content = tp:get_content('raw_utf')
-    local s = content and tostring(content) or ''
-    if is_html then
-      local _, b_end = s:find('<[bB][oO][dD][yY][^>]*>')
-      if b_end then
-        s = s:sub(1, b_end) .. html .. s:sub(b_end + 1)
-      else
-        s = html .. s
+    local s = transform(content and tostring(content) or '', is_html)
+    if not s then
+      if is_multipart then
+        out[#out + 1] = { part:get_raw_headers(), true }
       end
-    else
-      s = text .. nl .. nl .. s
+      out[#out + 1] = { part:get_raw_content(), false }
+      return
     end
     local ct = is_html and 'text/html' or 'text/plain'
     if is_multipart then
@@ -559,8 +779,7 @@ local function add_banner(task, suspicious)
   end
   task:set_message(pieces)
 
-  local add = { ['X-Mailfilter-External'] = suspicious and 'yes; suspicious' or 'yes' }
-  local remove = {}
+  local add, remove = headers or {}, {}
   if single_ct then
     add['Content-Type'] = single_ct .. '; charset=utf-8'
     add['Content-Transfer-Encoding'] = 'quoted-printable'
@@ -599,17 +818,29 @@ local function phishing_check(task)
   if rule_on('phishing_display_name', domains) and check_display_name(task) then
     suspicious = true
   end
+  -- A fake sender makes every link in the message suspect; a bad link only itself.
+  local fake_sender = suspicious
   if rule_on('phishing_links', domains) and check_links(task) then
     suspicious = true
   end
-  if banner_wanted(task, domains, suspicious) then
-    task:cache_set('mf_banner', { suspicious = suspicious })
+  local banner = banner_wanted(task, domains, suspicious)
+  local links = link_wanted(task, domains)
+  if banner or links then
+    local on = {}
+    for _, d in ipairs(domains) do
+      if rule_on('link_protection', { d }) then
+        on[#on + 1] = d
+      end
+    end
+    task:cache_set('mf_body', { banner = banner, links = links, suspicious = suspicious, fake_sender = fake_sender,
+                                domains = on })
+    -- The ARC seal would cover the original body and break on the new one.
     task:disable_symbol('ARC_SIGNED')
   end
 end
 
-local function banner_postfilter(task)
-  local want = task:cache_get('mf_banner')
+local function body_postfilter(task)
+  local want = task:cache_get('mf_body')
   if not want then
     return
   end
@@ -617,11 +848,58 @@ local function banner_postfilter(task)
   if action == 'reject' or action == 'soft reject' or action == 'discard' then
     return
   end
-  local ok, res = pcall(add_banner, task, want.suspicious)
+  local text, html
+  if want.banner then
+    text = banner_text(want.suspicious)
+    html = html_banner(text, want.suspicious)
+  end
+  local mk = want.links and link_maker(task, want.domains, want.fake_sender)
+  local nlinks = 0
+  local nl = newline(task)
+  local headers = {}
+  if want.banner then
+    headers['X-Mailfilter-External'] = want.suspicious and 'yes; suspicious' or 'yes'
+  end
+  local function transform(s, is_html)
+    local did = false
+    if mk then
+      local n
+      if is_html then
+        s, n = rewrite_html_links(s, mk)
+      else
+        s, n = rewrite_text_links(s, mk)
+      end
+      nlinks = nlinks + n
+      did = n > 0
+      if nlinks > 0 then
+        headers['X-Mailfilter-Links'] = string.format('protected; %d', nlinks)
+      end
+    end
+    if text then
+      if is_html then
+        local _, b_end = s:find('<[bB][oO][dD][yY][^>]*>')
+        if b_end then
+          s = s:sub(1, b_end) .. html .. s:sub(b_end + 1)
+        else
+          s = html .. s
+        end
+      else
+        s = text .. nl .. nl .. s
+      end
+      did = true
+    end
+    return did and s or nil
+  end
+  local ok, res = pcall(rewrite_body, task, transform, headers)
   if ok and res then
-    task:insert_result('MF_EXTERNAL_BANNER', 1.0, want.suspicious and 'suspicious' or 'external')
+    if want.banner then
+      task:insert_result('MF_EXTERNAL_BANNER', 1.0, want.suspicious and 'suspicious' or 'external')
+    end
+    if nlinks > 0 then
+      task:insert_result('MF_LINK_PROTECT', 1.0, tostring(nlinks))
+    end
   elseif not ok then
-    rspamd_logger.errx(task, '%s: could not add the banner: %s', N, res)
+    rspamd_logger.errx(task, '%s: could not change the message: %s', N, res)
   end
 end
 
@@ -771,6 +1049,10 @@ rspamd_config:register_symbol({
   score = score_of('phishing_links', 3.5),
   description = 'Link that hides where it really goes',
 })
+rspamd_config:register_symbol({
+  name = 'MF_LINK_PROTECT', type = 'virtual', parent = phish_id, group = GROUP, score = 0.0,
+  description = 'Links rewritten for the check at click time',
+})
 -- Authentication results first; ARC sealing waits for the banner decision.
 rspamd_config:register_dependency('MF_PHISHING_CHECK', 'DMARC_CHECK')
 rspamd_config:register_dependency('ARC_SIGNED', 'MF_PHISHING_CHECK')
@@ -778,13 +1060,13 @@ rspamd_config:register_dependency('ARC_SIGNED', 'MF_PHISHING_CHECK')
 rspamd_config:register_symbol({
   name = 'MF_EXTERNAL_BANNER',
   type = 'postfilter',
-  callback = banner_postfilter,
+  callback = body_postfilter,
   -- after the action is known (force_actions), before headers are written
   priority = 5,
   score = 0.0,
   group = GROUP,
   flags = 'ignore_passthrough',
-  description = 'External sender banner added',
+  description = 'External sender banner and link protection',
 })
 
 local att_id = rspamd_config:register_symbol({

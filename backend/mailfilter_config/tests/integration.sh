@@ -78,9 +78,15 @@ d["custom_rules"] = {"newsletter_no_unsubscribe": {"enabled": True, "options": {
                      "newsletter_subject": {"enabled": True, "options": {"tag": "[Nieuwsbrief]"}, "domains": {}},
                      "phishing_display_name": {"enabled": True, "options": {"names": ["Reinder de Directeur"]}, "domains": {}},
                      "external_banner": {"enabled": True, "options": {"language": "nl"}, "domains": {}},
-                     "arc_seal_inbound": {"enabled": True, "options": {}, "domains": {}}}
+                     "arc_seal_inbound": {"enabled": True, "options": {}, "domains": {}},
+                     "link_protection": {"enabled": False, "options": {"skip_links": ["partner.example"]},
+                                         "domains": {"rhis.nl": True}}}
+d["hostname"] = "mailfilter.test"
 json.dump(d, open("/tmp/rules.json", "w"))
 PY
+# The key the installer makes for link protection (Rspamd signs, the web app checks).
+python3 -c 'import secrets; print(secrets.token_hex(32))' >/etc/mailfilter/link-protection.key
+chown _rspamd /etc/mailfilter/link-protection.key && chmod 0440 /etc/mailfilter/link-protection.key
 check "apply with custom rules" "$MFC" apply --state /tmp/rules.json --no-reload
 check "rules Lua and settings written" bash -c 'test -f /etc/rspamd/lua.local.d/mailfilter_rules.lua && grep -q "\"score\": 5.0" /etc/rspamd/mailfilter_rules.json'
 check "rspamadm configtest with rules" rspamadm configtest
@@ -185,6 +191,54 @@ PY
 check "external banner added above the original text" bash -c "$(declare -f banner_ok); banner_ok /tmp/scan-banner.eml"
 check "external banner header added" bash -c "$(declare -f has); has /tmp/scan-banner.json X-Mailfilter-External"
 check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
+echo "== link protection: links in incoming mail point to the click check"
+cat >/tmp/lp.eml <<'EML'
+From: Leverancier <factuur@supplier.example>
+To: info@rhis.nl
+Subject: Uw factuur
+Message-ID: <lp@supplier.example>
+Date: Wed, 12 Nov 2026 10:00:00 +0100
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+
+Betaal via https://pay.supplier.example/f?id=1&x=2. Vragen: https://www.rhis.nl/contact
+--b1
+Content-Type: text/html; charset=utf-8
+
+<html><body><p><a href="https://pay.supplier.example/f?id=1&amp;x=2">Betalen</a>
+<a href='https://partner.example/info'>partner</a> <a href="https://www.rhis.nl/contact">contact</a></p></body></html>
+--b1--
+EML
+rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from factuur@supplier.example --rcpt info@rhis.nl /tmp/lp.eml >/tmp/scan-lp.eml 2>&1 || true
+scan2 /tmp/lp.eml factuur@supplier.example >/tmp/scan-lp.json 2>&1 || true
+cat >/tmp/links_ok.py <<'PY'
+import base64, hashlib, hmac, json, quopri, re, sys
+raw = open(sys.argv[1], "rb").read().replace(b"\r\n", b"\n")
+body = quopri.decodestring(raw.split(b"\n\n", 1)[1]).decode("utf-8", "replace")
+key = open("/etc/mailfilter/link-protection.key").read().strip().encode()
+links = re.findall(r"https://mailfilter\.test/l/([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)", body)
+d = lambda s: base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+urls = set()
+for payload, mac in links:
+    assert hmac.compare_digest(hashlib.blake2b(payload.encode(), key=key).digest()[:16], d(mac)), "bad signature"
+    p = json.loads(d(payload))
+    assert p["r"] == "info@rhis.nl" and p["d"] == ["rhis.nl"] and p["m"] == "lp@supplier.example", p
+    urls.add(p["u"])
+print(len(links), urls)
+assert urls == {"https://pay.supplier.example/f?id=1&x=2"}, urls  # text and HTML, &amp; decoded
+assert len(links) == 2
+assert "https://www.rhis.nl/contact" in body and "https://partner.example/info" in body  # own domain and skipped
+assert ">Betalen</a>" in body
+PY
+links_ok() { python3 /tmp/links_ok.py "$1" || { head -c 4000 "$1"; tail -30 /run/rspamd/test.log; exit 1; }; }
+check "links rewritten into signed click links" bash -c "$(declare -f links_ok); links_ok /tmp/scan-lp.eml"
+check "link protection header and symbol" bash -c "$(declare -f has); has /tmp/scan-lp.json X-Mailfilter-Links && has /tmp/scan-lp.json MF_LINK_PROTECT"
+check "no ARC seal on mail with rewritten links" bash -c '! grep -qi "^ARC-Seal:" /tmp/scan-lp.eml || { cat /tmp/scan-lp.eml; exit 1; }'
+rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from factuur@supplier.example --rcpt info@voorbeeld.nl /tmp/lp.eml >/tmp/scan-lp2.eml 2>&1 || true
+check "links untouched for a domain without link protection" bash -c 'grep -q "https://pay.supplier.example/f?id=1&x=2" /tmp/scan-lp2.eml && ! grep -q "mailfilter.test/l/" /tmp/scan-lp2.eml || { cat /tmp/scan-lp2.eml; exit 1; }'
 echo "== relay domain (outbound only), SMTP account and sender lock"
 python3 - <<'PY'
 import json; d = json.load(open("/tmp/gateway.json"))
