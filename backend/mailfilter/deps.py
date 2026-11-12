@@ -10,7 +10,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import twofactor
+from . import apikeys, twofactor
 from .db import get_db
 from .models import AuthSession, User
 from .security import token_hash
@@ -31,6 +31,9 @@ def client_ip(request: Request) -> str | None:
 
 
 def current_user(request: Request, db: DB) -> User:
+    # The public API (/api/v1) takes API keys only, the web app's API cookies only.
+    if request.url.path.startswith(apikeys.PREFIX + "/"):
+        return apikeys.authenticate(request, db, client_ip(request))
     token = request.cookies.get(COOKIE)
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not_logged_in")

@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from . import __version__
 from .api import router
+from .api.v1 import router as v1_router
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -17,7 +18,9 @@ app = FastAPI(title="RHIS Mailfilter", version=__version__, docs_url=None, redoc
 async def csrf_guard(request: Request, call_next):
     # The session cookie is SameSite=Strict; on top of that every state-changing
     # request must carry a custom header, which other sites cannot send.
-    if request.method not in SAFE_METHODS and request.url.path.startswith("/api/"):
+    # The public API (/api/v1) ignores cookies and needs an API key instead.
+    path = request.url.path
+    if request.method not in SAFE_METHODS and path.startswith("/api/") and not path.startswith("/api/v1/"):
         if request.headers.get("x-requested-with") != "mailfilter":
             return JSONResponse({"detail": "csrf"}, status_code=403)
     response = await call_next(request)
@@ -31,3 +34,5 @@ def health() -> dict[str, str]:
 
 
 app.include_router(router)
+# The public API has its own OpenAPI description (/api/v1/openapi.json).
+app.include_router(v1_router, include_in_schema=False)
