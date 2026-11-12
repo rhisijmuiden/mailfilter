@@ -1,0 +1,161 @@
+name: CI
+on:
+  push:
+    branches: [test, main]
+  pull_request:
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck installer
+        run: shellcheck -x -P install -P . install/install.sh install/lib/common.sh install/lib/webapp.sh backend/bin/mf-queuectl install/templates/certbot/deploy-hook.sh install/tests/validate-configs.sh
+      - name: Bash syntax
+        run: bash -n install/install.sh
+      - name: Helpers work under the installer's strict mode
+        run: bash -c 'set -Eeuo pipefail; trap "exit 1" ERR; source install/lib/common.sh; s=$(gen_secret 32); [[ $s =~ ^[A-Za-z0-9]{32}$ ]]'
+  mailfilterctl:
+    # Updater, backup and restore helper (runs as root on the server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tests
+        run: |
+          sudo apt-get install -y -q zstd
+          pip install pytest pyflakes
+          python -m pyflakes ops
+          git config --global user.name ci && git config --global user.email ci@example.org
+          python -m pytest -q ops/tests
+  prototype:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prototype is built from its source
+        run: |
+          python3 prototype/build.py
+          git diff --exit-code prototype/index.html
+  configs:
+    # Renders every template and checks it with the real Debian 13 tools
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      # nft -c needs to talk to the kernel's netfilter, like on a real server
+      options: --cap-add=NET_ADMIN
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Postfix, Rspamd, Dovecot, unbound, nftables and Caddy configs
+        run: bash install/tests/validate-configs.sh
+  gateway-config:
+    # Domains, relay access and throttling: unit tests, then apply a sample
+    # configuration with the real Debian 13 Postfix, Rspamd and nftables
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      options: --cap-add=NET_ADMIN
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Postfix and Rspamd from the installer templates
+        run: bash install/tests/validate-configs.sh
+      - name: Apply a sample gateway configuration
+        run: bash backend/mailfilter_config/tests/integration.sh
+      - name: Import a Proxmox Mail Gateway backup
+        run: bash backend/mailfilter_pmg/tests/integration.sh
+  tracer:
+    # Mail trace log collector, with the same Python and psycopg as Debian 13
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mailfilter
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: mailfilter
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MAILFILTER_TEST_DB: host=postgres dbname=mailfilter user=mailfilter password=test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python packages from Debian
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-psycopg python3-pytest
+      - name: Tests
+        working-directory: backend
+        run: python3 -m pytest -v
+  pmg-import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Proxmox Mail Gateway import tests
+        working-directory: backend
+        run: python3 -m unittest discover -s mailfilter_pmg/tests -t . -v
+  dns-toolbox:
+    # Tests the DNS toolbox with the Python libraries that Debian 13 ships
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Debian packages
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends python3 python3-dnspython python3-httpx python3-cryptography python3-pytest
+      - name: Run tests
+        run: cd backend && python3 -m pytest -q tests/dns
+  backend:
+    # Web app API tests against a real PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mailfilter
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: mailfilter_test
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      MAILFILTER_TEST_DB_URL: postgresql+psycopg://mailfilter:dev@127.0.0.1:5432/mailfilter_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: pip install "./backend[test]"
+      - name: Tests
+        working-directory: backend
+        run: python -m pytest -q tests_web
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Debian 13 ships Node 20; build with the same major version.
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Type check and build
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: English and Dutch translations have the same keys
+        run: |
+          python3 - <<'PY'
+          import json
+          def keys(d, p=""):
+              for k, v in d.items():
+                  yield from keys(v, p + k + ".") if isinstance(v, dict) else [p + k]
+          en = set(keys(json.load(open("frontend/src/i18n/en.json"))))
+          nl = set(keys(json.load(open("frontend/src/i18n/nl.json"))))
+          missing = sorted(en ^ nl)
+          if missing:
+              raise SystemExit("Missing translations: " + ", ".join(missing))
+          PY

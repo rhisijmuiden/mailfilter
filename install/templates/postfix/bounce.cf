@@ -1,0 +1,71 @@
+# Managed by Mailfilter. Friendly bounce messages in English and Dutch.
+# Postfix adds the technical details (the delivery report) below this text.
+
+failure_template = <<EOF
+Charset: utf-8
+From: Mail Delivery System <MAILER-DAEMON@$myhostname>
+Subject: Not delivered / Niet afgeleverd
+Postmaster-Subject: Postmaster copy: undelivered mail
+
+English below. Nederlands hieronder.
+
+YOUR MESSAGE COULD NOT BE DELIVERED
+
+Your message was not delivered to one or more recipients. The most common
+reasons are:
+
+  - The email address does not exist or contains a typo.
+  - The recipient's mail server refused the message (for example because
+    the mailbox is full or the message is too large).
+  - The recipient's domain does not exist or has no mail server.
+
+What you can do: check the address for typos and send the message again.
+Still not working? Contact your IT contact and mention the time you sent
+the message. The exact reason is at the bottom of this message.
+
+----------------------------------------------------------------------
+
+JE BERICHT KON NIET WORDEN AFGELEVERD
+
+Je bericht is niet afgeleverd bij een of meer ontvangers. De meest
+voorkomende oorzaken zijn:
+
+  - Het e-mailadres bestaat niet of bevat een typfout.
+  - De mailserver van de ontvanger heeft het bericht geweigerd (bijvoorbeeld
+    omdat de mailbox vol is of het bericht te groot is).
+  - Het domein van de ontvanger bestaat niet of heeft geen mailserver.
+
+Wat je kunt doen: controleer het adres op typfouten en verstuur het bericht
+opnieuw. Lukt het nog steeds niet? Neem contact op met je IT-contactpersoon
+en noem het tijdstip waarop je het bericht verstuurde. De precieze reden
+staat onderaan dit bericht.
+
+-- Mailfilter ($myhostname)
+EOF
+
+delay_template = <<EOF
+Charset: utf-8
+From: Mail Delivery System <MAILER-DAEMON@$myhostname>
+Subject: Delayed, still trying / Vertraagd, we proberen het nog
+Postmaster-Subject: Postmaster warning: delayed mail
+
+English below. Nederlands hieronder.
+
+YOUR MESSAGE IS DELAYED. YOU DO NOT NEED TO DO ANYTHING YET.
+
+Your message has not been delivered yet, because the recipient's mail
+server is not accepting it right now. We keep trying automatically for up
+to $maximal_queue_lifetime_days days. You only get another message if it
+finally fails. The exact reason is at the bottom of this message.
+
+----------------------------------------------------------------------
+
+JE BERICHT IS VERTRAAGD. JE HOEFT NOG NIETS TE DOEN.
+
+Je bericht is nog niet afgeleverd, omdat de mailserver van de ontvanger het
+op dit moment niet aanneemt. We blijven het automatisch proberen, tot
+$maximal_queue_lifetime_days dagen lang. Je krijgt alleen nog een bericht
+als het uiteindelijk niet lukt. De precieze reden staat onderaan dit bericht.
+
+-- Mailfilter ($myhostname)
+EOF

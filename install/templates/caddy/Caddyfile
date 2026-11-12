@@ -1,0 +1,51 @@
+# Managed by Mailfilter. The web interface is only served over HTTPS.
+{
+	auto_https disable_certs
+	admin off
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+http://{{HOSTNAME}} {
+	handle /.well-known/acme-challenge/* {
+		root * /var/www/acme
+		file_server
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}
+
+https://{{HOSTNAME}} {
+	tls /etc/letsencrypt/live/{{HOSTNAME}}/fullchain.pem /etc/letsencrypt/live/{{HOSTNAME}}/privkey.pem {
+		protocols tls1.2 tls1.3
+	}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+		-Server
+	}
+	# API (FastAPI, mailfilter-web.service)
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	# The interface prototype stays available for reference.
+	handle_path /prototype/* {
+		root * {{MF_SRC}}/prototype
+		file_server
+	}
+	# Web interface (React, built into frontend/dist). Unknown paths load the app.
+	handle {
+		root * {{MF_SRC}}/frontend/dist
+		@assets path /assets/* /fonts/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

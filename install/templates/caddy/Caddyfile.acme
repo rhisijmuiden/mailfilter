@@ -1,0 +1,9 @@
+# Managed by Mailfilter. Temporary config used only to obtain the first certificate.
+{
+	auto_https off
+	admin off
+}
+http://{{HOSTNAME}} {
+	root * /var/www/acme
+	file_server
+}
