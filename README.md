@@ -6,9 +6,12 @@ The interface is in English and fully translated to Dutch.
 
 ## Status
 
+Version 1.0.0 is the first production release (branch `main`), tested on mailfilter.rhis.nl.
+
 - Phase 1 (done): interactive interface prototype and repository setup.
-- Phase 2 (in progress): installer that turns a bare Debian 13 server into a working gateway.
-- Phase 3 (in progress): the web app. Login with admin and customer roles, users, English and Dutch, left menu in the house style. Mail trace (search, route picture, plain-language reasons in English and Dutch) and quarantine (release or block, the spam filter learns from each choice).
+- Phase 2 (done): installer that turns a bare Debian 13 server into a working gateway.
+- Phase 3 (done): the web app. Login with admin and customer roles, users, English and Dutch, left menu in the house style. Mail trace (search, route picture, plain-language reasons in English and Dutch) and quarantine (release or block, the spam filter learns from each choice). Domains, relay access, throttling and the DNS toolbox.
+- Phase 4 (done): Info button with updates and switching between production and test, local full and incremental backups with restore, settings for how Mailfilter sends its own e-mail.
 
 ## Install on a bare Debian 13 server
 

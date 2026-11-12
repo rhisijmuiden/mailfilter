@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mailfilter"
-version = "0.3.0"
+version = "1.0.0"
 description = "RHIS Mailfilter: web app, mail trace log collector and import tools"
 requires-python = ">=3.11"
 dependencies = [
