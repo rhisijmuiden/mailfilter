@@ -112,7 +112,10 @@
     "smtp_tls_failed": "Versleutelde verbinding mislukt: {{value}}",
     "smtp_timeout": "De SMTP-server antwoordde niet op tijd.",
     "smtp_connect_failed": "Kan geen verbinding maken met de SMTP-server: {{value}}",
-    "golive_error": "De controles voor de livegang mislukten: {{value}}"
+    "golive_error": "De controles voor de livegang mislukten: {{value}}",
+    "no_mx": "Vul minstens één MX-record in.",
+    "duplicate_mx": "Elke mailserver mag maar één keer voorkomen.",
+    "invalid_mx_host": "\"{{value}}\" is geen geldige hostnaam."
   },
   "login": {
     "title": "Inloggen",
@@ -465,14 +468,16 @@
       "spf_value": "SPF-record publiceren",
       "dkim": "DKIM-sleutel publiceren",
       "dmarc": "DMARC-record publiceren",
-      "server_spf": "SPF-record van Mailfilter publiceren"
+      "server_spf": "SPF-record van Mailfilter publiceren",
+      "mx": "MX-records wijzigen"
     },
     "publish_help": {
       "spf": "Je huidige SPF-waarde blijft staan; Mailfilter voegt alleen zichzelf toe. Verder verandert er niets.",
       "spf_value": "Dit vervangt het SPF-record van het domein door de gemaakte waarde.",
       "dkim": "Publiceert de publieke sleutel waarmee Mailfilter uitgaande mail ondertekent.",
       "dmarc": "Dit zet het DMARC-record van het domein op de getoonde waarde.",
-      "server_spf": "Het gedeelde record met alle adressen van Mailfilter. Domeinen verwijzen naar deze naam."
+      "server_spf": "Het gedeelde record met alle adressen van Mailfilter. Domeinen verwijzen naar deze naam.",
+      "mx": "Cloudflare krijgt precies deze MX-records. Nieuwe records worden eerst toegevoegd en daarna pas oude verwijderd, zodat de mail blijft lopen. Je kunt dit ongedaan maken in het wijzigingslog."
     },
     "problem": {
       "waiting_for_dns": "Cloudflare heeft dit record al. Het kan tot 30 minuten duren voordat DNS-servers het tonen; je hoeft niets meer te doen.",
@@ -626,6 +631,23 @@
       "detail": "{{ip}} staat sinds {{time}} op {{name}} ({{zone}}). Uitgaande mail naar sommige providers kan worden geweigerd. Controleer uitgaande spam en vraag daarna verwijdering aan.",
       "customer": "Uitgaande mail naar sommige providers kan tijdelijk worden geweigerd. We zijn ermee bezig.",
       "open": "Blacklistcontrole openen"
+    },
+    "warn": {
+      "not_relay_domain": "{{domain}} is nog geen relay-domein in Mailfilter, dus Mailfilter zou de mail weigeren. Voeg het domein eerst toe onder Domeinen.",
+      "mx_leaves_mailfilter": "{{domain}} is live op Mailfilter, maar deze lijst wijst niet meer naar Mailfilter. Mail gaat dan langs het filter heen."
+    },
+    "mxe": {
+      "title": "MX-records in Cloudflare",
+      "help": "Bepaal waar mail voor dit domein wordt afgeleverd. Kies \"Alleen Mailfilter\" om alle mail via {{host}} te laten lopen, of houd de oude server als reserve met een hoger getal (lager getal = eerst geprobeerd).",
+      "only_mf": "Alleen Mailfilter",
+      "add_mf": "Mailfilter toevoegen",
+      "add_row": "MX-record toevoegen",
+      "reset": "Herstellen",
+      "review": "Wijzigingen bekijken",
+      "edit_link": "MX-records bewerken",
+      "no_cloudflare": "Koppel Cloudflare op het tabblad Cloudflare om de MX-records van {{domain}} hier te wijzigen.",
+      "no_zone": "{{domain}} staat niet in je Cloudflare-account, dus de MX-records kunnen hier niet worden gewijzigd.",
+      "not_managed": "{{domain}} is geen relay-domein in Mailfilter. Mail die voor dit domein naar Mailfilter gaat, wordt geweigerd."
     }
   },
   "gateway": {

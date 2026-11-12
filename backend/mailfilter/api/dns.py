@@ -200,6 +200,23 @@ def mx(domain: str, _: AdminUser, probe: bool = True) -> dict:
     return lookup.mx_lookup(_domain(domain), get_resolver(), probe=smtp_probe if probe else None).to_dict()
 
 
+@router.get("/mx/{domain}/cloudflare")
+def mx_cloudflare(domain: str, _: AdminUser, db: DB) -> dict:
+    """The MX records as they are in Cloudflare (what the MX editor starts from)."""
+    d = _domain(domain)
+    cf = _cf(db)
+    zone = _zone(cf, d)
+    try:
+        recs = cf.records(zone, name=d, type="MX")
+    except CloudflareError as exc:
+        raise _cf_error(exc) from exc
+    server = get_server()
+    return {"domain": d, "zone": zone.name, "managed": d in relay_domains(), "hostname": server.hostname,
+            "mx_priority": server.mx_priority, "golive": golive.state(d),
+            "records": sorted(({"priority": r.priority or 0, "host": norm(r.content)} for r in recs),
+                              key=lambda r: (r["priority"], r["host"]))}
+
+
 class SpfIn(BaseModel):
     includes: list[str] = []
     ip4: list[str] = []
@@ -247,10 +264,16 @@ def dmarc_generate(body: DmarcIn, _: AdminUser) -> dict:
 
 # Publishing to Cloudflare -------------------------------------------------------------
 
+class MxIn(BaseModel):
+    priority: int = Field(ge=0, le=65535)
+    host: str = Field(min_length=1, max_length=253)
+
+
 class PublishIn(BaseModel):
-    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf"]
+    kind: Literal["spf", "spf_value", "dkim", "dmarc", "server_spf", "mx"]
     domain: str | None = None
     value: str | None = Field(default=None, max_length=2000)
+    mx: list[MxIn] = Field(default=[], max_length=10)
 
 
 def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
@@ -272,6 +295,13 @@ def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
             if key is None:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, "no_dkim_key")
             plan.changes.append(publish.plan_dkim(cf, zone, key))
+        elif body.kind == "mx":
+            if not body.mx:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "no_mx")
+            hosts = [_mx_host(m.host) for m in body.mx]
+            if len(set(hosts)) != len(hosts):
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "duplicate_mx")
+            plan.changes.extend(publish.plan_mx(cf, zone, target, [(m.priority, h) for m, h in zip(body.mx, hosts)]))
         else:
             plan.changes.append(publish.plan_dmarc(cf, zone, target, body.value or ""))
     except CloudflareError as exc:
@@ -283,9 +313,31 @@ def _plan(cf: Cloudflare, body: PublishIn) -> publish.Plan:
     return plan
 
 
+def _mx_host(host: str) -> str:
+    h = norm(host)
+    if not re.match(DOMAIN_RE, h):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"invalid_mx_host:{host[:100]}")
+    return h
+
+
+def _warnings(body: PublishIn, plan: publish.Plan) -> list[str]:
+    """Things to point out before an MX change is applied."""
+    if body.kind != "mx":
+        return []
+    server = get_server()
+    hosts = [norm(m.host) for m in body.mx]
+    out = []
+    if server.hostname in hosts and plan.domain not in relay_domains():
+        out.append("not_relay_domain")  # Mailfilter would refuse the mail
+    if server.hostname not in hosts and (golive.state(plan.domain) or {}).get("status") == "live":
+        out.append("mx_leaves_mailfilter")
+    return out
+
+
 @router.post("/publish/plan")
 def publish_plan(body: PublishIn, _: AdminUser, db: DB) -> dict:
-    return _plan(_cf(db), body).to_dict()
+    plan = _plan(_cf(db), body)
+    return {**plan.to_dict(), "warnings": _warnings(body, plan)}
 
 
 @router.post("/publish/apply")

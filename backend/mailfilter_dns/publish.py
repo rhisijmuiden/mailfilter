@@ -117,6 +117,37 @@ def plan_dmarc(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
     return _txt_change(recs[0] if recs else None, name, value, "dmarc")
 
 
+def plan_mx(cf: Cloudflare, zone: Zone, domain: str, targets: list[tuple[int, str]]) -> list[Change]:
+    """Make the domain's MX records in Cloudflare exactly ``targets``
+    ((priority, host) pairs). Records whose host stays are kept or get a new
+    priority; new hosts are created before old ones are deleted, so the domain
+    never has no MX at all."""
+    domain = norm(domain)
+    want: dict[str, int] = {}
+    for prio, host in targets:
+        want.setdefault(norm(host), int(prio))
+    if not want:
+        raise ValueError("no_mx")
+    current = cf.records(zone, name=domain, type="MX")
+    changes: list[Change] = []
+    seen: set[str] = set()
+    for r in current:
+        host = norm(r.content)
+        if host in want and host not in seen:
+            seen.add(host)
+            after = {"type": "MX", "name": domain, "content": host, "priority": want[host], "ttl": r.ttl}
+            changes.append(Change("none" if r.priority == want[host] else "update", "MX", domain,
+                                  r.snapshot(), after, "mx"))
+        else:
+            changes.append(Change("delete", "MX", domain, r.snapshot(), None, "mx"))
+    for host, prio in want.items():
+        if host not in seen:
+            changes.append(Change("create", "MX", domain, None,
+                                  {"type": "MX", "name": domain, "content": host, "priority": prio, "ttl": 1}, "mx"))
+    changes.sort(key=lambda c: {"create": 0, "update": 1, "none": 2, "delete": 3}[c.action])
+    return changes
+
+
 def apply(cf: Cloudflare, plan: Plan, *, actor: str = "", journal: Path | None = None, undo_of: str | None = None) -> list[dict]:
     """Write the plan to Cloudflare. Stops at the first error; what was done
     before that is in the journal and in the returned list."""
