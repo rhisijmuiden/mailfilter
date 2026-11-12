@@ -77,7 +77,7 @@ class RelayDomainTest(unittest.TestCase):
         for d in self.cfg.domains:
             d.sender_lock = False
         r = render(self.cfg)
-        self.assertEqual(r.main_cf["smtpd_restriction_classes"], "")
+        self.assertNotIn("smtpd_restriction_classes", r.main_cf)  # postconf -X removes it
         self.assertNotIn("sender_lock", r.main_cf["smtpd_end_of_data_restrictions"])
 
     def test_accounts_block(self):

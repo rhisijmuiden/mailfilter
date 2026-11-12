@@ -215,8 +215,10 @@ def render(cfg: GatewayConfig) -> Rendered:
     out.files[f"{PF}/sender_lock.cidr"] = "".join(lock_ip)
     out.files[f"{PF}/sender_lock_sasl"] = "".join(lock_sasl)
     out.hash_maps.append(f"{PF}/sender_lock_sasl")
-    out.main_cf["smtpd_restriction_classes"] = ", ".join(classes)
     if classes:
+        # Left out when empty: `postconf -n` prints an empty value without " = ", so
+        # setting "" would look changed on every apply. Unset, it is removed (managed).
+        out.main_cf["smtpd_restriction_classes"] = ", ".join(classes)
         eod += f", check_client_access cidr:{PF}/sender_lock.cidr, check_sasl_access hash:{PF}/sender_lock_sasl"
     out.main_cf["smtpd_end_of_data_restrictions"] = eod
 
