@@ -27,8 +27,10 @@ transport_maps = inline:{ dmarc-reports@{{HOSTNAME}}=mfdmarc: }, hash:/etc/mailf
 # Only this one address exists on the server's own name; the mfdmarc pipe in master.cf stores them.
 virtual_mailbox_domains = {{HOSTNAME}}
 virtual_mailbox_maps = inline:{ dmarc-reports@{{HOSTNAME}}=dmarc }
-# Check with the destination server that a recipient exists before accepting (no backscatter).
-# Switched on per domain in recipient_verify (domain -> reject_unverified_recipient).
+# Check that a recipient exists before accepting (no backscatter). Chosen per domain in the web
+# interface and written by mailfilter-config: asking the destination server (recipient_verify ->
+# reject_unverified_recipient, answers cached below), an LDAP / Active Directory lookup or a fixed
+# list (relay_recipient_maps), or no check. The cache times are set by mailfilter-config too.
 address_verify_map = lmdb:$data_directory/verify_cache
 address_verify_positive_expire_time = 7d
 unverified_recipient_reject_code = 550

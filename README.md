@@ -38,7 +38,7 @@ What it sets up:
 
 | Part | What it does |
 | --- | --- |
-| Postfix | Inbound on 25 with postscreen, relay on 587 (STARTTLS), 465 (TLS) and optional extra ports. Recipient verification, per-destination queues, IPv4 and IPv6 |
+| Postfix | Inbound on 25 with postscreen, relay on 587 (STARTTLS), 465 (TLS) and optional extra ports. Recipient check per domain (ask the mail server, LDAP / Active Directory or a fixed list), per-destination queues, IPv4 and IPv6 |
 | Rspamd | Spam score, SPF, DKIM signing per domain, DMARC, ARC, greylisting, blocklists, Bayes learning, outbound throttling, allow and block lists. Quarantine uses Postfix's hold queue |
 | ClamAV | Virus scan in both directions; viruses and risky attachments go to quarantine |
 | Dovecot | Only checks passwords for SMTP relay accounts; no mailboxes |

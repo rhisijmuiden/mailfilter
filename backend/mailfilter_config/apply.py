@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Callable, Sequence
 
 from .model import GatewayConfig
-from .render import (DOVECOT_MAILTRAP, MAILTRAP_JSON, MAILTRAP_USERS, MANAGED_PARAM_PREFIXES, MANAGED_PARAMS, SMTP_USERS,
+from .render import (LDAP_DIR, DOVECOT_MAILTRAP, MAILTRAP_JSON, MAILTRAP_USERS, MANAGED_PARAM_PREFIXES, MANAGED_PARAMS, SMTP_USERS,
                      render, splice_master_cf, splice_users)
 from .validate import check
 
@@ -86,7 +86,9 @@ class Applier:
         except FileNotFoundError:
             return None
 
-    def write(self, p: str, content: str) -> None:
+    def write(self, p: str, content: str, owner: tuple[str, str, int] | None = None) -> None:
+        """Atomic write that keeps owner and mode; `owner` (user, group, mode) sets them
+        before the file appears, for files with secrets in them."""
         dest = self.path(p)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         try:
@@ -98,9 +100,12 @@ class Applier:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(content)
-            os.chmod(tmp, mode)
-            if uid != -1 and os.geteuid() == 0:
-                os.chown(tmp, uid, gid)
+            if owner:
+                _chown(tmp, *owner)
+            else:
+                os.chmod(tmp, mode)
+                if uid != -1 and os.geteuid() == 0:
+                    os.chown(tmp, uid, gid)
             os.replace(tmp, dest)
         except BaseException:
             if os.path.exists(tmp):
@@ -172,10 +177,15 @@ class Applier:
                 return report
             if cfg.mailtraps:
                 self._check_mailtrap_support()
+            if r.secret_files:
+                self._check_ldap_support()
+            owners = {p: ("root", "postfix", 0o640) for p in r.secret_files}
+            # Holds password hashes and LDAP passwords; the web app reads it once on first start.
+            owners[STATE_FILE] = ("root", "mailfilter", 0o640)
 
             try:
                 for p in changed:
-                    self.write(p, files[p])
+                    self.write(p, files[p], owners.get(p))
                     if p in (SMTP_USERS, MAILTRAP_USERS):  # password hashes: only Dovecot may read them
                         _chown(self.path(p), "root", "dovecot", 0o640)
                     elif p == MAILTRAP_JSON:  # read by the mftrap pipe and the web app
@@ -198,6 +208,7 @@ class Applier:
                 raise
 
             report.changed, report.params_set, report.params_removed = changed, to_set, to_remove
+            self._remove_stale_ldap_maps(set(r.secret_files), report)
             self._ensure_dkim_keys(cfg, report)
             self._ensure_mailboxes(r.mailboxes)
             if self.reload:
@@ -242,6 +253,27 @@ class Applier:
             raise ApplyError("mailtrap",
                              "This server's Postfix configuration has no Mailtrap checks yet. "
                              "Update Mailfilter (or run the installer again) and try again.")
+
+    def _check_ldap_support(self) -> None:
+        """Postfix reads LDAP tables through the postfix-ldap package (installed by the installer)."""
+        res = self.run_cmd(("postconf", "-m"))
+        if res.returncode == 0 and "ldap" not in (res.stdout or "").split():
+            raise ApplyError("ldap",
+                             "Postfix on this server cannot read LDAP yet (package postfix-ldap). "
+                             "Update Mailfilter (or run the installer again) and try again.")
+
+    def _remove_stale_ldap_maps(self, keep: set[str], report: Report) -> None:
+        """LDAP tables of domains that no longer use LDAP: Postfix no longer reads them,
+        and they hold a password, so they go."""
+        try:
+            names = os.listdir(self.path(LDAP_DIR))
+        except FileNotFoundError:
+            return
+        for n in names:
+            p = f"{LDAP_DIR}/{n}"
+            if n.endswith(".cf") and p not in keep:
+                self.remove(p)
+                report.changed.append(p)
 
     def _ensure_mailboxes(self, dirs: list[str]) -> None:
         """Maildir for every Mailtrap mailbox, owned by the mailfilter user (the mftrap

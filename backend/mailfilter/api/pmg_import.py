@@ -130,7 +130,8 @@ def _save_gateway(db: Session, picked: dict[str, list]) -> None:
             db.flush()
         route = db.get(DomainRoute, dom.id)
         if route is None:
-            route = DomainRoute(domain_id=dom.id, tls=d.tls, verify_recipients=d.verify_recipients, note=d.note)
+            route = DomainRoute(domain_id=dom.id, tls=d.tls, verify_recipients=d.verify_recipients,
+                                recipient_check="callout" if d.verify_recipients else "off", note=d.note)
             db.add(route)
         elif not route.note:
             route.note = d.note

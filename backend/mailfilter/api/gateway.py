@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 import mailfilter_config as mfc
 from mailfilter_config.validate import normalise_domain
 
+from .. import recipients
 from ..audit import audit
 from ..deps import DB, AdminUser, CurrentUser, visible_domains
 from ..gateway import DEFAULTS_KEY, LAST_APPLY_KEY, apply_changes, defaults, ensure_imported, problems_detail
@@ -59,6 +60,7 @@ class DomainIn(BaseModel):
 
 class DomainOut(DomainIn):
     id: int
+    recipient_check: str = "callout"
     configured: bool  # False: the domain exists (e.g. for users) but mail is not routed yet
     users: list[str] = []
     relay_networks: int = 0
@@ -157,15 +159,21 @@ def _domain_out(db, dom: Domain, route: DomainRoute | None) -> DomainOut:
         id=dom.id, name=dom.name, configured=True, users=users, relay_networks=nets, smtp_accounts=accounts,
         kind=route.kind or "transport", sender_lock=bool(route.sender_lock),
         destinations=[DestinationIO(host=d.host, port=d.port, mx=d.mx, protocol=d.protocol) for d in route.destinations],
-        enabled=route.enabled, tls=route.tls, verify_recipients=route.verify_recipients, concurrency=route.concurrency,
+        enabled=route.enabled, tls=route.tls, verify_recipients=route.verify_recipients,
+        recipient_check=route.recipient_check or ("callout" if route.verify_recipients else "off"), concurrency=route.concurrency,
         rate_delay=route.rate_delay, out_per_hour=route.out_per_hour, out_per_day=route.out_per_day, note=route.note,
     )
 
 
 def _set_route(route: DomainRoute, body: DomainIn) -> None:
-    for f in ("kind", "sender_lock", "enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour",
-              "out_per_day", "note"):
+    for f in ("kind", "sender_lock", "enabled", "tls", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note"):
         setattr(route, f, getattr(body, f))
+    # The recipient check has its own screen (/recipients below); verify_recipients only
+    # picks the starting point of a new domain.
+    if route.recipient_check is None:
+        route.recipient_check = "callout" if body.verify_recipients else "off"
+        route.verify_recipients = body.verify_recipients
+        route.recipient_list = []
     dests = body.destinations if body.kind == "transport" else []  # a relay domain delivers nothing
     route.destinations = [DomainDestination(domain_id=route.domain_id, position=i, host=d.host.strip(), port=d.port,
                                             mx=d.mx, protocol=d.protocol) for i, d in enumerate(dests)]
@@ -579,3 +587,148 @@ def _crud(path: str, model, schema_in, schema_out, key: str, normalise=lambda v:
 
 _crud("/address-routes", AddressRoute, RouteIn, RouteOut, "address")
 _crud("/tls-policies", TlsPolicy, TlsIn, TlsOut, "destination")
+
+
+# ---- recipient check per transport domain -----------------------------------------------
+class LdapIO(BaseModel):
+    servers: list[str] = Field(default=[], max_length=10)
+    security: Literal["starttls", "ldaps", "none"] = "starttls"
+    verify_cert: bool = True
+    bind_dn: str = Field(default="", max_length=1000)
+    # In: None keeps the saved password, "" removes it. Out: always None (see has_password).
+    bind_password: str | None = Field(default=None, max_length=1000)
+    base_dn: str = Field(default="", max_length=1000)
+    preset: Literal["ad", "generic"] = "ad"
+    query_filter: str = Field(default="", max_length=1000)
+    result_attribute: str = Field(default="mail", max_length=64)
+    has_password: bool = False
+
+
+class RecipientsIO(BaseModel):
+    recipient_check: Literal["callout", "ldap", "list", "off"] = "callout"
+    ldap: LdapIO | None = None
+    recipients: list[str] = Field(default=[], max_length=50_000)
+
+
+class RecipientsOut(RecipientsIO):
+    domain: str
+    kind: str
+    destinations: list[DestinationIO] = []
+    default_filters: dict[str, str] = {}
+
+
+class RecipientTestIn(BaseModel):
+    address: str = Field(min_length=1, max_length=320)
+    # Admins can test settings before saving them; customers always test what is saved.
+    settings: RecipientsIO | None = None
+
+
+class CacheIO(BaseModel):
+    positive_days: int = Field(ge=1, le=90)
+    negative_minutes: int = Field(ge=1, le=7 * 24 * 60)
+
+
+def _visible_route(db, user: User, domain_id: int) -> tuple[Domain, DomainRoute]:
+    dom = db.get(Domain, domain_id)
+    route = db.get(DomainRoute, domain_id) if dom else None
+    scope = visible_domains(user)
+    if dom is None or route is None or (scope is not None and dom.name not in scope):
+        raise _not_found()
+    return dom, route
+
+
+def _recipients_out(dom: Domain, route: DomainRoute) -> RecipientsOut:
+    ldap = None
+    if route.recipient_ldap:
+        ldap = LdapIO(**{k: v for k, v in route.recipient_ldap.items() if k in recipients.LDAP_FIELDS},
+                      has_password=bool(route.recipient_ldap_password))
+    return RecipientsOut(
+        domain=dom.name, kind=route.kind or "transport",
+        recipient_check=route.recipient_check or ("callout" if route.verify_recipients else "off"),
+        ldap=ldap, recipients=list(route.recipient_list or []),
+        destinations=[DestinationIO(host=d.host, port=d.port, mx=d.mx, protocol=d.protocol) for d in route.destinations],
+        default_filters=dict(mfc.model.LDAP_FILTERS),
+    )
+
+
+def _probe(dom: Domain, route: DomainRoute, body: RecipientsIO) -> mfc.Domain:
+    """The domain with these recipient settings, validated and normalised (422 with
+    the recipient problems in English and Dutch otherwise)."""
+    src = None
+    if body.recipient_check == "ldap" and body.ldap is not None:
+        saved = recipients.decrypt(route.recipient_ldap_password) if route.recipient_ldap_password else ""
+        password = saved if body.ldap.bind_password is None else body.ldap.bind_password
+        src = mfc.LdapSource(**body.ldap.model_dump(include=set(recipients.LDAP_FIELDS)),
+                             bind_password=password if body.ldap.bind_dn else "")
+    probe = mfc.Domain(name=dom.name, destinations=[mfc.Destination(host=d.host, port=d.port, mx=d.mx, protocol=d.protocol)
+                                                     for d in route.destinations] or [mfc.Destination("placeholder.invalid")],
+                       recipient_check=body.recipient_check,
+                       recipients=[r for r in body.recipients if r.strip()] if body.recipient_check == "list" else [],
+                       ldap=src)
+    problems = [p for p in mfc.validate(mfc.GatewayConfig(domains=[probe]))
+                if ".recipient" in p.field or ".ldap" in p.field]
+    if problems:
+        for p in problems:
+            p.field = p.field.split(".", 1)[1]
+        raise HTTPException(422, problems_detail(problems))
+    return probe
+
+
+@router.get("/domains/{domain_id}/recipients", response_model=RecipientsOut)
+def get_recipients(domain_id: int, user: CurrentUser, db: DB) -> RecipientsOut:
+    dom, route = _visible_route(db, user, domain_id)
+    return _recipients_out(dom, route)
+
+
+@router.put("/domains/{domain_id}/recipients", response_model=RecipientsOut)
+def set_recipients(domain_id: int, body: RecipientsIO, request: Request, admin: AdminUser, db: DB) -> RecipientsOut:
+    dom, route = _visible_route(db, admin, domain_id)
+    if (route.kind or "transport") != "transport":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "relay_domain_has_no_recipients")
+    probe = _probe(dom, route, body)
+    route.recipient_check = probe.recipient_check
+    route.verify_recipients = probe.recipient_check != "off"
+    # Kept when switching away, so switching back does not mean typing it all again.
+    if probe.recipient_check == "list":
+        route.recipient_list = probe.recipients
+    if probe.ldap is not None:
+        route.recipient_ldap = {k: getattr(probe.ldap, k) for k in recipients.LDAP_FIELDS}
+        route.recipient_ldap_password = recipients.encrypt(probe.ldap.bind_password)
+    _commit(db, request, admin, "recipient_check_changed", dom.name, method=probe.recipient_check,
+            addresses=len(probe.recipients) if probe.recipient_check == "list" else None,
+            ldap_servers=probe.ldap.servers if probe.ldap else None)
+    return _recipients_out(dom, route)
+
+
+@router.post("/domains/{domain_id}/recipients/test")
+def test_recipient(domain_id: int, body: RecipientTestIn, user: CurrentUser, db: DB) -> dict:
+    dom, route = _visible_route(db, user, domain_id)
+    if body.settings is not None and user.is_admin:
+        probe = _probe(dom, route, body.settings)
+    else:
+        probe = mfc.Domain(name=dom.name, destinations=[mfc.Destination(host=d.host, port=d.port, mx=d.mx, protocol=d.protocol)
+                                                         for d in route.destinations], **recipients.domain_fields(route))
+        try:
+            recipients.validated(probe)
+        except mfc.ConfigError as e:
+            raise HTTPException(422, problems_detail(e.problems))
+    address = body.address.strip().lower()
+    if "@" not in address:
+        address = f"{address}@{dom.name}"
+    if address.rpartition("@")[2] != dom.name:
+        raise HTTPException(422, problems_detail([mfc.Problem(
+            "address", "recipient_invalid", f"Enter an address of {dom.name}.", f"Vul een adres van {dom.name} in.")]))
+    return recipients.test_address(probe, address)
+
+
+@router.get("/recipient-cache", response_model=CacheIO)
+def get_cache(_: AdminUser, db: DB) -> CacheIO:
+    c = recipients.cache(db)
+    return CacheIO(positive_days=c.positive_days, negative_minutes=c.negative_minutes)
+
+
+@router.put("/recipient-cache", response_model=CacheIO)
+def set_cache(body: CacheIO, request: Request, admin: AdminUser, db: DB) -> CacheIO:
+    set_setting(db, recipients.CACHE_KEY, body.model_dump())
+    _commit(db, request, admin, "recipient_cache_changed", "", **body.model_dump())
+    return body

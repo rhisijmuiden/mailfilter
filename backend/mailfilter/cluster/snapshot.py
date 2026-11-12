@@ -44,7 +44,7 @@ from .state import ClusterError
 FORMAT = 1
 
 SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp", "smtp.password", "cloudflare_token",
-                             "quarantine_report", "security", "dkim_rotation"})
+                             "quarantine_report", "security", "dkim_rotation", "gateway.recipient_cache"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
                  TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount)
@@ -55,7 +55,8 @@ LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at", "totp_last_step
 ACCOUNT_FIELDS = ("password_hash", "description", "enabled")
 LIST_FIELDS = ("list", "comment", "created_by")
 
-ROUTE_FIELDS = ("kind", "sender_lock", "enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note")
+ROUTE_FIELDS = ("kind", "sender_lock", "enabled", "tls", "verify_recipients", "recipient_check", "recipient_ldap",
+                "recipient_list", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note")
 DEST_FIELDS = ("host", "port", "mx", "protocol")
 USER_FIELDS = ("name", "password_hash", "role", "language", "is_active")
 
@@ -78,6 +79,23 @@ def _put(obj: Any, data: dict[str, Any], fields: tuple[str, ...]) -> None:
             setattr(obj, f, data[f])
 
 
+def _route_out(route: DomainRoute) -> dict[str, Any]:
+    out = _pick(route, ROUTE_FIELDS)
+    # The LDAP password is encrypted with this node's APP_SECRET: send it plain (like TOTP secrets).
+    out["recipient_ldap_password"] = (_fernet().decrypt(route.recipient_ldap_password.encode()).decode()
+                                      if route.recipient_ldap_password else None)
+    return out
+
+
+def _route_password_in(route: DomainRoute, data: dict[str, Any]) -> None:
+    if "recipient_ldap_password" not in data:  # older node: leave ours alone
+        return
+    new = data["recipient_ldap_password"]
+    old = _fernet().decrypt(route.recipient_ldap_password.encode()).decode() if route.recipient_ldap_password else None
+    if new != old:
+        route.recipient_ldap_password = _fernet().encrypt(new.encode()).decode() if new else None
+
+
 # ---- DKIM keys (root helper) --------------------------------------------------------
 def run_dkim_helper(request: dict[str, Any]) -> dict[str, Any]:
     """`mailfilter-config dkim --stdin --json` as root. Tests replace this."""
@@ -97,7 +115,7 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
         route = db.get(DomainRoute, d.id)
         domains.append({
             "name": d.name,
-            "route": _pick(route, ROUTE_FIELDS) if route else None,
+            "route": _route_out(route) if route else None,
             "destinations": [_pick(x, DEST_FIELDS) for x in route.destinations] if route else [],
         })
     gateway: dict[str, Any] = {
@@ -181,6 +199,7 @@ def _import_domains(db: Session, items: list[dict]) -> dict[str, Domain]:
             route = DomainRoute(domain_id=dom.id)
             db.add(route)
         _put(route, item["route"], ROUTE_FIELDS)
+        _route_password_in(route, item["route"])
         new = [(x.get("host"), int(x.get("port", 25)), bool(x.get("mx", False)), x.get("protocol", "smtp"))
                for x in item.get("destinations", [])]
         old = [(x.host, x.port, x.mx, x.protocol) for x in route.destinations]

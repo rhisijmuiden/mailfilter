@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { DataTable, type Column } from "../components/DataTable";
 import GatewayError from "../components/GatewayError";
+import RecipientSection, { RecipientTag } from "../components/RecipientCheck";
 import { Card, Drawer, Field, Loading, PageHead, formatDate, useToast } from "../components/ui";
 import { api } from "../lib/api";
 import type { Me } from "../lib/auth";
@@ -63,6 +64,9 @@ export default function Domains({ me }: { me: Me }) {
           {d.configured ? d.destinations.map((x, i) => <div key={i}>{i > 0 && <span className="muted">{t("domains.backup")} </span>}{describeDestination(x)}</div>) : <span className="muted">—</span>}
         </span>
       ) },
+    { key: "rcpt", label: t("rcpt.column"), nowrap: true, mobile: "hide", sort: (d) => d.recipient_check ?? "",
+      text: (d) => (d.configured && d.recipient_check ? t(`rcpt.short_${d.recipient_check}`) : ""),
+      render: (d) => (d.configured && d.recipient_check ? <RecipientTag check={d.recipient_check} /> : <span className="muted">—</span>) },
     { key: "queue", label: t("domains.queue"), nowrap: true, optional: false, mobile: "hide",
       render: (d) => <span className="muted">{d.configured && (d.rate_delay ? t("domains.queue_delay", { s: d.rate_delay }) : t("domains.queue_conc", { n: d.concurrency ?? t("domains.default") }))}</span> },
     { key: "status", label: t("domains.status"), sort: status, text: (d) => t(`domains.${status(d)}`), nowrap: true, mobile: "aside",
@@ -254,13 +258,7 @@ function DomainDrawer({ domain, name, readOnly, onClose, onConvert }: {
             <option value="verify">{t("domains.tls_verify")}</option>
           </select>
         </Field>
-        <div className="field">
-          <label className="check" style={{ marginTop: 24 }}>
-            <input type="checkbox" disabled={readOnly} checked={f.verify_recipients} onChange={(e) => setF({ ...f, verify_recipients: e.target.checked })} />
-            <span>{t("domains.verify")}</span>
-          </label>
-          <span className="hint">{t("domains.verify_hint")}</span>
-        </div>
+        {!domain?.configured && <div className="field"><span className="hint" style={{ marginTop: 24 }}>{t("rcpt.new_domain_hint")}</span></div>}
         <div className="full"><h3 style={{ margin: "8px 0 0", fontSize: 14 }}>{t("domains.queue_title")}</h3></div>
         {num("concurrency", t("domains.concurrency"), t("domains.concurrency_hint"), 100)}
         {num("rate_delay", t("domains.rate_delay"), t("domains.rate_delay_hint"), 3600)}
@@ -304,6 +302,7 @@ function DomainDrawer({ domain, name, readOnly, onClose, onConvert }: {
           </div>
         )}
       </form>
+      {domain?.configured && !converting && <RecipientSection domainId={domain.id} domain={domain.name} admin={!readOnly} />}
     </Drawer>
   );
 }

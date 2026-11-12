@@ -19,6 +19,18 @@ PROTOCOLS = ("smtp", "lmtp")
 # relay: outbound only; no inbound mail, no destination, but DKIM signing and limits.
 DOMAIN_KINDS = ("transport", "relay")
 LISTENER_TLS = ("may", "encrypt", "wrapper")
+# How Mailfilter knows which addresses of a transport domain exist (checked at RCPT TO):
+# callout: ask the domain's mail server (Postfix verify, cached); ldap: look the address
+# up in LDAP / Active Directory; list: only the addresses entered here; off: accept all.
+RECIPIENT_CHECKS = ("callout", "ldap", "list", "off")
+LDAP_PRESETS = ("ad", "generic")
+LDAP_SECURITY = ("starttls", "ldaps", "none")
+# Query used when no own filter is given. %s is the full address (escaped by Postfix).
+LDAP_FILTERS = {
+    # Primary address and every alias (proxyAddresses holds "smtp:alias@domain").
+    "ad": "(|(mail=%s)(proxyAddresses=smtp:%s))",
+    "generic": "(|(mail=%s)(mailAlternateAddress=%s))",
+}
 
 
 @dataclass
@@ -53,6 +65,25 @@ class OutboundLimits:
 
 
 @dataclass
+class LdapSource:
+    """LDAP or Active Directory server(s) that know a domain's addresses."""
+
+    # "dc1.example.nl", "dc1.example.nl:3268" or "ldaps://dc1.example.nl"; tried in order.
+    servers: list[str] = field(default_factory=list)
+    security: str = "starttls"  # starttls, ldaps or none
+    verify_cert: bool = True
+    bind_dn: str = ""  # empty: anonymous
+    bind_password: str = ""
+    base_dn: str = ""
+    preset: str = "ad"  # ad or generic: decides the default filter
+    query_filter: str = ""  # empty: LDAP_FILTERS[preset]
+    result_attribute: str = "mail"
+
+    def filter(self) -> str:
+        return self.query_filter.strip() or LDAP_FILTERS.get(self.preset, LDAP_FILTERS["generic"])
+
+
+@dataclass
 class Domain:
     name: str
     destinations: list[Destination] = field(default_factory=list)
@@ -62,10 +93,21 @@ class Domain:
     enabled: bool = True
     customer: str | None = None
     tls: str = "may"
+    # Kept for older callers and cluster nodes: True = recipient_check "callout".
     verify_recipients: bool = True
+    recipient_check: str = ""  # see RECIPIENT_CHECKS; empty = from verify_recipients
+    recipients: list[str] = field(default_factory=list)  # recipient_check "list"
+    ldap: LdapSource | None = None  # recipient_check "ldap"
     queue: QueuePolicy = field(default_factory=QueuePolicy)
     outbound: OutboundLimits = field(default_factory=OutboundLimits)
     note: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.recipient_check:
+            self.recipient_check = "callout" if self.verify_recipients else "off"
+        self.verify_recipients = self.recipient_check != "off"
+        if isinstance(self.ldap, dict):
+            self.ldap = LdapSource(**self.ldap)
 
 
 @dataclass
@@ -183,6 +225,14 @@ class Defaults:
 
 
 @dataclass
+class RecipientCache:
+    """How long the answers of mail servers (recipient_check "callout") are remembered."""
+
+    positive_days: int = 7  # address exists
+    negative_minutes: int = 180  # address does not exist
+
+
+@dataclass
 class GatewayConfig:
     domains: list[Domain] = field(default_factory=list)
     relay_networks: list[RelayNetwork] = field(default_factory=list)
@@ -196,6 +246,7 @@ class GatewayConfig:
     # Main switch. Off: mail from Mailtrap senders is refused (never relayed).
     mailtrap_enabled: bool = True
     defaults: Defaults = field(default_factory=Defaults)
+    recipient_cache: RecipientCache = field(default_factory=RecipientCache)
     # Custom rules (newsletter filter etc.) by rule id; missing rules use their default.
     custom_rules: dict[str, CustomRule] = field(default_factory=dict)
     # Certificate for IMAP (Mailtrap); empty = Let's Encrypt for the host name.
@@ -243,6 +294,7 @@ class GatewayConfig:
             mailtraps=[MailTrap(**t) for t in data.get("mailtraps", [])],
             mailtrap_enabled=bool(data.get("mailtrap_enabled", True)),
             defaults=Defaults(**data.get("defaults", {})),
+            recipient_cache=RecipientCache(**(data.get("recipient_cache") or {})),
             custom_rules={k: rule_from_dict(v) for k, v in (data.get("custom_rules") or {}).items()},
             hostname=data.get("hostname", ""),
             tls_cert=data.get("tls_cert", ""),
