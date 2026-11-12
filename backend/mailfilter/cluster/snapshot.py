@@ -34,7 +34,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import __version__
-from ..models import (AddressRoute, AppSetting, ClusterNode, DestinationPolicy, DigestDomain, Domain, DomainDestination,
+from ..models import (AddressRoute, ApiKey, AppSetting, ClusterNode, DestinationPolicy, DigestDomain, Domain, DomainDestination,
                       DomainRoute, RelayNetwork, RelayPort, SenderListEntry, SmtpAccount, TlsPolicy, User)
 from ..settings import get_settings
 from ..settings_store import _fernet, set_secret, set_setting
@@ -47,17 +47,19 @@ SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp"
                              "quarantine_report", "security"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
-                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount)
+                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, ApiKey)
 
 # Changes to these columns alone are not configuration changes.
 LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at", "totp_last_step"}), ClusterNode: ClusterNode.LOCAL,
-                 SenderListEntry: frozenset({"created_at"}), SmtpAccount: frozenset({"created_at"})}
+                 SenderListEntry: frozenset({"created_at"}), SmtpAccount: frozenset({"created_at"}),
+                 ApiKey: frozenset({"created_at", "last_used_at", "last_used_ip"})}
 ACCOUNT_FIELDS = ("password_hash", "description", "enabled")
 LIST_FIELDS = ("list", "comment", "created_by")
 
 ROUTE_FIELDS = ("kind", "sender_lock", "enabled", "tls", "verify_recipients", "concurrency", "rate_delay", "out_per_hour", "out_per_day", "note")
 DEST_FIELDS = ("host", "port", "mx", "protocol")
 USER_FIELDS = ("name", "password_hash", "role", "language", "is_active")
+API_KEY_FIELDS = ("name", "hint", "scopes", "allowed_ips", "created_by")
 
 # Simple tables: model, natural key, other fields
 SIMPLE = {
@@ -121,6 +123,10 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
     users = [{**_pick(u, USER_FIELDS), "email": u.email, "domains": u.domain_names, **_two_factor_out(u)}
              for u in db.execute(select(User).order_by(User.email)).scalars()]
 
+    api_keys = [{**_pick(k, ("token_hash", *API_KEY_FIELDS)), "owner": k.user.email,
+                 "expires_at": k.expires_at.isoformat() if k.expires_at else None}
+                for k in db.execute(select(ApiKey).order_by(ApiKey.id)).scalars()]
+
     settings: dict[str, Any] = {}
     for row in db.execute(select(AppSetting).where(AppSetting.key.in_(SYNCED_SETTINGS))).scalars():
         v = row.value
@@ -149,6 +155,7 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
         },
         "gateway": gateway,
         "users": users,
+        "api_keys": api_keys,
         "lists": lists,
         "digest_off": digest_off,
         "settings": settings,
@@ -273,6 +280,24 @@ def _import_users(db: Session, items: list[dict], domains: dict[str, Domain]) ->
         db.add(u)
 
 
+def _import_api_keys(db: Session, items: list[dict] | None) -> None:
+    if items is None:  # older nodes do not send keys: leave ours alone
+        return
+    users = {u.email.lower(): u for u in db.execute(select(User)).scalars()}
+    have = {k.token_hash: k for k in db.execute(select(ApiKey)).scalars()}
+    wanted = {str(i["token_hash"]): i for i in items if str(i.get("owner", "")).lower() in users}
+    for h, k in have.items():
+        if h not in wanted:
+            db.delete(k)
+    db.flush()
+    for h, i in wanted.items():
+        k = have.get(h) or ApiKey(token_hash=h)
+        _put(k, i, API_KEY_FIELDS)
+        k.user_id = users[str(i["owner"]).lower()].id
+        k.expires_at = datetime.fromisoformat(i["expires_at"]) if i.get("expires_at") else None
+        db.add(k)
+
+
 def _import_lists(db: Session, items: list[dict] | None, digest_off: list[str] | None,
                   domains: dict[str, Domain]) -> None:
     if items is not None:  # older nodes do not send lists: leave ours alone
@@ -376,6 +401,8 @@ def apply_snapshot(db: Session, snap: dict[str, Any], *, joining: bool = False) 
     for section, (model, key, fields) in SIMPLE.items():
         _import_simple(db, model, key, fields, g.get(section, []))
     _import_users(db, snap.get("users", []), domains)
+    db.flush()
+    _import_api_keys(db, snap.get("api_keys"))
     _import_lists(db, snap.get("lists"), snap.get("digest_off"), domains)
     _import_settings(db, snap.get("settings") or {})
     set_setting(db, IMPORTED_KEY, {"at": state.now().isoformat(), "from": "cluster"})
