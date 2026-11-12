@@ -14,11 +14,12 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import paths
+from . import events, paths
 from .util import CtlError, iso, now, read_json, write_json
 
 JOB_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9]{6}$")
-KINDS = {"update", "backup", "restore"}
+KINDS = {"update", "backup", "restore", "remote_sync"}
+EVENT_NAMES = {"remote_sync": "remote"}  # job kind -> event name prefix
 KEEP_JOBS = 100
 
 # Filled by cli.py to avoid an import cycle: kind -> function(job) -> message
@@ -164,4 +165,7 @@ def run_job(job_id: str) -> dict:
     data["finished"] = iso(now())
     job.save()
     lock.close()
+    ok = data["state"] == "done"
+    events.emit(f"{EVENT_NAMES.get(data['kind'], data['kind'])}.{'succeeded' if ok else 'failed'}", ok,
+                data["message"], log=job.log, job=job.id, kind=data["kind"], params=data["params"])
     return data

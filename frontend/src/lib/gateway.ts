@@ -1,14 +1,21 @@
 // Types for Domains, Relay access and Throttling (backend: /api/gateway).
 export type Destination = { host: string; port: number; mx: boolean; protocol: "smtp" | "lmtp" };
 
+export type DomainKind = "transport" | "relay";
+
 export type DomainRow = {
   id: number;
   name: string;
   configured: boolean;
+  // transport: receives mail and delivers it to a mail server; relay: outbound only.
+  kind: DomainKind;
+  sender_lock: boolean;
+  smtp_accounts: number;
   destinations: Destination[];
   enabled: boolean;
   tls: "may" | "encrypt" | "verify";
   verify_recipients: boolean;
+  recipient_check?: RecipientCheck;
   concurrency: number | null;
   rate_delay: number | null;
   out_per_hour: number | null;
@@ -16,6 +23,17 @@ export type DomainRow = {
   note: string;
   users: string[];
   relay_networks: number;
+};
+
+export type SmtpAccount = { id: number; username: string; domain: string; description: string; enabled: boolean };
+export type SmtpAccountCreated = SmtpAccount & { password: string };
+export type DomainRecords = {
+  domain: string;
+  dkim: { name: string; selector: string; type: string; value: string; key_type: string } | null;
+  spf_include: string;
+  spf_new: string;
+  dmarc_name: string;
+  dmarc_suggested: string;
 };
 
 export type Network = { id: number; cidr: string; description: string; domain: string | null; enabled: boolean; allow_broad: boolean };
@@ -43,3 +61,53 @@ export function describeDestination(d: Destination): string {
   const host = d.host.includes(":") ? `[${d.host}]` : d.host;
   return `${d.protocol === "lmtp" ? "LMTP " : ""}${host}:${d.port}${d.mx ? " (MX)" : ""}`;
 }
+
+export type Hold = {
+  id: number;
+  kind: "ip" | "account";
+  value: string;
+  reason: "spam" | "volume" | "manual";
+  detail: { total?: number; spam?: number; minutes?: number; usual?: number };
+  automatic: boolean;
+  created_at: string;
+  released_at: string | null;
+  released_by: string | null;
+  held_messages: number;
+};
+export type AbuseSettings = {
+  enabled: boolean; window_minutes: number; spam_min: number; spam_percent: number; volume_min: number;
+  volume_factor: number; quiet_hours: number; exempt: string[]; notify: string[];
+};
+
+// Recipient check per transport domain (/api/gateway/domains/{id}/recipients).
+export type RecipientCheck = "callout" | "ldap" | "list" | "off";
+export type LdapSettings = {
+  servers: string[];
+  security: "starttls" | "ldaps" | "none";
+  verify_cert: boolean;
+  bind_dn: string;
+  bind_password: string | null; // null keeps the saved password
+  base_dn: string;
+  preset: "ad" | "generic";
+  query_filter: string;
+  result_attribute: string;
+  has_password: boolean;
+};
+export type RecipientSettings = {
+  domain: string;
+  kind: DomainKind;
+  recipient_check: RecipientCheck;
+  ldap: LdapSettings | null;
+  recipients: string[];
+  destinations: Destination[];
+  default_filters: Record<string, string>;
+};
+export type RecipientTest = {
+  method: RecipientCheck;
+  address: string;
+  exists: boolean | null;
+  detail: string;
+  accepts_all: boolean | null;
+  server?: string;
+};
+export type CacheSettings = { positive_days: number; negative_minutes: number };

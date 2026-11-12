@@ -31,6 +31,7 @@ class TraceMessage(Base):
     spam_score: Mapped[float | None] = mapped_column(Float)
     spam_action: Mapped[str | None] = mapped_column(Text)
     symbols: Mapped[dict] = mapped_column(JSONB, default=dict)
+    symbol_options: Mapped[dict] = mapped_column(JSONB, default=dict)
     parent: Mapped[str | None] = mapped_column(Text)
     is_bounce: Mapped[bool] = mapped_column(Boolean, default=False)
     done: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -23,19 +23,24 @@ import socket
 import tempfile
 from pathlib import Path
 
-from . import paths, system
+from . import archive as archive_disk, paths, system
 from .util import CtlError, have, human_size, iso, now, parse_iso, read_json, run, sha256, write_json
 
 # Paths relative to the file system root. /var/lib/mailfilter is left out on
 # purpose: it holds the Python environment and job files, which the installer
 # recreates, and an incremental restore would delete anything not in the backup.
+# The mail archive (gzip files; its index, hash chain and seals are in the database)
+# only grows, so the incremental backups hold just each day's new mail.
 FILE_SOURCES = [
     "etc/mailfilter",
     "var/lib/rspamd/dkim",
     "etc/letsencrypt",
     "var/spool/postfix/hold",
+    "var/lib/mailfilter-archive",
 ]
 COMPONENTS = ("files", "database", "redis")
+# The only file names a backup step may contain (also checked for downloaded backups).
+DATA_FILES = ("files.tar.zst", "files.tar.gz", "database.dump", "redis.rdb")
 BACKUP_ID = re.compile(r"^(?P<chain>[0-9]{8}T[0-9]{6}Z)\.(?P<step>[0-9]{3})$")
 CHAIN_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z$")
 MAX_STEPS = 60  # start a new full backup after this many incrementals, whatever the age
@@ -48,6 +53,10 @@ DEFAULT_CONFIG = {
     "keep_full": 4,  # number of chains (full + its incrementals) to keep
 }
 CONFIG_TYPES = {"enabled": bool, "location": str, "time": str, "full_every_days": int, "keep_full": int}
+# Folders the backup location may never be in (system folders, or folders the
+# web app user can write to).
+PROTECTED_DIRS = ("/etc", "/usr", "/boot", "/bin", "/sbin", "/lib", "/proc", "/sys", "/dev", "/run", "/tmp",
+                  "/var/tmp", "/var/lib/mailfilter", "/var/spool", "/home", "/root")
 TIMER_DROPIN = Path("/etc/systemd/system/mailfilter-backup.timer.d/schedule.conf")
 
 
@@ -79,8 +88,10 @@ def set_config(changes: dict) -> dict:
     if not 1 <= cfg["keep_full"] <= 100:
         raise CtlError("Keep between 1 and 100 full backups")
     loc = Path(cfg["location"])
-    if not loc.is_absolute() or ".." in loc.parts or str(loc) in ("/", "/etc", "/var", "/usr", "/boot"):
+    if not loc.is_absolute() or ".." in loc.parts or str(loc) in ("/", "/var", "/opt", "/srv", "/mnt", "/media") or any(
+            str(loc) == p or str(loc).startswith(p + "/") for p in PROTECTED_DIRS):
         raise CtlError("Backup location must be a dedicated absolute folder, e.g. /var/backups/mailfilter")
+    _check_location(loc)
     write_json(paths.etc() / "backup.json", cfg)
     _apply_schedule(cfg)
     return cfg
@@ -133,6 +144,7 @@ def _resolve(backup_id: str) -> tuple[Path, int]:
     m = BACKUP_ID.match(backup_id or "")
     if not m:
         raise CtlError(f"Not a valid backup id: {backup_id}")
+    _check_location(location())
     chain = location() / m["chain"]
     step = int(m["step"])
     if not (chain / f"{step:03d}" / "manifest.json").exists():
@@ -163,10 +175,37 @@ def _archive(step_dir: Path) -> Path | None:
     return None
 
 
-def _tar_sources() -> list[str]:
+def _all_sources() -> list[str]:
     override = os.environ.get("MF_BACKUP_SOURCES")
-    sources = override.split(":") if override else FILE_SOURCES
-    return [s for s in sources if (paths.root() / s).exists()]
+    return override.split(":") if override else FILE_SOURCES
+
+
+def _tar_sources() -> list[str]:
+    return [s for s in _all_sources() if (paths.root() / s).exists()]
+
+
+def _check_members(archive: Path, names: list[str]) -> None:
+    """Restoring runs as root and extracts into /, so an archive may only hold
+    paths inside the folders Mailfilter backs up (no absolute paths, no ..)."""
+    allowed = [s.strip("/") for s in _all_sources()]
+    for name in names:
+        clean = name.strip()
+        if not clean:
+            continue
+        rel = clean.rstrip("/")
+        if clean.startswith("/") or ".." in rel.split("/") or not any(rel == a or rel.startswith(a + "/") for a in allowed):
+            raise CtlError(f"{archive.parent.parent.name}.{archive.parent.name} contains an unexpected path ({clean[:200]}); "
+                           "it will not be restored")
+
+
+def _check_location(loc: Path) -> None:
+    """Backups are restored as root, so their folder must not be writable by
+    anyone but root (otherwise the web app user could plant a backup)."""
+    if os.geteuid() != 0 or not loc.exists():
+        return
+    st = loc.stat()
+    if st.st_uid != 0 or st.st_mode & 0o022:
+        raise CtlError(f"{loc} must be owned by root and not writable by others; backups there are not trusted")
 
 
 def _dump_database(dest: Path, log) -> None:
@@ -316,12 +355,15 @@ def verify(backup_id: str, log=print) -> dict:
         if not m:
             raise CtlError(f"Backup {chain.name}.{i:03d} is missing; this backup cannot be restored")
         for name, meta in m["files"].items():
+            if name not in DATA_FILES:
+                raise CtlError(f"{chain.name}.{i:03d} lists an unexpected file ({str(name)[:100]})")
             if not (d / name).exists() or sha256(d / name) != meta["sha256"]:
                 raise CtlError(f"{chain.name}.{i:03d}/{name} is damaged (checksum mismatch)")
         archive = _archive(d)
         if archive:
             # tar recognises the compression by itself when reading
-            run(["tar", "--list", "--file", archive, "--listed-incremental=/dev/null"], timeout=3600)
+            p = run(["tar", "--list", "--file", archive, "--listed-incremental=/dev/null"], timeout=3600)
+            _check_members(archive, p.stdout.splitlines())
     log(f"Backup {backup_id} is complete and readable")
     return {"message": f"Backup {backup_id} is complete and readable", "ok": True}
 
@@ -357,6 +399,8 @@ def restore(backup_id: str, components=None, safety_backup: bool = True, log=pri
     _systemctl("stop", SERVICES_TO_STOP, log)
     try:
         if "files" in components:
+            # Locked archive files (chattr +i) cannot be replaced or removed until unlocked.
+            archive_disk.unlock_all()
             for i in range(number + 1):
                 archive = _archive(chain / f"{i:03d}")
                 if not archive:
@@ -372,6 +416,11 @@ def restore(backup_id: str, components=None, safety_backup: bool = True, log=pri
         if "redis" in components and "redis" in target["components"]:
             step("Restoring spam filter learning data", "restore_redis")
             _restore_redis(chain / f"{number:03d}" / "redis.rdb", log)
+        if "files" in components:
+            try:
+                archive_disk.lock(force=True)
+            except CtlError as e:  # not fatal: the hash chain and seals still show any change
+                log(f"Could not lock the mail archive again: {e}")
         if "files" in components and paths.root() == Path("/") and os.environ.get("MF_NO_RECONFIGURE") != "1":
             step("Applying the restored configuration", "restore_apply")
             system.reconfigure(log)

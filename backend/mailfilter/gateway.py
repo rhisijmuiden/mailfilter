@@ -21,15 +21,30 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import mailfilter_config as mfc
+from mailfilter_config.rules import rule_from_dict
 
-from .models import (AddressRoute, DestinationPolicy, Domain, DomainDestination, DomainRoute, RelayNetwork,
-                     RelayPort, TlsPolicy)
+from .models import (AddressRoute, ArchiveDomain, CloudTenant, DestinationPolicy, Domain, DomainDestination, DomainRoute, MailTrap, OutboundHold,
+                     RelayNetwork, RelayPort, SmtpAccount, TlsPolicy, User)
+from . import recipients
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
 
 DEFAULTS_KEY = "gateway.defaults"
 LAST_APPLY_KEY = "gateway.last_apply"
 IMPORTED_KEY = "gateway.imported"
+RULES_KEY = "custom_rules"
+MAILTRAP_KEY = "mailtrap.enabled"
+
+
+def mailtrap_enabled(db: Session) -> bool:
+    value = get_setting(db, MAILTRAP_KEY)
+    return False if value is None else bool(value)  # a module: off until an admin switches it on
+
+
+def custom_rules(db: Session) -> dict[str, mfc.CustomRule]:
+    """What the admin chose on the Custom rules page (rules not in here use their default)."""
+    stored = get_setting(db, RULES_KEY) or {}
+    return {k: rule_from_dict(v) for k, v in stored.items()}
 
 
 def defaults(db: Session) -> mfc.Defaults:
@@ -42,16 +57,30 @@ def _dest(d) -> mfc.Destination:
     return mfc.Destination(host=d.host, port=d.port, mx=d.mx, protocol=d.protocol)
 
 
+def customer_sender_domains(db: Session) -> dict[str, list[str]]:
+    """For every domain that belongs to a customer account: all domains of the
+    customer(s) it belongs to. Relay networks of such a domain may only send
+    with those domains as envelope sender."""
+    out: dict[str, set[str]] = {}
+    for u in db.execute(select(User).where(User.role == "customer")).scalars():
+        names = {d.name.lower() for d in u.domains}
+        for name in names:
+            out.setdefault(name, set()).update(names)
+    return {k: sorted(v) for k, v in out.items()}
+
+
 def build_config(db: Session) -> mfc.GatewayConfig:
     s = get_settings()
+    customer_senders = customer_sender_domains(db)
     routes = db.execute(select(DomainRoute).join(Domain).order_by(Domain.name)).scalars().all()
     return mfc.GatewayConfig(
         hostname=s.hostname if s.hostname != "localhost" else "",
         own_addresses=[a for a in (s.public_v4, s.public_v6) if a],
         domains=[
             mfc.Domain(
-                name=r.domain.name, destinations=[_dest(d) for d in r.destinations], enabled=r.enabled,
-                tls=r.tls, verify_recipients=r.verify_recipients, note=r.note,
+                name=r.domain.name, kind=r.kind or "transport", sender_lock=bool(r.sender_lock),
+                destinations=[_dest(d) for d in r.destinations] if r.kind != "relay" else [], enabled=r.enabled,
+                tls=r.tls, note=r.note, **(recipients.domain_fields(r) if r.kind != "relay" else {}),
                 queue=mfc.QueuePolicy(concurrency=r.concurrency, rate_delay=r.rate_delay),
                 outbound=mfc.OutboundLimits(per_hour=r.out_per_hour, per_day=r.out_per_day),
             )
@@ -59,7 +88,8 @@ def build_config(db: Session) -> mfc.GatewayConfig:
         ],
         relay_networks=[
             mfc.RelayNetwork(cidr=n.cidr, description=n.description, customer=n.domain.name if n.domain else None,
-                             enabled=n.enabled, allow_broad=n.allow_broad)
+                             enabled=n.enabled, allow_broad=n.allow_broad,
+                             senders=customer_senders.get(n.domain.name.lower(), []) if n.domain else [])
             for n in db.execute(select(RelayNetwork).order_by(RelayNetwork.id)).scalars()
         ],
         relay_ports=[mfc.RelayPort(port=p.port, tls=p.tls, description=p.description)
@@ -73,8 +103,37 @@ def build_config(db: Session) -> mfc.GatewayConfig:
                         for a in db.execute(select(AddressRoute).order_by(AddressRoute.address)).scalars()],
         tls_policies=[mfc.TlsPolicy(destination=t.destination, level=t.level, note=t.note)
                       for t in db.execute(select(TlsPolicy).order_by(TlsPolicy.destination)).scalars()],
+        holds=[mfc.OutboundHold(kind=h.kind, value=h.value, reason=hold_reason_text(h))
+               for h in db.execute(select(OutboundHold).where(OutboundHold.released_at.is_(None))
+                                   .order_by(OutboundHold.id)).scalars()],
+        smtp_accounts=[mfc.SmtpAccount(username=a.username, password_hash=a.password_hash, domain=a.domain.name,
+                                       enabled=a.enabled, description=a.description)
+                       for a in db.execute(select(SmtpAccount).order_by(SmtpAccount.username)).scalars()],
+        mailtraps=[mfc.MailTrap(slug=t.slug, name=t.name, networks=[n.cidr for n in t.networks], login=t.login,
+                                password_hash=t.password_hash, smtp_login=t.smtp_login, imap=t.imap, mode=t.mode,
+                                allow=list(t.allow or []), retention_days=t.retention_days,
+                                max_messages=t.max_messages, enabled=t.enabled)
+                   for t in db.execute(select(MailTrap).order_by(MailTrap.slug)).scalars()],
+        cloud_tenants=[mfc.CloudTenant(provider=t.provider, domain=t.domain.name, tenant_id=t.tenant_id,
+                                       enabled=t.enabled)
+                       for t in db.execute(select(CloudTenant).join(Domain).order_by(Domain.name)).scalars()],
+        mailtrap_enabled=mailtrap_enabled(db),
+        archive_domains=list(db.execute(select(ArchiveDomain.name).where(ArchiveDomain.enabled.is_(True))
+                                        .order_by(ArchiveDomain.name)).scalars()),
         defaults=defaults(db),
+        recipient_cache=recipients.cache(db),
+        custom_rules=custom_rules(db),
     )
+
+
+def hold_reason_text(h) -> str:
+    """Short English reason Postfix logs with every held message."""
+    d = h.detail or {}
+    if h.reason == "spam":
+        return f"{d.get('spam', '?')} of {d.get('total', '?')} messages were spam in {d.get('minutes', '?')} minutes"
+    if h.reason == "volume":
+        return f"{d.get('total', '?')} messages in {d.get('minutes', '?')} minutes, usually {d.get('usual', 0)}"
+    return "paused by an administrator"
 
 
 def problems_detail(problems: list[mfc.Problem]) -> dict[str, Any]:
@@ -138,7 +197,9 @@ def ensure_imported(db: Session, state_file: Path | None = None) -> None:
         db.flush()
         by_name[d.name] = dom
         if db.get(DomainRoute, dom.id) is None:
-            route = DomainRoute(domain_id=dom.id, enabled=d.enabled, tls=d.tls, verify_recipients=d.verify_recipients,
+            mode = d.recipient_check if d.recipient_check != "ldap" else "callout"  # LDAP login: set up again
+            route = DomainRoute(domain_id=dom.id, enabled=d.enabled, tls=d.tls, verify_recipients=mode != "off",
+                                recipient_check=mode, recipient_list=list(d.recipients),
                                 concurrency=d.queue.concurrency, rate_delay=d.queue.rate_delay,
                                 out_per_hour=d.outbound.per_hour, out_per_day=d.outbound.per_day, note=d.note)
             route.destinations = [DomainDestination(domain_id=dom.id, position=i, host=x.host, port=x.port, mx=x.mx,
@@ -166,5 +227,7 @@ def ensure_imported(db: Session, state_file: Path | None = None) -> None:
         db.add(TlsPolicy(destination=t.destination, level=t.level, note=t.note))
     if cfg.defaults != mfc.Defaults():
         set_setting(db, DEFAULTS_KEY, cfg.defaults.__dict__)
+    if cfg.custom_rules and get_setting(db, RULES_KEY) is None:
+        set_setting(db, RULES_KEY, {k: v.__dict__ for k, v in cfg.custom_rules.items()})
     set_setting(db, IMPORTED_KEY, {"at": datetime.now(timezone.utc).isoformat(), "from": str(path)})
     db.commit()

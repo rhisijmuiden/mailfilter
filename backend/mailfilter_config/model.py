@@ -10,10 +10,27 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from .rules import CustomRule, rule_from_dict
+
 TLS_MODES = ("may", "encrypt", "verify")
 ALL_TLS_MODES = ("none", "may", "encrypt", "dane", "verify", "secure")
 PROTOCOLS = ("smtp", "lmtp")
+# transport: Mailfilter accepts mail for the domain and delivers it to a mail server.
+# relay: outbound only; no inbound mail, no destination, but DKIM signing and limits.
+DOMAIN_KINDS = ("transport", "relay")
 LISTENER_TLS = ("may", "encrypt", "wrapper")
+# How Mailfilter knows which addresses of a transport domain exist (checked at RCPT TO):
+# callout: ask the domain's mail server (Postfix verify, cached); ldap: look the address
+# up in LDAP / Active Directory; list: only the addresses entered here; off: accept all.
+RECIPIENT_CHECKS = ("callout", "ldap", "list", "off")
+LDAP_PRESETS = ("ad", "generic")
+LDAP_SECURITY = ("starttls", "ldaps", "none")
+# Query used when no own filter is given. %s is the full address (escaped by Postfix).
+LDAP_FILTERS = {
+    # Primary address and every alias (proxyAddresses holds "smtp:alias@domain").
+    "ad": "(|(mail=%s)(proxyAddresses=smtp:%s))",
+    "generic": "(|(mail=%s)(mailAlternateAddress=%s))",
+}
 
 
 @dataclass
@@ -48,16 +65,49 @@ class OutboundLimits:
 
 
 @dataclass
+class LdapSource:
+    """LDAP or Active Directory server(s) that know a domain's addresses."""
+
+    # "dc1.example.nl", "dc1.example.nl:3268" or "ldaps://dc1.example.nl"; tried in order.
+    servers: list[str] = field(default_factory=list)
+    security: str = "starttls"  # starttls, ldaps or none
+    verify_cert: bool = True
+    bind_dn: str = ""  # empty: anonymous
+    bind_password: str = ""
+    base_dn: str = ""
+    preset: str = "ad"  # ad or generic: decides the default filter
+    query_filter: str = ""  # empty: LDAP_FILTERS[preset]
+    result_attribute: str = "mail"
+
+    def filter(self) -> str:
+        return self.query_filter.strip() or LDAP_FILTERS.get(self.preset, LDAP_FILTERS["generic"])
+
+
+@dataclass
 class Domain:
     name: str
-    destinations: list[Destination]
+    destinations: list[Destination] = field(default_factory=list)
+    kind: str = "transport"
+    # Relay IPs and SMTP accounts linked to this domain may only send as @domain.
+    sender_lock: bool = False
     enabled: bool = True
     customer: str | None = None
     tls: str = "may"
+    # Kept for older callers and cluster nodes: True = recipient_check "callout".
     verify_recipients: bool = True
+    recipient_check: str = ""  # see RECIPIENT_CHECKS; empty = from verify_recipients
+    recipients: list[str] = field(default_factory=list)  # recipient_check "list"
+    ldap: LdapSource | None = None  # recipient_check "ldap"
     queue: QueuePolicy = field(default_factory=QueuePolicy)
     outbound: OutboundLimits = field(default_factory=OutboundLimits)
     note: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.recipient_check:
+            self.recipient_check = "callout" if self.verify_recipients else "off"
+        self.verify_recipients = self.recipient_check != "off"
+        if isinstance(self.ldap, dict):
+            self.ldap = LdapSource(**self.ldap)
 
 
 @dataclass
@@ -70,6 +120,36 @@ class RelayNetwork:
     enabled: bool = True
     # Networks larger than /16 (IPv4) or /32 (IPv6) are refused unless set.
     allow_broad: bool = False
+    # Sender domains this network may use (envelope sender). Filled for networks
+    # of customer domains: all domains of that customer. Empty = no lock here
+    # (the domain's own sender_lock still applies).
+    senders: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CloudTenant:
+    """A Microsoft 365 or Google Workspace tenant that sends its outgoing mail
+    through the Mailfilter (see cloud.py). One entry per domain."""
+
+    provider: str  # m365 or google
+    domain: str
+    # Microsoft 365 only: the tenant ID (GUID) relayed mail must carry.
+    tenant_id: str = ""
+    enabled: bool = True
+
+
+@dataclass
+class SmtpAccount:
+    """A login for sending through the gateway (Dovecot checks the password).
+
+    password_hash is in Dovecot's format, e.g. "{SSHA512}base64..."; the plain
+    password never reaches this package."""
+
+    username: str
+    password_hash: str
+    domain: str
+    enabled: bool = True
+    description: str = ""
 
 
 @dataclass
@@ -109,6 +189,44 @@ class TlsPolicy:
 
 
 @dataclass
+class OutboundHold:
+    """A paused sender: its outgoing mail is accepted but kept in Postfix's hold
+    queue until an admin releases it. kind "ip" is one sending IP address,
+    kind "account" an SMTP login."""
+
+    kind: str  # ip or account
+    value: str
+    reason: str = ""
+
+
+MAILTRAP_MODES = ("all", "except")
+
+
+@dataclass
+class MailTrap:
+    """A Mailtrap mailbox: mail from these test-environment IPs (or this login)
+    is never sent on. Postfix hands it to the mftrap pipe, which stores it in
+    /var/lib/mailfilter/mailtrap/<login>/Maildir for the web interface and IMAP.
+
+    slug names the Postfix restriction class and the pipe's nexthop; login is
+    the IMAP/SMTP user name (also the mailbox directory name)."""
+
+    slug: str
+    name: str = ""
+    networks: list[str] = field(default_factory=list)
+    login: str = ""
+    password_hash: str = ""  # Dovecot format; empty = no login
+    smtp_login: bool = False  # mail sent with the login (port 587/465) is caught too
+    imap: bool = False  # testers can read the mailbox with a mail program (port 993)
+    # all: nothing leaves; except: recipients matching `allow` are also really delivered
+    mode: str = "all"
+    allow: list[str] = field(default_factory=list)  # "user@example.nl" or "@example.nl"
+    retention_days: int = 7
+    max_messages: int = 1000
+    enabled: bool = True
+
+
+@dataclass
 class Defaults:
     relay_ip_per_minute: int = 30
     relay_ip_per_hour: int = 1000
@@ -119,6 +237,14 @@ class Defaults:
 
 
 @dataclass
+class RecipientCache:
+    """How long the answers of mail servers (recipient_check "callout") are remembered."""
+
+    positive_days: int = 7  # address exists
+    negative_minutes: int = 180  # address does not exist
+
+
+@dataclass
 class GatewayConfig:
     domains: list[Domain] = field(default_factory=list)
     relay_networks: list[RelayNetwork] = field(default_factory=list)
@@ -126,7 +252,21 @@ class GatewayConfig:
     destination_policies: list[DestinationPolicy] = field(default_factory=list)
     address_routes: list[AddressRoute] = field(default_factory=list)
     tls_policies: list[TlsPolicy] = field(default_factory=list)
+    holds: list[OutboundHold] = field(default_factory=list)
+    smtp_accounts: list[SmtpAccount] = field(default_factory=list)
+    mailtraps: list[MailTrap] = field(default_factory=list)
+    cloud_tenants: list[CloudTenant] = field(default_factory=list)
+    # Main switch. Off: mail from Mailtrap senders is refused (never relayed).
+    mailtrap_enabled: bool = True
+    # Domains whose mail (in and out) is copied to the mail archive (mfarchive pipe).
+    archive_domains: list[str] = field(default_factory=list)
     defaults: Defaults = field(default_factory=Defaults)
+    recipient_cache: RecipientCache = field(default_factory=RecipientCache)
+    # Custom rules (newsletter filter etc.) by rule id; missing rules use their default.
+    custom_rules: dict[str, CustomRule] = field(default_factory=dict)
+    # Certificate for IMAP (Mailtrap); empty = Let's Encrypt for the host name.
+    tls_cert: str = ""
+    tls_key: str = ""
     # Used for loop detection; filled in from the server when empty.
     hostname: str = ""
     own_addresses: list[str] = field(default_factory=list)
@@ -164,8 +304,18 @@ class GatewayConfig:
                                          **{k: v for k, v in a.items() if k != "destination"})
                             for a in data.get("address_routes", [])],
             tls_policies=[TlsPolicy(**t) for t in data.get("tls_policies", [])],
+            holds=[OutboundHold(**h) for h in data.get("holds", [])],
+            smtp_accounts=[SmtpAccount(**a) for a in data.get("smtp_accounts", [])],
+            mailtraps=[MailTrap(**t) for t in data.get("mailtraps", [])],
+            cloud_tenants=[CloudTenant(**t) for t in data.get("cloud_tenants", [])],
+            mailtrap_enabled=bool(data.get("mailtrap_enabled", True)),
+            archive_domains=[str(d) for d in data.get("archive_domains", [])],
             defaults=Defaults(**data.get("defaults", {})),
+            recipient_cache=RecipientCache(**(data.get("recipient_cache") or {})),
+            custom_rules={k: rule_from_dict(v) for k, v in (data.get("custom_rules") or {}).items()},
             hostname=data.get("hostname", ""),
+            tls_cert=data.get("tls_cert", ""),
+            tls_key=data.get("tls_key", ""),
             own_addresses=list(data.get("own_addresses", [])),
             version=data.get("version", 1),
         )

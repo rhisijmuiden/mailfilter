@@ -1,0 +1,19 @@
+# Managed by Mailfilter. Rotates DKIM keys: new key, publish, switch, remove the old one.
+[Unit]
+Description=Mailfilter DKIM key rotation
+Documentation=https://github.com/rhisijmuiden/mailfilter/blob/main/docs/dkim-rotation.md
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+ExecStart=/var/lib/mailfilter/venv/bin/mailfilter-admin dkim-rotate
+# No NoNewPrivileges: the DKIM keys are written by the same sudo helper as the web app uses.
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter
+Nice=5
+TimeoutStartSec=15min

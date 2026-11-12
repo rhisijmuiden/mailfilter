@@ -11,14 +11,15 @@ from sqlalchemy import Select, and_, cast, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import TEXT
 
 from ..deps import DB, CurrentUser, visible_domains
+from .. import spamreport
 from ..explain import short_reply, text
-from ..models import QuarantineAction, TraceMessage, TraceRecipient, User
+from ..models import Domain, QuarantineAction, TraceMessage, TraceRecipient, User
 from ..settings import get_settings
 
 router = APIRouter(prefix="/trace", tags=["trace"])
 
 PROBLEM = ("bounced", "partly_delivered", "rejected", "deferred")
-StatusFilter = Literal["all", "delivered", "problem", "quarantined", "deferred", "bounced", "rejected", "queued"]
+StatusFilter = Literal["all", "delivered", "problem", "quarantined", "deferred", "bounced", "rejected", "queued", "held", "trapped"]
 
 
 class Explanation(BaseModel):
@@ -88,6 +89,7 @@ class DetailOut(MessageOut):
     bounces: list[str]
     held: bool
     quarantine_actions: list[ActionOut]
+    report: dict | None = None
 
 
 class StatsOut(BaseModel):
@@ -100,17 +102,22 @@ class StatsOut(BaseModel):
 
 
 def scope(stmt: Select, user: User) -> Select:
-    """Customers only see messages from or to their own domains."""
+    """Customers only see messages to their own domains, and messages from their
+    own domains that do not go to another domain on this Mailfilter. Anyone can
+    put a customer's domain in the envelope sender, so a forged "from" alone must
+    not show (or let them release) mail meant for another customer."""
     domains = visible_domains(user)
     if domains is None:
         return stmt
     lowered = [d.lower() for d in domains]
+    rcpt_domain = func.lower(func.split_part(TraceRecipient.address, "@", 2))
     sender_domain = func.lower(func.split_part(TraceMessage.sender, "@", 2))
-    rcpt_match = exists().where(
+    rcpt_match = exists().where(TraceRecipient.queue_id == TraceMessage.queue_id, rcpt_domain.in_(lowered))
+    to_other_customer = exists().where(
         TraceRecipient.queue_id == TraceMessage.queue_id,
-        func.lower(func.split_part(TraceRecipient.address, "@", 2)).in_(lowered),
+        rcpt_domain.in_(select(func.lower(Domain.name)).where(func.lower(Domain.name).not_in(lowered)).scalar_subquery()),
     )
-    return stmt.where(or_(sender_domain.in_(lowered), rcpt_match))
+    return stmt.where(or_(rcpt_match, and_(sender_domain.in_(lowered), ~to_other_customer)))
 
 
 def _like(q: str) -> str:
@@ -258,4 +265,5 @@ def detail(queue_id: str, user: CurrentUser, db: DB) -> DetailOut:
         symbols=symbols[:40], route=route(m, user), parent=m.parent, bounces=bounces,
         held=m.status == "quarantined" and not m.done,
         quarantine_actions=[ActionOut(action=a.action, learned=a.learned, user_email=a.user_email, at=a.at) for a in actions],
+        report=spamreport.build(m.symbols, m.symbol_options, m.spam_score, m.spam_action, m.direction, user.language),
     )

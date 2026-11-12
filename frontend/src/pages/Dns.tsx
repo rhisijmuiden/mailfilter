@@ -2,24 +2,29 @@
 // status, Cloudflare settings and the change log. Every write to Cloudflare is
 // shown as "current / new" first and can be undone from the change log.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, RefreshCw, Rocket, Undo2, X } from "lucide-react";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, Lock, Pencil, Plus, RefreshCw, Rocket, Save, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
+import { Suspense, lazy, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { Card, ErrorText, Field, Loading, Modal, PageHead, formatDate, useToast } from "../components/ui";
 import { ApiError, api } from "../lib/api";
 
+const BimiTab = lazy(() => import("./DnsBimi"));
+const DkimTab = lazy(() => import("./DnsDkim"));
+
 // --- types -----------------------------------------------------------------
 
-type Item = { code: string; status: string; value: string; problems: string[]; fix: string | null };
+export type Item = { code: string; status: string; value: string; problems: string[]; fix: string | null };
 type GoLiveState = { status: "live" | "rolled_back"; time: string; actor: string; previous_mx: Rec[]; mx: Rec[] } | null;
-type CheckResult = { domain: string; items: Item[]; managed: boolean; golive: GoLiveState };
+export type CheckResult = { domain: string; items: Item[]; managed: boolean; golive: GoLiveState };
 type Rec = { type: string; name: string; content: string; priority?: number | null; id?: string | null };
 type Change = { action: "create" | "update" | "delete" | "none"; type: string; name: string; before: Rec | null; after: Rec | null; reason: string };
-type Plan = { zone_name: string; domain: string; changes: Change[] };
+type Plan = { zone_name: string; domain: string; changes: Change[]; warnings?: string[] };
+type MxRow = { priority: number; host: string };
+type MxCloudflare = { domain: string; zone: string; managed: boolean; hostname: string; mx_priority: number; golive: GoLiveState; records: MxRow[] };
 type Server = { hostname: string; addresses: string[]; spf_name: string; spf_include: string; domains: string[] };
-type CfStatus = { configured: boolean; status: string | null; zones: string[] };
-type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf";
+export type CfStatus = { configured: boolean; status: string | null; zones: string[] };
+export type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx" | "mta_sts" | "tls_rpt" | "tlsa" | "dmarc_rua" | "dmarc_policy" | "dmarc_auth" | "bimi";
 type Smtp = { reachable: boolean; starttls: boolean; tls_ok: boolean; error: string; cert: { matches: boolean; days_left: number | null } | null } | null;
 type MxResult = {
   domain: string; null_mx: boolean; implicit: boolean; error: string;
@@ -34,16 +39,16 @@ export type Blacklist = {
 };
 type Journal = { time: string; batch: string; actor: string; domain: string; action: string; reason: string; before: Rec | null; after: Rec | null; undo?: string }[];
 
-const TABS = ["check", "mx", "spf", "dmarc", "blacklist", "cloudflare", "journal"] as const;
+const TABS = ["check", "mx", "spf", "dkim", "dmarc", "tls", "bimi", "blacklist", "cloudflare", "journal"] as const;
 type Tab = (typeof TABS)[number];
 
 // --- small parts -------------------------------------------------------------
 
-const STATUS_CLASS: Record<string, string> = { ok: "s-ok", weak: "s-warn", missing: "s-bad", bad: "s-bad", error: "s-bad", listed: "s-bad", clean: "s-ok", unusable: "s-mute", skipped: "s-mute" };
+const STATUS_CLASS: Record<string, string> = { pending: "s-info", ok: "s-ok", weak: "s-warn", missing: "s-bad", bad: "s-bad", error: "s-bad", listed: "s-bad", clean: "s-ok", unusable: "s-mute", skipped: "s-mute" };
 
-function Pill({ s, label }: { s: string; label?: string }) {
+export function Pill({ s, label }: { s: string; label?: string }) {
   const { t } = useTranslation();
-  const icon = s === "ok" || s === "clean" ? <Check /> : s === "weak" ? <Clock /> : s === "unusable" || s === "skipped" ? <Info /> : <X />;
+  const icon = s === "ok" || s === "clean" ? <Check /> : s === "weak" || s === "pending" ? <Clock /> : s === "unusable" || s === "skipped" ? <Info /> : <X />;
   return <span className={`status ${STATUS_CLASS[s] ?? "s-mute"}`}>{icon}{label ?? t(`dns.status.${s}`, { defaultValue: s })}</span>;
 }
 
@@ -52,7 +57,7 @@ function Yes({ v }: { v: boolean | null | undefined }) {
   return <span className={`status ${v ? "s-ok" : "s-bad"}`} style={{ padding: 3 }}>{v ? <Check /> : <X />}</span>;
 }
 
-function Problems({ codes }: { codes: string[] }) {
+export function Problems({ codes }: { codes: string[] }) {
   const { t } = useTranslation();
   if (!codes.length) return null;
   return (
@@ -65,7 +70,7 @@ function Problems({ codes }: { codes: string[] }) {
   );
 }
 
-function CopyBtn({ text }: { text: string }) {
+export function CopyBtn({ text }: { text: string }) {
   const { t } = useTranslation();
   const toast = useToast();
   return (
@@ -75,7 +80,7 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-function Code({ children }: { children: ReactNode }) {
+export function Code({ children }: { children: ReactNode }) {
   return <code className="mono" style={{ display: "block", fontSize: 12, background: "var(--surface-sunk)", padding: "8px 10px", borderRadius: "var(--r-sm)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{children}</code>;
 }
 
@@ -116,7 +121,10 @@ export default function Dns() {
           {tab === "check" && <CheckTab />}
           {tab === "mx" && <MxTab />}
           {tab === "spf" && <SpfTab />}
+          {tab === "dkim" && <Suspense fallback={<Loading />}><DkimTab /></Suspense>}
           {tab === "dmarc" && <DmarcTab />}
+          {tab === "tls" && <TlsTab />}
+          {tab === "bimi" && <Suspense fallback={<Loading />}><BimiTab /></Suspense>}
           {tab === "blacklist" && <BlacklistTab />}
           {tab === "cloudflare" && <CloudflareTab />}
           {tab === "journal" && <JournalTab />}
@@ -133,9 +141,14 @@ function CheckTab() {
   const [params, setParams] = useSearchParams();
   const server = useServer();
   const domain = params.get("domain") ?? server.data?.domains[0] ?? "";
-  const q = useQuery({ queryKey: ["dns-check", domain], queryFn: () => api.get<CheckResult>(`/dns/check/${encodeURIComponent(domain)}`), enabled: !!domain });
+  const q = useQuery({
+    queryKey: ["dns-check", domain], queryFn: () => api.get<CheckResult>(`/dns/check/${encodeURIComponent(domain)}`), enabled: !!domain,
+    // Just published: look again every 20 seconds until DNS shows it.
+    refetchInterval: (qq) => (qq.state.data?.items.some((i) => i.status === "pending") ? 20_000 : false),
+  });
   const [publish, setPublish] = useState<{ kind: PublishKind; value?: string } | null>(null);
-  const kindFor: Record<string, PublishKind> = { spf: "spf", dkim: "dkim", dmarc: "dmarc" };
+  const kindFor: Record<string, PublishKind> = { spf: "spf", dkim: "dkim", dmarc: "dmarc", dane: "tlsa" };
+  const tlsItems = ["mta_sts", "tls_rpt", "dane"];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <DomainForm initial={domain} domains={server.data?.domains} placeholder={t("dns.domain_ph")} onSubmit={(d) => setParams((p) => { p.set("domain", d); return p; })} />
@@ -161,6 +174,11 @@ function CheckTab() {
                     </td>
                     <td className="nowrap" style={{ textAlign: "right" }}>
                       {i.fix && <CopyBtn text={i.fix} />}
+                      {tlsItems.includes(i.code) && i.status !== "ok" && (
+                        <button className="btn small ghost" type="button" onClick={() => setParams((p) => { p.set("tab", "tls"); return p; })}>
+                          <Lock /> {t("dns.tls.set_up")}
+                        </button>
+                      )}
                       {i.fix && kindFor[i.code] && (
                         <button className="btn small" type="button" onClick={() => setPublish({ kind: kindFor[i.code], value: i.code === "dmarc" ? i.fix! : undefined })}>
                           <Cloud /> {t("dns.publish")}
@@ -171,6 +189,11 @@ function CheckTab() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div>
+            <button className="btn small" type="button" onClick={() => setParams((p) => { p.set("tab", "mx"); p.set("domain", q.data!.domain); return p; })}>
+              <Pencil /> {t("dns.mxe.edit_link")}
+            </button>
           </div>
           {q.data.managed ? <GoLive domain={q.data.domain} /> : (
             <div className="callout"><Info /><span>{t("dns.not_managed", { domain: q.data.domain })}</span></div>
@@ -210,12 +233,12 @@ function PlanView({ plan }: { plan: Plan }) {
   );
 }
 
-function PublishModal({ kind, domain, value, onClose, onDone }: { kind: PublishKind; domain: string; value?: string; onClose: () => void; onDone?: () => void }) {
+export function PublishModal({ kind, domain, value, mx, onClose, onDone }: { kind: PublishKind; domain: string; value?: string; mx?: MxRow[]; onClose: () => void; onDone?: () => void }) {
   const { t } = useTranslation();
   const toast = useToast();
   const qc = useQueryClient();
-  const body = { kind, domain, value };
-  const plan = useQuery({ queryKey: ["dns-plan", kind, domain, value], queryFn: () => api.post<Plan>("/dns/publish/plan", body), retry: false, gcTime: 0 });
+  const body = { kind, domain, value, mx };
+  const plan = useQuery({ queryKey: ["dns-plan", kind, domain, value, mx], queryFn: () => api.post<Plan>("/dns/publish/plan", body), retry: false, gcTime: 0 });
   const apply = useMutation({
     mutationFn: () => api.post<{ batch: string | null }>("/dns/publish/apply", body),
     onSuccess: () => {
@@ -230,6 +253,7 @@ function PublishModal({ kind, domain, value, onClose, onDone }: { kind: PublishK
     <Modal title={t(`dns.publish_title.${kind}`)} onClose={onClose} icon={<Cloud />}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <p className="muted" style={{ margin: 0 }}>{t(`dns.publish_help.${kind}`)}</p>
+        {plan.data?.warnings?.map((w) => <div key={w} className="callout warn"><Info /><span>{t(`dns.warn.${w}`, { domain })}</span></div>)}
         {plan.isLoading ? <Loading /> : plan.error ? <ErrorText error={plan.error} /> : plan.data && <PlanView plan={plan.data} />}
         <ErrorText error={apply.error} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -274,7 +298,12 @@ function GoLive({ domain }: { domain: string }) {
         {live && <div className="right"><span className="status s-ok"><Check />{t("dns.gl.live")}</span></div>}
       </div>
       <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {q.isLoading ? <Loading /> : q.error ? <ErrorText error={q.error} /> : d && (live ? (
+        {q.isLoading || q.isFetching ? <Loading /> : q.error ? (
+          <>
+            <ErrorText error={q.error} />
+            <div><button className="btn small" type="button" onClick={() => q.refetch()}><RefreshCw /> {t("common.refresh")}</button></div>
+          </>
+        ) : d && (live ? (
           <>
             <p style={{ margin: 0 }}>{t("dns.gl.live_since", { host: d.hostname, time: formatDate(d.state!.time, i18n.language), who: d.state!.actor })}</p>
             <dl className="kv">
@@ -326,7 +355,10 @@ function GoLive({ domain }: { domain: string }) {
 
 function MxTab() {
   const { t } = useTranslation();
-  const [domain, setDomain] = useState("");
+  const [params, setParams] = useSearchParams();
+  const server = useServer();
+  const domain = params.get("domain") ?? "";
+  const setDomain = (d: string) => setParams((p) => { p.set("domain", d); return p; });
   const [probe, setProbe] = useState(true);
   const q = useQuery({ queryKey: ["dns-mx", domain, probe], queryFn: () => api.get<MxResult>(`/dns/mx/${encodeURIComponent(domain)}?probe=${probe}`), enabled: !!domain, retry: false });
   const d = q.data;
@@ -334,7 +366,7 @@ function MxTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <p className="muted" style={{ margin: 0 }}>{t("dns.mx.help")}</p>
-      <DomainForm initial={domain} placeholder={t("dns.mx.ph")} onSubmit={setDomain} />
+      <DomainForm initial={domain} placeholder={t("dns.mx.ph")} onSubmit={setDomain} domains={server.data?.domains} />
       <label className="check"><input type="checkbox" checked={probe} onChange={(e) => setProbe(e.target.checked)} /><span>{t("dns.mx.probe")}</span></label>
       {q.isFetching ? <Loading /> : q.error ? <ErrorText error={q.error} /> : d && (
         d.null_mx ? <div className="callout"><Info /><span>{t("dns.mx.null_mx")}</span></div> : (
@@ -369,7 +401,74 @@ function MxTab() {
           </>
         )
       )}
+      {domain && <MxEditor domain={domain} onDone={() => q.refetch()} />}
     </div>
+  );
+}
+
+function MxEditor({ domain, onDone }: { domain: string; onDone: () => void }) {
+  const { t } = useTranslation();
+  const q = useQuery({ queryKey: ["dns-mx-cf", domain], queryFn: () => api.get<MxCloudflare>(`/dns/mx/${encodeURIComponent(domain)}/cloudflare`), retry: false });
+  const [rows, setRows] = useState<MxRow[]>([]);
+  const [review, setReview] = useState(false);
+  useEffect(() => { if (q.data) setRows(q.data.records.length ? q.data.records : [{ priority: 10, host: "" }]); }, [q.data]);
+  const d = q.data;
+  const set = (n: number, patch: Partial<MxRow>) => setRows(rows.map((r, i) => (i === n ? { ...r, ...patch } : r)));
+  const clean = rows.map((r) => ({ priority: r.priority, host: r.host.trim().toLowerCase() })).filter((r) => r.host);
+  const changed = !!d && JSON.stringify(clean) !== JSON.stringify(d.records);
+  const hasMf = !!d && clean.some((r) => r.host === d.hostname);
+  return (
+    <section className="card" style={{ borderColor: "var(--accent)" }}>
+      <div className="card-head">
+        <span className="status s-info" style={{ padding: 4 }}><Cloud /></span>
+        <h2>{t("dns.mxe.title")}</h2>
+        {d && <div className="right"><span className="cell-sub">{t("dns.zone")}: <b>{d.zone}</b></span></div>}
+      </div>
+      <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {q.isLoading ? <Loading /> : q.error ? (
+          q.error instanceof ApiError && (q.error.message === "cloudflare_not_configured" || q.error.message.startsWith("zone_not_found"))
+            ? <div className="callout"><Info /><span>{t(q.error.message === "cloudflare_not_configured" ? "dns.mxe.no_cloudflare" : "dns.mxe.no_zone", { domain })}</span></div>
+            : <ErrorText error={q.error} />
+        ) : d && (
+          <>
+            <p className="cell-sub" style={{ margin: 0 }}>{t("dns.mxe.help", { host: d.hostname })}</p>
+            {!d.managed && <div className="callout warn"><Info /><span>{t("dns.mxe.not_managed", { domain })}</span></div>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn small" type="button" onClick={() => setRows([{ priority: d.mx_priority, host: d.hostname }])}><Rocket /> {t("dns.mxe.only_mf")}</button>
+              {!hasMf && (
+                <button className="btn small" type="button" onClick={() => setRows([...rows.filter((r) => r.host.trim()), { priority: Math.max(0, ...rows.map((r) => r.priority)) + 10, host: d.hostname }])}>
+                  <Plus /> {t("dns.mxe.add_mf")}
+                </button>
+              )}
+              {changed && <button className="btn small ghost" type="button" onClick={() => setRows(d.records.length ? d.records : [{ priority: 10, host: "" }])}><Undo2 /> {t("dns.mxe.reset")}</button>}
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th style={{ width: 110 }}>{t("dns.mx.prio")}</th><th>{t("dns.mx.host")}</th><th /></tr></thead>
+                <tbody>
+                  {rows.map((r, n) => (
+                    <tr key={n}>
+                      <td><input className="input inline" type="number" min={0} max={65535} value={r.priority} aria-label={t("dns.mx.prio")} onChange={(e) => set(n, { priority: Math.max(0, Math.min(65535, Number(e.target.value) || 0)) })} style={{ width: 90 }} /></td>
+                      <td><input className="input inline mono" value={r.host} aria-label={t("dns.mx.host")} placeholder="mx.example.com" spellCheck={false} autoComplete="off" onChange={(e) => set(n, { host: e.target.value })} style={{ width: "100%" }} /></td>
+                      <td className="nowrap" style={{ textAlign: "right" }}>
+                        {r.host.trim().toLowerCase() === d.hostname && <span className="tag" style={{ marginRight: 6 }}>Mailfilter</span>}
+                        <button className="btn small ghost" type="button" aria-label={t("common.delete")} disabled={rows.length < 2} onClick={() => setRows(rows.filter((_, i) => i !== n))}><Trash2 /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn small" type="button" disabled={rows.length >= 10} onClick={() => setRows([...rows, { priority: Math.max(0, ...rows.map((r) => r.priority)) + 10, host: "" }])}><Plus /> {t("dns.mxe.add_row")}</button>
+              <span className="grow" style={{ flex: 1 }} />
+              <button className="btn primary" type="button" disabled={!changed || !clean.length} onClick={() => setReview(true)}><Cloud /> {t("dns.mxe.review")}</button>
+            </div>
+          </>
+        )}
+      </div>
+      {review && <PublishModal kind="mx" domain={domain} mx={clean} onClose={() => setReview(false)} onDone={() => { q.refetch(); onDone(); }} />}
+    </section>
   );
 }
 
@@ -467,6 +566,140 @@ function DmarcTab() {
         </>
       )}
     </div>
+  );
+}
+
+// --- MTA-STS, TLS-RPT, DANE ----------------------------------------------------------------
+
+type StsPolicy = { domain: string; mode: "testing" | "enforce" | "none"; mx: string[]; max_age: number; id: string; updated: string; txt: string; policy: string };
+type TlsInfo = {
+  domain: string; hostname: string; managed: boolean; policy: StsPolicy | null; policy_url: string; tlsrpt_default: string;
+  policy_default: { mode: "testing" | "enforce" | "none"; max_age: number; mx: string[] };
+  dane: { host: string; name: string; expected: string | null; published: string[]; host_signed: boolean | null; domain_signed: boolean | null; problems: string[]; status: string };
+};
+
+function TlsTab() {
+  const { t } = useTranslation();
+  const [params, setParams] = useSearchParams();
+  const server = useServer();
+  const domain = params.get("domain") ?? server.data?.domains[0] ?? "";
+  const q = useQuery({ queryKey: ["dns-tls", domain], queryFn: () => api.get<TlsInfo>(`/dns/tls/${encodeURIComponent(domain)}`), enabled: !!domain });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <p className="muted" style={{ margin: 0 }}>{t("dns.tls.help")}</p>
+      <DomainForm initial={domain} domains={server.data?.domains} placeholder={t("dns.domain_ph")} onSubmit={(d) => setParams((p) => { p.set("domain", d); return p; })} />
+      {!domain ? <div className="empty">{t("dns.check_empty")}</div> : q.isLoading ? <Loading /> : q.error ? <ErrorText error={q.error} /> : q.data && (
+        <>
+          {!q.data.managed && <div className="callout warn"><Info /><span>{t("dns.not_managed", { domain })}</span></div>}
+          <StsCard info={q.data} onSaved={() => q.refetch()} />
+          <TlsRptCard info={q.data} />
+          <DaneCard info={q.data} onDone={() => q.refetch()} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function TlsCard({ icon, title, right, children }: { icon: ReactNode; title: string; right?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <span className="status s-info" style={{ padding: 4 }}>{icon}</span>
+        <h2>{title}</h2>
+        {right && <div className="right">{right}</div>}
+      </div>
+      <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
+    </section>
+  );
+}
+
+function StsCard({ info, onSaved }: { info: TlsInfo; onSaved: () => void }) {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const start = info.policy ?? info.policy_default;
+  const [f, setF] = useState({ mode: start.mode, mx: start.mx.join(" "), max_age: start.max_age });
+  useEffect(() => { const s2 = info.policy ?? info.policy_default; setF({ mode: s2.mode, mx: s2.mx.join(" "), max_age: s2.max_age }); }, [info]);
+  const [publish, setPublish] = useState(false);
+  const save = useMutation({
+    mutationFn: () => api.put<StsPolicy>(`/dns/mta-sts/${encodeURIComponent(info.domain)}`, { mode: f.mode, mx: f.mx.split(/[\s,]+/).filter(Boolean), max_age: f.max_age }),
+    onSuccess: () => { toast(t("common.saved")); onSaved(); },
+  });
+  const p = info.policy;
+  const dirty = !p || p.mode !== f.mode || p.max_age !== f.max_age || p.mx.join(" ") !== f.mx.split(/[\s,]+/).filter(Boolean).join(" ");
+  return (
+    <TlsCard icon={<Lock />} title={t("dns.tls.sts_title")} right={p ? <Pill s={p.mode === "enforce" ? "ok" : "weak"} label={t(`dns.tls.mode_${p.mode}`)} /> : <Pill s="missing" />}>
+      <p className="cell-sub" style={{ margin: 0 }}>{t("dns.tls.sts_help", { host: info.hostname })}</p>
+      <Field label={t("dns.tls.mode")} hint={t(`dns.tls.mode_${f.mode}_help`)}>
+        <div className="seg" role="group">
+          {(["testing", "enforce", "none"] as const).map((m) => <button key={m} type="button" aria-pressed={f.mode === m} onClick={() => setF({ ...f, mode: m })}>{t(`dns.tls.mode_${m}`)}</button>)}
+        </div>
+      </Field>
+      <div className="form-grid">
+        <Field label={t("dns.tls.mx")} hint={t("dns.tls.mx_hint")}><input className="input mono" value={f.mx} onChange={(e) => setF({ ...f, mx: e.target.value })} spellCheck={false} /></Field>
+        <Field label={t("dns.tls.max_age")}>
+          <select className="select" value={f.max_age} onChange={(e) => setF({ ...f, max_age: Number(e.target.value) })}>
+            {[86400, 604800, 2592000].map((n) => <option key={n} value={n}>{t(`dns.tls.age_${n}`)}</option>)}
+          </select>
+        </Field>
+      </div>
+      <ErrorText error={save.error} />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn primary" type="button" disabled={!dirty || save.isPending || !info.managed} onClick={() => save.mutate()}><Save /> {t("dns.tls.save_policy")}</button>
+        {p && <button className="btn" type="button" disabled={dirty} onClick={() => setPublish(true)}><Cloud /> {t("dns.publish")}</button>}
+        {p && <a className="btn ghost" href={info.policy_url} target="_blank" rel="noreferrer"><ExternalLink /> {t("dns.tls.open_policy")}</a>}
+      </div>
+      {p && (
+        <>
+          <div className="cell-sub" style={{ fontWeight: 650 }}>{t("dns.tls.policy_file")} · <span className="mono">{info.policy_url}</span></div>
+          <Code>{p.policy}</Code>
+          <div className="cell-sub" style={{ fontWeight: 650 }}>{t("dns.tls.records")}</div>
+          <Code>{`_mta-sts.${info.domain}  TXT  "${p.txt}"\nmta-sts.${info.domain}  CNAME  ${info.hostname}`}</Code>
+        </>
+      )}
+      {publish && <PublishModal kind="mta_sts" domain={info.domain} onClose={() => setPublish(false)} onDone={onSaved} />}
+    </TlsCard>
+  );
+}
+
+function TlsRptCard({ info }: { info: TlsInfo }) {
+  const { t } = useTranslation();
+  const [rua, setRua] = useState(info.tlsrpt_default);
+  useEffect(() => setRua(info.tlsrpt_default), [info.tlsrpt_default]);
+  const [open, setOpen] = useState(false);
+  return (
+    <TlsCard icon={<Info />} title={t("dns.tls.rpt_title")}>
+      <p className="cell-sub" style={{ margin: 0 }}>{t("dns.tls.rpt_help")}</p>
+      <Field label={t("dns.tls.rpt_rua")}><input className="input" value={rua} onChange={(e) => setRua(e.target.value)} spellCheck={false} /></Field>
+      <div><button className="btn" type="button" disabled={!rua.trim()} onClick={() => setOpen(true)}><Cloud /> {t("dns.publish")}</button></div>
+      {open && <PublishModal kind="tls_rpt" domain={info.domain} value={rua} onClose={() => setOpen(false)} />}
+    </TlsCard>
+  );
+}
+
+function DaneCard({ info, onDone }: { info: TlsInfo; onDone: () => void }) {
+  const { t } = useTranslation();
+  const d = info.dane;
+  const [open, setOpen] = useState(false);
+  const zoneRow = (label: string, v: boolean | null) => (
+    <><dt>{label}</dt><dd>{v === null ? <span className="muted">{t("dns.tls.unknown")}</span> : <Pill s={v ? "ok" : "bad"} label={t(v ? "dns.tls.signed" : "dns.tls.unsigned")} />}</dd></>
+  );
+  return (
+    <TlsCard icon={<ShieldCheck />} title={t("dns.tls.dane_title")} right={<Pill s={d.status} />}>
+      <p className="cell-sub" style={{ margin: 0 }}>{t("dns.tls.dane_help", { host: d.host })}</p>
+      <dl className="kv">
+        <dt>{t("dns.tls.record")}</dt><dd className="mono" style={{ fontSize: 12 }}>{d.name} TLSA</dd>
+        <dt>{t("dns.tls.expected")}</dt><dd className="mono" style={{ fontSize: 12, wordBreak: "break-all" }}>{d.expected ?? "–"}</dd>
+        <dt>{t("dns.tls.published")}</dt><dd className="mono" style={{ fontSize: 12, wordBreak: "break-all" }}>{d.published.join(" · ") || "–"}</dd>
+        {zoneRow(t("dns.tls.dnssec_host", { host: d.host }), d.host_signed)}
+        {zoneRow(t("dns.tls.dnssec_domain", { domain: info.domain }), d.domain_signed)}
+      </dl>
+      <Problems codes={d.problems} />
+      {(d.host_signed === false || d.domain_signed === false) && (
+        <div className="callout warn"><Info /><span>{t("dns.tls.dnssec_how")}</span></div>
+      )}
+      <div><button className="btn" type="button" disabled={!d.expected} onClick={() => setOpen(true)}><Cloud /> {t("dns.tls.publish_tlsa")}</button></div>
+      {open && <PublishModal kind="tlsa" domain={info.hostname} onClose={() => setOpen(false)} onDone={onDone} />}
+    </TlsCard>
   );
 }
 

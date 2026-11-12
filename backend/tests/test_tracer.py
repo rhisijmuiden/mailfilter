@@ -44,6 +44,8 @@ def test_inbound_delivered():
     assert m.sender == "jan@gmail.com" and m.size == 4211
     assert m.spam_score == -0.4 and m.spam_action == "no action"
     assert m.symbols["DMARC_POLICY_ALLOW"] == -0.5
+    assert m.symbol_options["R_SPF_ALLOW"] == ["+ip6:2a00:1450::/32"]
+    assert m.symbol_options["DMARC_POLICY_ALLOW"] == ["gmail.com", "none"]
     r = m.recipients["info@rhis.nl"]
     assert (r.relay_host, r.relay_ip, r.transport) == ("mail.rhis.nl", "192.0.2.10", "relay")
     assert r.explain is None
@@ -83,6 +85,23 @@ def test_quarantine_hold():
     m = msgs[QA]
     assert m.status == "quarantined"
     assert m.recipients["info@rhis.nl"].explain == "quarantine"
+
+
+def test_outbound_pause_hold_is_not_quarantine():
+    _, msgs = run([
+        f"Nov 11 12:05:00 mailfilter01 postfix/submission/smtpd[401]: {QB}: client=web01.rhis.nl[198.51.100.7], "
+        "sasl_method=PLAIN, sasl_username=web01@rhis.nl",
+        f"Nov 11 12:05:01 mailfilter01 postfix/submission/smtpd[401]: {QB}: hold: END-OF-MESSAGE from "
+        "web01.rhis.nl[198.51.100.7]: Paused by Mailfilter: 400 messages in 5 minutes; "
+        "from=<noreply@rhis.nl> to=<x@gmail.com> proto=ESMTP helo=<web01.rhis.nl>",
+    ])
+    m = msgs[QB]
+    assert m.status == "held" and m.direction == "outbound"
+    assert m.client_ip == "198.51.100.7" and m.sasl_user == "web01@rhis.nl"
+    r = m.recipients["x@gmail.com"]
+    assert r.status == "held" and r.explain == "outbound_paused"
+    assert r.reply.startswith("Paused by Mailfilter")
+    assert explain.text("outbound_paused", "nl")["title"].startswith("Vastgehouden")
 
 
 def test_postscreen_and_smtpd_rejects_get_made_up_ids():
@@ -166,6 +185,9 @@ def test_explain_catalog():
     t = explain.text("user_unknown", "nl")
     assert t["title"] == "De mailbox bestaat niet." and t["who"] == "sender"
     assert explain.text("quarantine", "en")["title"].startswith("Held")
+    blocked = "5.7.1 Rejected: the sender is on the recipient's block list"
+    assert explain.explain_local(blocked, "5.7.1") == "rejected_sender_blocked"
+    assert explain.text("rejected_sender_blocked", "nl")["title"].startswith("Geweigerd")
 
 
 def test_every_rule_has_both_languages():
@@ -186,3 +208,16 @@ def test_per_domain_and_throttled_queues():
     ])
     assert msgs[QA].direction == "inbound" and msgs[QA].recipients["info@rhis.nl"].transport == "relay"
     assert msgs[QB].direction == "outbound" and msgs[QB].recipients["a@outlook.com"].transport == "smtp"
+
+
+def test_mailtrap_is_caught_not_delivered():
+    _, msgs = run([
+        f"Nov 11 12:10:00 mailfilter01 postfix/smtpd[401]: {QB}: client=staging-web01[10.0.8.21]",
+        f"Nov 11 12:10:01 mailfilter01 postfix/pipe[402]: {QB}: to=<j.devries@gmail.com>, relay=mftrap, delay=0.21, "
+        "delays=0.01/0/0/0.2, dsn=2.0.0, status=sent (delivered via mftrap service)",
+    ])
+    m = msgs[QB]
+    assert m.status == "trapped" and m.direction == "outbound"
+    r = m.recipients["j.devries@gmail.com"]
+    assert r.status == "trapped" and r.explain == "mailtrap" and r.transport == "mailtrap"
+    assert explain.text("mailtrap", "nl")["title"].startswith("Opgevangen")

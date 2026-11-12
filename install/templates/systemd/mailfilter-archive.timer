@@ -1,0 +1,11 @@
+# Managed by Mailfilter. Shortly after midnight (UTC), when the day can be sealed.
+[Unit]
+Description=Nightly mail archive maintenance
+
+[Timer]
+OnCalendar=*-*-* 00:20:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

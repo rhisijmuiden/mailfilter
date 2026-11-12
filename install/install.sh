@@ -142,10 +142,10 @@ export DEBIAN_FRONTEND=noninteractive
 echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
 echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
-PKGS=(postfix postfix-lmdb rspamd redis-server clamav-daemon clamav-freshclam dovecot-core
+PKGS=(postfix postfix-lmdb postfix-ldap rspamd redis-server clamav-daemon clamav-freshclam dovecot-core dovecot-imapd
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
-      nodejs npm sudo git zstd curl dnsutils ca-certificates jq crowdsec)
+      nodejs npm sudo git zstd gnupg openssh-client curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
@@ -188,9 +188,11 @@ install -d -m 0755 "$MF_ETC/nftables"
 # mailfilter-config (step "Domains, relay access and throttling" below, and the
 # web interface). Here we only make sure every file exists so Postfix can start.
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
-for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
-for f in relay_networks.cidr client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
-for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients archive_bcc; do touch "$MF_ETC/postfix/$f"; done
+for f in relay_networks.cidr client_block.cidr postscreen_access.cidr mailtrap.cidr mailtrap_sasl cloud_relay.cidr; do touch "$MF_ETC/postfix/$f"; done
+# Mailtrap: caught mail of test environments (filled by the web interface)
+[[ -f $MF_ETC/dovecot-mailtrap.conf ]] || echo "# Managed by Mailfilter (Mailtrap). No mailbox allows IMAP." >"$MF_ETC/dovecot-mailtrap.conf"
+for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs arc_trusted; do touch "$MF_ETC/rspamd/$f.map"; done
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
 ok "Lists and maps in $MF_ETC"
@@ -233,8 +235,14 @@ else
   render "$TPL/caddy/Caddyfile.acme" /etc/caddy/Caddyfile
   run systemctl restart caddy
   run certbot certonly --webroot -w /var/www/acme -d "$HOSTNAME_FQDN" \
-      --email "$ADMIN_EMAIL" --agree-tos --no-eff-email --non-interactive --key-type ecdsa
+      --email "$ADMIN_EMAIL" --agree-tos --no-eff-email --non-interactive --key-type ecdsa --reuse-key
   ok "Certificate issued for $HOSTNAME_FQDN"
+fi
+# DANE: the TLSA record holds the hash of the key, so renewals must keep the same key
+RENEWAL=/etc/letsencrypt/renewal/$HOSTNAME_FQDN.conf
+if [[ -f $RENEWAL ]] && ! grep -q '^reuse_key *= *True' "$RENEWAL"; then
+  sed -i '/^reuse_key/d; /^\[renewalparams\]/a reuse_key = True' "$RENEWAL"
+  ok "Certificate renewals keep the same key (needed for DANE)"
 fi
 install -D -m 0755 "$TPL/certbot/deploy-hook.sh" /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh
 if [[ -d /etc/letsencrypt/live ]]; then /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh 2>/dev/null || true; fi
@@ -252,7 +260,7 @@ if [[ $HAVE_CERT == 0 ]]; then
   postconf -e "smtpd_tls_chain_files = /etc/ssl/private/ssl-cert-snakeoil.key, /etc/ssl/certs/ssl-cert-snakeoil.pem"
   warn "Postfix uses a temporary self-signed certificate until Let's Encrypt succeeds."
 fi
-for f in relay_domains transport sender_block tls_policy recipient_verify; do run postmap "hash:$MF_ETC/postfix/$f"; done
+for f in relay_domains transport sender_block tls_policy recipient_verify relay_recipients mailtrap_sasl archive_bcc; do run postmap "hash:$MF_ETC/postfix/$f"; done
 # A bare install with "No configuration" has no /etc/aliases; route system mail to the admin.
 [[ -f /etc/aliases ]] || printf 'postmaster: root\nabuse: root\nroot: %s\n' "$ADMIN_EMAIL" >/etc/aliases
 run newaliases
@@ -264,6 +272,7 @@ ok "Listening on 25 (inbound), 587 and 465 (relay)"
 # ---------------------------------------------------------------------------
 step "SMTP accounts for relay (Dovecot)"
 touch "$MF_ETC/smtp-users"; chown root:dovecot "$MF_ETC/smtp-users"; chmod 0640 "$MF_ETC/smtp-users"
+touch "$MF_ETC/mailtrap-users"; chown root:dovecot "$MF_ETC/mailtrap-users"; chmod 0640 "$MF_ETC/mailtrap-users"
 backup_file /etc/dovecot/dovecot.conf
 render "$TPL/dovecot/dovecot.conf" /etc/dovecot/dovecot.conf
 run doveconf -n
@@ -296,6 +305,9 @@ for f in "$TPL"/rspamd/local.d/*; do
   render "$f" "/etc/rspamd/local.d/$name" 0640
   chgrp _rspamd "/etc/rspamd/local.d/$name"
 done
+install -d -m 0755 /etc/rspamd/lua.local.d
+render "$TPL/rspamd/lua.local.d/mailfilter_reports.lua" /etc/rspamd/lua.local.d/mailfilter_reports.lua 0640
+chgrp _rspamd /etc/rspamd/lua.local.d/mailfilter_reports.lua
 touch "$MF_ETC/rspamd/ratelimit_overrides.conf"
 if [[ -n $FIRST_DOMAIN ]]; then
   SEL=mf$(date +%Y)
@@ -357,11 +369,20 @@ ok "$(jq '.relay_networks | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0
 chown -R root:root "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
 chmod -R go-w "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
 SUDOERS_TMP=$(mktemp)
-printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s apply --stdin --json\n' \
-  "$(readlink -f "$MF_SRC/backend/bin/mailfilter-config")" >"$SUDOERS_TMP"
+# Second line: a cluster node exports and imports DKIM keys, so all nodes sign with the same key.
+MFC_BIN=$(readlink -f "$MF_SRC/backend/bin/mailfilter-config")
+printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s apply --stdin --json\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s dkim --stdin --json\n' \
+  "$MFC_BIN" "$MFC_BIN" >"$SUDOERS_TMP"
 run visudo -cf "$SUDOERS_TMP"
 install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/mailfilter-config
 rm -f "$SUDOERS_TMP"
+# Write the gateway again from the web app's database, so rules that came with an
+# update (e.g. the sender lock for customer relay IPs) take effect right away.
+if runuser -u mailfilter -- "$MF_VENV/bin/mailfilter-admin" gateway-apply >>"$MF_LOG" 2>&1; then
+  ok "Gateway configuration written from the web app"
+else
+  warn "Could not write the gateway configuration from the web app; see $MF_LOG"
+fi
 
 # ---------------------------------------------------------------------------
 step "Import from Proxmox Mail Gateway"
@@ -409,6 +430,8 @@ fi
 step "Updates and backups"
 render "$TPL/mailfilterctl.wrapper" /usr/local/sbin/mailfilterctl 0755
 install -d -m 0700 /var/lib/mailfilterctl /var/backups/mailfilter
+# Executables here get every system event (failed backups, updates) as JSON; see ops/mailfilterctl/events.py
+install -d -m 0755 -o root -g root "$MF_ETC/hooks.d"
 install -m 0644 "$TPL/systemd/mailfilter-backup.service" /etc/systemd/system/mailfilter-backup.service
 install -m 0644 "$TPL/systemd/mailfilter-backup.timer" /etc/systemd/system/mailfilter-backup.timer
 install -m 0440 "$TPL/sudoers-mailfilterctl" /etc/sudoers.d/mailfilterctl
@@ -435,7 +458,7 @@ ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minu
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer mailfilter-notify.timer mailfilter-cluster.timer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do

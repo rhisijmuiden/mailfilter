@@ -11,10 +11,10 @@ submission inet n       -       y       -       -       smtpd
   -o syslog_name=postfix/submission
   -o smtpd_tls_security_level=encrypt
   -o smtpd_sasl_auth_enable=yes
-  -o smtpd_client_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
+  -o smtpd_client_restrictions=check_client_access,cidr:/etc/mailfilter/postfix/mailtrap.cidr,check_sasl_access,hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks,permit_sasl_authenticated,reject
   -o smtpd_helo_restrictions=
-  -o smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o smtpd_recipient_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
+  -o smtpd_relay_restrictions=check_client_access,cidr:/etc/mailfilter/postfix/mailtrap.cidr,check_sasl_access,hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks,permit_sasl_authenticated,reject
+  -o smtpd_recipient_restrictions=check_client_access,cidr:/etc/mailfilter/postfix/mailtrap.cidr,check_sasl_access,hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks,permit_sasl_authenticated,reject
   -o milter_macro_daemon_name=ORIGINATING
 
 # Outbound relay over implicit TLS on 465
@@ -22,16 +22,28 @@ submissions inet n      -       y       -       -       smtpd
   -o syslog_name=postfix/submissions
   -o smtpd_tls_wrappermode=yes
   -o smtpd_sasl_auth_enable=yes
-  -o smtpd_client_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
+  -o smtpd_client_restrictions=check_client_access,cidr:/etc/mailfilter/postfix/mailtrap.cidr,check_sasl_access,hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks,permit_sasl_authenticated,reject
   -o smtpd_helo_restrictions=
-  -o smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
-  -o smtpd_recipient_restrictions=permit_mynetworks,permit_sasl_authenticated,reject
+  -o smtpd_relay_restrictions=check_client_access,cidr:/etc/mailfilter/postfix/mailtrap.cidr,check_sasl_access,hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks,permit_sasl_authenticated,reject
+  -o smtpd_recipient_restrictions=check_client_access,cidr:/etc/mailfilter/postfix/mailtrap.cidr,check_sasl_access,hash:/etc/mailfilter/postfix/mailtrap_sasl,permit_mynetworks,permit_sasl_authenticated,reject
   -o milter_macro_daemon_name=ORIGINATING
 
 # Extra relay ports (managed in Settings > Listeners). Same rules as 587:
 # only allowed IPs and SMTP accounts, never mail from unknown senders.
 # BEGIN mailfilter-config (managed by the web interface, do not edit)
 # END mailfilter-config
+
+# DMARC reports for dmarc-reports@<hostname>: parsed and stored for the DMARC page
+# Mailtrap: stores mail from test environments in their mailbox instead of sending it
+mftrap    unix  -       n       n       -       4       pipe
+  flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-trap-deliver ${nexthop} --client=${client_address} --sasl=${sasl_username} --sender=${sender} -- ${recipient}
+# Mail archive: stores the archive copy of mail to and from archived domains (one domain per delivery)
+mfarchive unix  -       n       n       -       4       pipe
+  flags=q user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-archive-deliver ${user} --queue-id=${queue_id} --sender=${sender}
+mfdmarc   unix  -       n       n       -       2       pipe
+  flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-dmarc-ingest ${sender}
+mfreport  unix  -       n       n       -       4       pipe
+  flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-spam-report --to=${user} --sender=${sender} --client=${client_address} --helo=${client_helo}
 
 pickup    unix  n       -       y       60      1       pickup
 cleanup   unix  n       -       y       -       0       cleanup

@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
@@ -18,9 +19,20 @@ class DomainRoute(Base):
 
     __tablename__ = "domain_route"
     domain_id: Mapped[int] = mapped_column(ForeignKey("domain.id", ondelete="CASCADE"), primary_key=True)
+    # transport: receives mail and delivers it to `destinations`; relay: outbound only (no destinations).
+    kind: Mapped[str] = mapped_column(String(10), default="transport")
+    # Relay IPs and SMTP accounts linked to the domain may only send as @domain.
+    sender_lock: Mapped[bool] = mapped_column(Boolean, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     tls: Mapped[str] = mapped_column(String(10), default="may")
+    # Kept in step with recipient_check (True unless "off") for older cluster nodes.
     verify_recipients: Mapped[bool] = mapped_column(Boolean, default=True)
+    # callout, ldap, list or off (see mailfilter_config.RECIPIENT_CHECKS)
+    recipient_check: Mapped[str] = mapped_column(String(10), default="callout")
+    # mailfilter_config.LdapSource fields without bind_password, which is Fernet-encrypted below.
+    recipient_ldap: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    recipient_ldap_password: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recipient_list: Mapped[list] = mapped_column(JSONB, default=list)
     concurrency: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rate_delay: Mapped[int | None] = mapped_column(Integer, nullable=True)
     out_per_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -63,6 +75,23 @@ class RelayNetwork(Base):
     domain: Mapped[Domain | None] = relationship(lazy="joined")
 
 
+class SmtpAccount(Base):
+    """A login for sending mail through the gateway (ports 587/465 and extra relay ports).
+
+    Belongs to one domain, so customers can manage the accounts of their own
+    domains. Dovecot checks the password against password_hash."""
+
+    __tablename__ = "smtp_account"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True)
+    domain_id: Mapped[int] = mapped_column(ForeignKey("domain.id", ondelete="CASCADE"), index=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(String(200), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    domain: Mapped[Domain] = relationship(lazy="joined")
+
+
 class RelayPort(Base):
     __tablename__ = "relay_port"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -101,3 +130,40 @@ class TlsPolicy(Base):
     destination: Mapped[str] = mapped_column(String(260), unique=True)
     level: Mapped[str] = mapped_column(String(10), default="encrypt")
     note: Mapped[str] = mapped_column(Text, default="")
+
+
+class OutboundHold(Base):
+    """A paused sender (one IP address or SMTP account). While active, its mail is
+    accepted but kept in Postfix's hold queue until an admin releases it."""
+
+    __tablename__ = "outbound_hold"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10))  # ip or account
+    value: Mapped[str] = mapped_column(String(320))
+    reason: Mapped[str] = mapped_column(String(40))  # spam, volume, manual
+    detail: Mapped[dict] = mapped_column(JSONB, default=dict)
+    automatic: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    released_by: Mapped[int | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True)
+    # After a release the detector leaves this sender alone until then.
+    quiet_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CloudTenant(Base):
+    """A domain whose mailboxes live in Microsoft 365 or Google Workspace, behind the
+    gateway. Inbound mail is delivered to the provider through the domain's normal
+    route; with `enabled` the provider's servers may send the domain's outgoing
+    mail through the gateway (only for this tenant, see mailfilter_config.cloud).
+
+    `steps` keeps the wizard's progress: per step {"at", "by"} when someone said it
+    is done, plus facts the checks found (e.g. {"dns": {"mx_since": ...}})."""
+
+    __tablename__ = "cloud_tenant"
+    domain_id: Mapped[int] = mapped_column(ForeignKey("domain.id", ondelete="CASCADE"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(10))  # m365 or google
+    tenant_id: Mapped[str] = mapped_column(String(36), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    steps: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    domain: Mapped[Domain] = relationship(lazy="joined")

@@ -1,0 +1,21 @@
+[Unit]
+Description=Mailfilter: exchange configuration with the other cluster nodes
+Documentation=https://github.com/rhisijmuiden/mailfilter
+After=postgresql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+# Does nothing (and exits at once) while this server is not in a cluster.
+ExecStart=/var/lib/mailfilter/venv/bin/mailfilter-admin cluster-sync
+# No NoNewPrivileges: a configuration received from another node is applied
+# through the same "sudo systemd-run ... mailfilter-config" commands as the web app.
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter
+TimeoutStartSec=5min
+Nice=5

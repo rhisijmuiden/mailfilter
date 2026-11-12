@@ -1,7 +1,9 @@
-"""Local backups: list, create (full or incremental), settings, verify, restore, delete."""
+"""Backups: list, create (full or incremental), settings, verify, restore, delete,
+and copies on a remote FTP, FTPS or SCP server."""
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Path, Request
@@ -29,7 +31,7 @@ class CreateIn(BaseModel):
 
 @router.post("")
 def create(body: CreateIn, request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
-    job = ctl.call("backup", "create", "--type", body.type, "--label", body.label or f"by {user.email}")
+    job = ctl.call("backup", "create", "--type", body.type, f"--label={body.label or f'by {user.email}'}")
     audit(db, request, user, "backup.create", body.type, job=job.get("id"))
     db.commit()
     return job
@@ -60,6 +62,7 @@ def verify(backup_id: BackupId, _: AdminUser) -> dict[str, Any]:
 class RestoreIn(BaseModel):
     components: list[Literal["files", "database", "redis"]] = ["files", "database", "redis"]
     safety_backup: bool = True
+    remote: bool = False  # download it from the remote location first
 
 
 @router.post("/{backup_id}/restore")
@@ -67,10 +70,82 @@ def restore(backup_id: BackupId, body: RestoreIn, request: Request, db: DB, user
     args = ["restore", backup_id, "--only", ",".join(body.components or ["files", "database", "redis"])]
     if not body.safety_backup:
         args.append("--no-safety-backup")
+    if body.remote:
+        args.append("--from-remote")
     # Audit first: the restore may replace this database a moment later.
-    audit(db, request, user, "backup.restore", backup_id, components=body.components, safety_backup=body.safety_backup)
+    audit(db, request, user, "backup.restore", backup_id, components=body.components, safety_backup=body.safety_backup,
+          remote=body.remote)
     db.commit()
     return ctl.call(*args)
+
+
+# ---------------------------------------------------------------- remote location
+
+@router.get("/remote")
+def remote_show(_: AdminUser) -> dict[str, Any]:
+    return ctl.call("remote", "show")
+
+
+@router.get("/remote/passphrase")
+def remote_passphrase(request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
+    data = ctl.call("remote", "show", "--reveal")
+    audit(db, request, user, "backup.remote.passphrase_shown", "")
+    db.commit()
+    return {"passphrase": data.get("passphrase", "")}
+
+
+class RemoteIn(BaseModel):
+    enabled: bool
+    protocol: Literal["ftp", "ftps", "scp"]
+    host: str = Field(default="", max_length=253)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    username: str = Field(default="", max_length=128)
+    path: str = Field(default="mailfilter-backups", max_length=255)
+    verify_tls: bool = True
+    encrypt: bool = True
+    keep_full: int = Field(default=4, ge=1, le=100)
+    # None keeps the stored value, "" clears it
+    password: str | None = Field(default=None, max_length=256)
+    passphrase: str | None = Field(default=None, max_length=256)
+
+
+@router.put("/remote")
+def remote_set(body: RemoteIn, request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
+    data = body.model_dump()
+    if data["port"] is None:
+        data["port"] = ""
+    result = ctl.call("remote", "set", "--stdin", input=json.dumps(data))
+    audit(db, request, user, "backup.remote.config", body.host,
+          **{k: v for k, v in data.items() if k not in ("password", "passphrase")},
+          password_changed=body.password is not None, passphrase_changed=body.passphrase is not None)
+    db.commit()
+    return result
+
+
+@router.post("/remote/test")
+def remote_test(_: AdminUser) -> dict[str, Any]:
+    return ctl.call("remote", "test", timeout=300)
+
+
+@router.post("/remote/forget-hostkey")
+def remote_forget(request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
+    result = ctl.call("remote", "forget-hostkey")
+    audit(db, request, user, "backup.remote.forget_hostkey", "")
+    db.commit()
+    return result
+
+
+@router.get("/remote/backups")
+def remote_list(_: AdminUser) -> dict[str, Any]:
+    return ctl.call("remote", "list", timeout=300)
+
+
+@router.post("/remote/sync")
+def remote_sync(request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
+    job = ctl.call("remote", "sync")
+    audit(db, request, user, "backup.remote.sync", "", job=job.get("id"))
+    db.commit()
+    return job
 
 
 @router.delete("/chains/{chain_id}")

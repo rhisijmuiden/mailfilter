@@ -19,7 +19,7 @@ OUTBOUND_TRANSPORTS = ("smtp",)
 @dataclass
 class Recipient:
     address: str
-    status: str = "queued"  # queued, sent, deferred, bounced, expired, quarantined, rejected
+    status: str = "queued"  # queued, sent, deferred, bounced, expired, quarantined, held, rejected, trapped
     dsn: str = ""
     reply: str = ""
     relay_host: str = ""
@@ -47,6 +47,7 @@ class Message:
     spam_score: float | None = None
     spam_action: str | None = None
     symbols: dict = field(default_factory=dict)
+    symbol_options: dict = field(default_factory=dict)
     parent: str | None = None  # for bounces: the message this bounce is about
     is_bounce: bool = False
     done: bool = False
@@ -54,14 +55,18 @@ class Message:
 
     @property
     def status(self) -> str:
-        """Overall status: delivered, partly_delivered, deferred, bounced, quarantined, rejected or queued."""
+        """Overall status: delivered, partly_delivered, deferred, bounced, quarantined, held, rejected or queued."""
         states = {r.status for r in self.recipients.values()}
         if not states:
             return "rejected" if self.done and not self.recipients else "queued"
         if states == {"sent"}:
             return "delivered"
+        if "trapped" in states and states <= {"trapped", "sent"}:
+            return "trapped"  # caught by the Mailtrap (test environment); never sent
         if "quarantined" in states:
             return "quarantined"
+        if "held" in states:  # outbound sender paused by Mailfilter; not a spam verdict
+            return "held"
         if states <= {"rejected"}:
             return "rejected"
         if "sent" in states and states & {"bounced", "expired", "rejected"}:
@@ -77,6 +82,10 @@ class Message:
         if address not in self.recipients:
             self.recipients[address] = Recipient(address)
         return self.recipients[address]
+
+
+# Recipients Postfix adds for the mail archive (see mailfilter.archive).
+ARCHIVE_SUFFIX = "@archive.mailfilter.invalid"
 
 
 class Tracker:
@@ -111,6 +120,9 @@ class Tracker:
         if not ev.qid:
             return None
         msg = self._get(ev.qid, ev.ts)
+        if str(d.get("to", "")).lower().endswith(ARCHIVE_SUFFIX):
+            # The mail archive's own copy (mfarchive pipe): not a real recipient, never shown in the trace.
+            return msg
 
         if ev.kind == "client":
             msg.listener = ev.service.split("/")[0]
@@ -134,6 +146,7 @@ class Tracker:
             msg.spam_score = d["score"]
             msg.spam_action = d["action"]
             msg.symbols = d["symbols"]
+            msg.symbol_options = d.get("symbol_options", {})
             msg.message_id = msg.message_id or (d.get("mid") if d.get("mid") != "undef" else None)
             if d.get("user") and d["user"] != "unknown":
                 msg.direction = "outbound"
@@ -141,6 +154,12 @@ class Tracker:
             r = msg.rcpt(d["to"])
             r.status, r.reply, r.updated, r.explain = "quarantined", d["reply"], ev.ts, "quarantine"
             msg.sender = msg.sender if msg.sender is not None else d["sender"]
+        elif ev.kind == "access_hold":
+            r = msg.rcpt(d["to"])
+            r.status, r.reply, r.updated, r.explain = "held", d["reply"], ev.ts, "outbound_paused"
+            msg.sender = msg.sender if msg.sender is not None else d["sender"]
+            msg.client_host, msg.client_ip = msg.client_host or d.get("host", ""), msg.client_ip or d.get("ip")
+            msg.direction = "outbound"
         elif ev.kind == "milter_reject":
             r = msg.rcpt(d["to"])
             r.status, r.dsn, r.reply, r.updated = "rejected", d["dsn"], d["reply"], ev.ts
@@ -159,6 +178,10 @@ class Tracker:
             r.status = {"sent": "sent", "deferred": "deferred", "bounced": "bounced",
                         "expired": "expired"}.get(d["status"], d["status"])
             r.explain = explain.explain_remote(r.dsn, r.reply)
+            if r.relay_host == "mftrap" and r.status == "sent":
+                # Stored in a Mailtrap mailbox instead of sent (see master.cf, mftrap pipe)
+                r.status, r.explain, r.transport = "trapped", "mailtrap", "mailtrap"
+                msg.direction = msg.direction or "outbound"
             if r.transport in INBOUND_TRANSPORTS:
                 msg.direction = "inbound"
             elif r.transport in OUTBOUND_TRANSPORTS and msg.direction is None:

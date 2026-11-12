@@ -3,11 +3,12 @@ import subprocess
 import tempfile
 import unittest
 
-from mailfilter_config import (AddressRoute, TlsPolicy, Applier, ApplyError, ConfigError, Destination, DestinationPolicy, Domain,
+from mailfilter_config import (OutboundHold, AddressRoute, TlsPolicy, Applier, ApplyError, ConfigError, Destination, DestinationPolicy, Domain,
                                GatewayConfig, OutboundLimits, QueuePolicy, RelayNetwork, RelayPort, render,
                                validate)
 from mailfilter_config.cli import import_legacy, parse_destination
-from mailfilter_config.render import BEGIN, END, service_name, splice_master_cf
+from mailfilter_config import LdapSource
+from mailfilter_config.render import BEGIN, END, ldap_map_path, service_name, splice_master_cf
 
 
 def sample() -> GatewayConfig:
@@ -26,6 +27,8 @@ def sample() -> GatewayConfig:
         destination_policies=[DestinationPolicy("gmail.com", QueuePolicy(concurrency=5, rate_delay=1))],
         address_routes=[AddressRoute("Info@RHIS.nl", Destination("10.0.0.9", 24, protocol="lmtp"), "Helpdesk")],
         tls_policies=[TlsPolicy(".bank.nl", "secure"), TlsPolicy("[10.0.0.7]:25", "encrypt")],
+        holds=[OutboundHold("ip", "203.0.113.25", "45 spam messages in 15 minutes"),
+               OutboundHold("account", "Webshop@Klant.nl", "volume spike")],
     )
 
 
@@ -94,6 +97,14 @@ class ValidateTest(unittest.TestCase):
         cfg.domains[0].destinations[1].protocol = "lmtp"
         self.assertIn("protocol_mixed", codes(cfg))
 
+    def test_holds(self):
+        cfg = sample()
+        self.assertEqual(validate(cfg), [])
+        self.assertEqual(cfg.holds[1].value, "webshop@klant.nl")
+        for bad in (OutboundHold("ip", "127.0.0.1"), OutboundHold("ip", "nope"), OutboundHold("x", "a")):
+            self.assertTrue(codes(GatewayConfig(holds=[bad])) & {"hold_local", "hold_invalid"})
+        self.assertIn("hold_duplicate", codes(GatewayConfig(holds=[OutboundHold("ip", "192.0.2.1")] * 2)))
+
     def test_messages_in_both_languages(self):
         for p in validate(GatewayConfig(relay_networks=[RelayNetwork("0.0.0.0/0")])):
             self.assertTrue(p.en and p.nl and p.en != p.nl)
@@ -122,6 +133,12 @@ class RenderTest(unittest.TestCase):
             for line in self.r.files[path].splitlines():
                 if not line.startswith("#"):
                     self.assertNotIn("#", line, f"{path}: {line}")
+
+    def test_hold_maps(self):
+        self.assertIn("203.0.113.25 HOLD Paused by Mailfilter: 45 spam messages in 15 minutes\n",
+                      self.r.files["/etc/mailfilter/postfix/outbound_hold.cidr"])
+        self.assertIn("webshop@klant.nl HOLD", self.r.files["/etc/mailfilter/postfix/outbound_hold_sasl"])
+        self.assertIn("check_sasl_access", self.r.main_cf["smtpd_end_of_data_restrictions"])
 
     def test_routes(self):
         transport = self.r.files["/etc/mailfilter/postfix/transport"]
@@ -177,6 +194,7 @@ class FakeServer:
         self.params = {"mfq_old_domain_1234_destination_concurrency_limit": "2"}
         self.fail = fail or set()
         self.calls = []
+        self.no_ldap = False
 
     def __call__(self, cmd):
         cmd = list(cmd)
@@ -196,6 +214,8 @@ class FakeServer:
                 self.params.pop(k, None)
         if cmd[0] == "nft":
             return subprocess.CompletedProcess(cmd, 1, "", "no such set")
+        if cmd[:2] == ["postconf", "-m"]:
+            return subprocess.CompletedProcess(cmd, 0, "hash\nlmdb\n" + ("" if self.no_ldap else "ldap\n"), "")
         return ok
 
 
@@ -284,3 +304,144 @@ class CliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def ldap_domain(**kw) -> Domain:
+    src = LdapSource(servers=["dc1.ad.example.nl", "ldaps://dc2.ad.example.nl"], bind_dn="CN=svc,DC=ad,DC=example,DC=nl",
+                     bind_password="geheim $1", base_dn="DC=ad,DC=example,DC=nl", **kw)
+    return Domain(name="ad.example.nl", destinations=[Destination("exchange.ad.example.nl")], recipient_check="ldap", ldap=src)
+
+
+class RecipientCheckTest(unittest.TestCase):
+    def cfg(self, *domains):
+        return GatewayConfig(hostname="mailfilter.rhis.nl", domains=list(domains))
+
+    def test_old_flag_maps_to_mode(self):
+        self.assertEqual(Domain("a.nl").recipient_check, "callout")
+        self.assertEqual(Domain("a.nl", verify_recipients=False).recipient_check, "off")
+        d = Domain("a.nl", recipient_check="list")
+        self.assertTrue(d.verify_recipients)
+        self.assertEqual(Domain(**{"name": "a.nl", "recipient_check": "ldap", "ldap": {"servers": ["x"]}}).ldap.servers, ["x"])
+
+    def test_list_is_normalised(self):
+        d = Domain("Lijst.nl", [Destination("mail.lijst.nl")], recipient_check="list",
+                   recipients=["Info", "sales@LIJST.nl", "info@lijst.nl", " "])
+        cfg = self.cfg(d)
+        self.assertIn("recipient_invalid", codes(cfg))  # the blank line
+        d.recipients = ["Info", "sales@LIJST.nl", "info@lijst.nl"]
+        self.assertEqual(codes(cfg), set())
+        self.assertEqual(d.recipients, ["info@lijst.nl", "sales@lijst.nl"])
+
+    def test_list_rejects_other_domains_and_empty(self):
+        d = Domain("lijst.nl", [Destination("mail.lijst.nl")], recipient_check="list", recipients=["a@other.nl"])
+        self.assertIn("recipient_invalid", codes(self.cfg(d)))
+        d.recipients = []
+        self.assertIn("recipients_empty", codes(self.cfg(d)))
+
+    def test_ldap_validation(self):
+        d = ldap_domain()
+        self.assertEqual(codes(self.cfg(d)), set())
+        self.assertEqual(d.ldap.servers, ["ldap://dc1.ad.example.nl:389", "ldaps://dc2.ad.example.nl:636"])
+        bad = ldap_domain()
+        bad.ldap.servers = ["dc1 evil"]
+        bad.ldap.base_dn = ""
+        bad.ldap.bind_password = ""
+        bad.ldap.query_filter = "mail=%s"
+        self.assertTrue({"ldap_server_invalid", "ldap_base_missing", "ldap_password_missing",
+                         "ldap_filter_invalid"} <= codes(self.cfg(bad)))
+        nl = ldap_domain()
+        nl.ldap.bind_password = "a\nserver_host = ldap://evil"
+        self.assertIn("ldap_value_invalid", codes(self.cfg(nl)))
+        self.assertIn("ldap_missing", codes(self.cfg(Domain("x.nl", [Destination("m.x.nl")], recipient_check="ldap"))))
+
+    def test_ipv6_ldap_server(self):
+        d = ldap_domain()
+        d.ldap.servers = ["[2a02:58::5]:3268"]
+        self.assertEqual(codes(self.cfg(d)), set())
+        self.assertEqual(d.ldap.servers, ["ldap://[2a02:58::5]:3268"])
+
+    def test_render(self):
+        cfg = self.cfg(
+            Domain("rhis.nl", [Destination("mail.rhis.nl")]),
+            Domain("open.nl", [Destination("mail.open.nl")], recipient_check="off"),
+            Domain("lijst.nl", [Destination("mail.lijst.nl")], recipient_check="list", recipients=["info"]),
+            ldap_domain(),
+        )
+        cfg.recipient_cache.positive_days = 3
+        cfg.recipient_cache.negative_minutes = 30
+        self.assertEqual(validate(cfg), [])
+        r = render(cfg)
+        rcpt = r.files["/etc/mailfilter/postfix/relay_recipients"]
+        self.assertIn("@rhis.nl OK\n", rcpt)
+        self.assertIn("@open.nl OK\n", rcpt)
+        self.assertIn("info@lijst.nl OK\n", rcpt)
+        self.assertNotIn("\n@lijst.nl OK", rcpt)
+        self.assertNotIn("ad.example.nl", rcpt)
+        verify = r.files["/etc/mailfilter/postfix/recipient_verify"]
+        self.assertIn("rhis.nl reject_unverified_recipient", verify)
+        self.assertNotIn("lijst.nl", verify)
+        path = ldap_map_path("ad.example.nl")
+        self.assertEqual(r.secret_files, [path])
+        self.assertEqual(r.main_cf["relay_recipient_maps"],
+                         f"hash:/etc/mailfilter/postfix/relay_recipients, proxy:ldap:{path}")
+        cf = r.files[path]
+        self.assertIn("domain = ad.example.nl\n", cf)
+        self.assertIn("query_filter = (|(mail=%s)(proxyAddresses=smtp:%s))\n", cf)
+        self.assertIn("bind_pw = geheim $1\n", cf)
+        self.assertNotIn("start_tls", cf)  # one server is ldaps://: no STARTTLS on top
+        self.assertIn("tls_require_cert = yes", cf)
+        self.assertEqual(r.main_cf["address_verify_positive_expire_time"], "3d")
+        self.assertEqual(r.main_cf["address_verify_negative_refresh_time"], "30m")
+
+    def test_starttls_and_anonymous(self):
+        d = ldap_domain(security="starttls", verify_cert=False, preset="generic")
+        d.ldap.servers = ["ldap.example.nl"]
+        d.ldap.bind_dn = d.ldap.bind_password = ""
+        cfg = self.cfg(d)
+        self.assertEqual(validate(cfg), [])
+        cf = render(cfg).files[ldap_map_path("ad.example.nl")]
+        self.assertIn("start_tls = yes", cf)
+        self.assertIn("bind = no", cf)
+        self.assertIn("tls_require_cert = no", cf)
+        self.assertIn("mailAlternateAddress", cf)
+
+    def test_relay_domains_are_not_recipients(self):
+        cfg = self.cfg(Domain("out.nl", kind="relay"))
+        self.assertEqual(validate(cfg), [])
+        self.assertNotIn("out.nl", render(cfg).files["/etc/mailfilter/postfix/relay_recipients"])
+
+    def test_json_roundtrip(self):
+        cfg = self.cfg(ldap_domain(), Domain("l.nl", [Destination("m.l.nl")], recipient_check="list", recipients=["a@l.nl"]))
+        self.assertEqual(GatewayConfig.from_json(cfg.to_json()), cfg)
+
+
+class RecipientApplyTest(ApplyTest):
+    def test_ldap_file_written_and_stale_removed(self):
+        srv = FakeServer()
+        cfg = GatewayConfig(hostname="mailfilter.rhis.nl", domains=[ldap_domain()])
+        Applier(srv, root=self.root).apply(cfg)
+        path = ldap_map_path("ad.example.nl")
+        self.assertEqual(os.stat(self.root + path).st_mode & 0o777, 0o640)
+        self.assertEqual(os.stat(self.root + "/etc/mailfilter/gateway.json").st_mode & 0o777, 0o640)
+        self.assertIn("proxy:ldap:", srv.params["relay_recipient_maps"])
+        cfg = GatewayConfig(hostname="mailfilter.rhis.nl", domains=[ldap_domain()])
+        cfg.domains[0].recipient_check = "callout"
+        report = Applier(srv, root=self.root).apply(cfg)
+        self.assertFalse(os.path.exists(self.root + path))
+        self.assertIn(path, report.changed)
+        self.assertNotIn("ldap", srv.params["relay_recipient_maps"])
+
+    def test_without_postfix_ldap(self):
+        srv = FakeServer()
+        srv.no_ldap = True
+        with self.assertRaises(ApplyError) as e:
+            Applier(srv, root=self.root).apply(GatewayConfig(hostname="mailfilter.rhis.nl", domains=[ldap_domain()]))
+        self.assertEqual(e.exception.step, "ldap")
+
+    def test_unreadable_ldap_table_rolls_back(self):
+        srv = FakeServer(fail={"postmap -q"})
+        with self.assertRaises(ApplyError) as e:
+            Applier(srv, root=self.root).apply(GatewayConfig(hostname="mailfilter.rhis.nl", domains=[ldap_domain()]))
+        self.assertEqual(e.exception.step, "ldap")
+        self.assertFalse(os.path.exists(self.root + ldap_map_path("ad.example.nl")))
+        self.assertNotIn(["postfix", "reload"], srv.calls)

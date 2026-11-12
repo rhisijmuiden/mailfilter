@@ -104,3 +104,31 @@ def test_cli_backup_job_and_list(env, capsys):
     capsys.readouterr()
     assert cli.main(["--json", "restore", "nonsense"]) == 1
     assert "error" in json.loads(capsys.readouterr().out)
+
+
+def test_archive_with_foreign_paths_is_not_restored(env, tmp_path):
+    """Restoring runs as root into /: an archive may only hold the backed-up folders."""
+    import json
+    import subprocess
+
+    _write(env, "etc/mailfilter/a", "a")
+    b = backup.create("full", log=lambda *_: None)["backup"]
+    step = backup.location() / b["chain"] / "000"
+    evil = tmp_path / "evil"
+    _write(evil, "etc/cron.d/evil", "* * * * * root id\n")
+    archive = backup._archive(step)
+    subprocess.run(["tar", "--create", "--gzip", "--file", step / "files.tar.gz", "-C", evil, "etc/cron.d"], check=True)
+    if archive.name != "files.tar.gz":
+        archive.unlink()
+    m = json.loads((step / "manifest.json").read_text())
+    m["files"] = {"files.tar.gz": {"sha256": backup.sha256(step / "files.tar.gz"), "size": 1}}
+    (step / "manifest.json").write_text(json.dumps(m))
+    with pytest.raises(CtlError, match="unexpected path"):
+        backup.restore(b["id"], safety_backup=False, log=lambda *_: None)
+    assert not (env / "etc/cron.d/evil").exists()
+
+
+@pytest.mark.parametrize("location", ["/home/x/backups", "/var/lib/mailfilter/backups", "/etc/backups", "/var", "/tmp/b"])
+def test_location_not_in_system_or_app_folders(env, location):
+    with pytest.raises(CtlError, match="dedicated"):
+        backup.set_config({"location": location})

@@ -52,6 +52,15 @@ class Settings:
     config_helper: list[str] = field(default_factory=list)
     cookie_secure: bool = True
     session_hours: int = 12
+    # Used to bucket charts per hour/day in local time.
+    timezone: str = "Europe/Amsterdam"
+    # Allow/block list maps the web app writes and Rspamd reads (multimap.conf).
+    lists_dir: Path = Path("/var/lib/mailfilter/lists")
+    # Mailtrap mailboxes (Maildir per mailbox login), written by the mftrap pipe.
+    mailtrap_dir: Path = Path("/var/lib/mailfilter/mailtrap")
+    # Mail archive (gzip files per domain), written by the mfarchive pipe. Outside
+    # /var/lib/mailfilter on purpose: it is part of every backup.
+    archive_dir: Path = Path("/var/lib/mailfilter-archive")
 
 
 @lru_cache
@@ -77,4 +86,8 @@ def get_settings() -> Settings:
         [*CONFIG_HELPER_PREFIX, str((source / "backend/bin/mailfilter-config").resolve())],
         cookie_secure=env.get("MF_COOKIE_SECURE", "1") != "0",
         session_hours=int(env.get("MF_SESSION_HOURS", "12")),
+        timezone=env.get("MF_TIMEZONE", "Europe/Amsterdam"),
+        lists_dir=Path(env.get("MF_LISTS_DIR", "/var/lib/mailfilter/lists")),
+        mailtrap_dir=Path(env.get("MF_MAILTRAP_DIR", "/var/lib/mailfilter/mailtrap")),
+        archive_dir=Path(env.get("MF_ARCHIVE_DIR", "/var/lib/mailfilter-archive")),
     )

@@ -129,13 +129,19 @@ def _connect(cfg: SmtpConfig) -> smtplib.SMTP:
 
 
 def send(db: Session, to: list[str] | str, subject: str, text: str, html: str | None = None,
-         cfg: SmtpConfig | None = None, password: str | None = None) -> str:
-    """Send a message and return its Message-ID. Raises MailError with a translatable code."""
+         cfg: SmtpConfig | None = None, password: str | None = None,
+         attach_message: tuple[bytes, str] | None = None) -> str:
+    """Send a message and return its Message-ID. Raises MailError with a translatable code.
+
+    attach_message: (raw message, file name) attached as an .eml (message/rfc822)."""
     cfg = cfg or load_config(db)
     to = [to] if isinstance(to, str) else list(to)
     if not to:
         raise MailError("smtp_no_recipient")
     msg = build_message(cfg, to, subject, text, html)
+    if attach_message:
+        msg.add_attachment(attach_message[0], maintype="application", subtype="octet-stream",
+                           filename=attach_message[1])
     try:
         with _connect(cfg) as s:
             if cfg.mode == "smtp" and cfg.username:

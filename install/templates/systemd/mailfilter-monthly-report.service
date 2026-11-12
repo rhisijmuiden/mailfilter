@@ -1,0 +1,16 @@
+# Managed by Mailfilter. Stores last month's numbers and sends the monthly report per customer
+# (the day and hour are set in the web interface).
+[Unit]
+Description=Mailfilter usage measurement and monthly report per customer
+After=network.target postgresql.service postfix.service
+
+[Service]
+Type=oneshot
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+ExecStart=/var/lib/mailfilter/venv/bin/mailfilter-admin monthly-report
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, ErrorText, Field, PageHead, useToast } from "../components/ui";
+import { TwoFactorCard } from "../components/TwoFactor";
 import { setLanguage } from "../i18n";
 import { api } from "../lib/api";
 import type { Me } from "../lib/auth";
@@ -93,6 +94,7 @@ export default function Account({ me }: { me: Me }) {
             </div>
           </form>
         </Card>
+        <TwoFactorCard me={me} />
       </div>
     </>
   );

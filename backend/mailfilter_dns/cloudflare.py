@@ -47,6 +47,9 @@ class DnsRecord:
         content = d.get("content", "")
         if d.get("type") == "TXT":
             content = txt_value(content)
+        elif d.get("type") == "TLSA" and isinstance(d.get("data"), dict):
+            x = d["data"]
+            content = f"{x.get('usage')} {x.get('selector')} {x.get('matching_type')} {str(x.get('certificate', '')).lower()}"
         return cls(
             type=d["type"],
             name=norm(d["name"]),
@@ -62,6 +65,11 @@ class DnsRecord:
         b: dict[str, Any] = {"type": self.type, "name": self.name, "content": self.content, "ttl": self.ttl}
         if self.type == "TXT":
             b["content"] = txt_quote(self.content)
+        elif self.type == "TLSA":
+            usage, selector, mtype, cert = self.content.split(None, 3)
+            b.pop("content")
+            b["data"] = {"usage": int(usage), "selector": int(selector), "matching_type": int(mtype),
+                         "certificate": cert.replace(" ", "").lower()}
         if self.priority is not None:
             b["priority"] = self.priority
         if self.type in ("A", "AAAA", "CNAME"):
@@ -132,8 +140,34 @@ class Cloudflare:
     # --- token and zones ---------------------------------------------------
 
     def verify_token(self) -> dict[str, Any]:
-        """Return the token status (``active`` when usable)."""
-        return self._req("GET", "/user/tokens/verify")["result"]
+        """Return the token status (``active`` when usable).
+
+        User tokens (My Profile > API Tokens) verify at /user/tokens/verify.
+        Account tokens (Manage Account > API Tokens) do not: that endpoint
+        says "Invalid API Token" for them. They verify at
+        /accounts/<id>/tokens/verify, and the account id is found from the
+        zones the token can see, so nobody has to type it in.
+        """
+        try:
+            return self._req("GET", "/user/tokens/verify")["result"]
+        except CloudflareError as first:
+            if first.status is None:
+                raise
+            try:
+                zones = self._req("GET", "/zones", params={"per_page": 5})["result"] or []
+            except CloudflareError:
+                raise first
+            if not zones:
+                raise first
+            account = (zones[0].get("account") or {}).get("id")
+            if account:
+                try:
+                    res = self._req("GET", f"/accounts/{account}/tokens/verify")["result"]
+                    return {**res, "account_id": account, "kind": "account"}
+                except CloudflareError:
+                    pass
+            # The token can read zones, which is what Mailfilter needs
+            return {"status": "active", "account_id": account, "kind": "account"}
 
     def zones(self) -> list[Zone]:
         return [Zone(z["id"], z["name"], z.get("status", "")) for z in self._paged("/zones", {})]
@@ -154,13 +188,29 @@ class Cloudflare:
     def records(self, zone: Zone, *, name: str | None = None, type: str | None = None) -> list[DnsRecord]:
         params: dict[str, Any] = {}
         if name:
-            params["name"] = norm(name)
+            params["name.exact"] = norm(name)
         if type:
             params["type"] = type
-        return [DnsRecord.from_api(d) for d in self._paged(f"/zones/{zone.id}/dns_records", params)]
+        recs = [DnsRecord.from_api(d) for d in self._paged(f"/zones/{zone.id}/dns_records", params)]
+        # Filter here as well, so the result is right whatever the API does with the name filter
+        if name:
+            recs = [r for r in recs if r.name == norm(name)]
+        if type:
+            recs = [r for r in recs if r.type == type]
+        return recs
 
     def create(self, zone: Zone, rec: DnsRecord) -> DnsRecord:
-        return DnsRecord.from_api(self._req("POST", f"/zones/{zone.id}/dns_records", json=rec.body())["result"])
+        try:
+            return DnsRecord.from_api(self._req("POST", f"/zones/{zone.id}/dns_records", json=rec.body())["result"])
+        except CloudflareError as exc:
+            # 81057/81058: the record is already there. That is the result we wanted.
+            if not {81057, 81058} & set(exc.codes):
+                raise
+            same = [r for r in self.records(zone, name=rec.name, type=rec.type)
+                    if r.content == rec.content and (rec.priority is None or r.priority == rec.priority)]
+            if not same:
+                raise
+            return same[0]
 
     def update(self, zone: Zone, rec: DnsRecord) -> DnsRecord:
         if not rec.id:

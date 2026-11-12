@@ -106,6 +106,13 @@ def plan_dkim(cf: Cloudflare, zone: Zone, key: dkim_mod.DkimKey) -> Change:
     return _txt_change(cur, key.name, key.record, "dkim")
 
 
+def plan_dkim_remove(cf: Cloudflare, zone: Zone, key: dkim_mod.DkimKey) -> list[Change]:
+    """Delete the record of a retired key; only a record with exactly this public key."""
+    return [Change("delete", "TXT", key.name, r.snapshot(), None, "dkim_retire")
+            for r in _txt_records(cf, zone, key.name)
+            if dkim_mod.parse_record(r.content).get("p") == key.public_key]
+
+
 def plan_dmarc(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
     from . import dmarc as dmarc_mod
 
@@ -115,6 +122,130 @@ def plan_dmarc(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
     if len(recs) > 1:
         raise ValueError("multiple_dmarc")
     return _txt_change(recs[0] if recs else None, name, value, "dmarc")
+
+
+def _one_change(existing: DnsRecord | None, after: dict, reason: str, same: bool) -> Change:
+    if existing is None:
+        return Change("create", after["type"], after["name"], None, after, reason)
+    return Change("none" if same else "update", after["type"], after["name"], existing.snapshot(), after, reason)
+
+
+def plan_mta_sts(cf: Cloudflare, zone: Zone, domain: str, txt: str, server: ServerConfig) -> list[Change]:
+    """``_mta-sts.<domain>`` TXT with the policy id, and ``mta-sts.<domain>``
+    pointing to Mailfilter (CNAME, not proxied) so it can serve the policy."""
+    # Order: the policy host first, then the TXT that tells senders to fetch it
+    domain = norm(domain)
+    host = f"mta-sts.{domain}"
+    after = {"type": "CNAME", "name": host, "content": server.hostname, "ttl": 1, "proxied": False}
+    changes: list[Change] = []
+    cnames = cf.records(zone, name=host, type="CNAME")
+    if cnames:
+        c = cnames[0]
+        changes.append(_one_change(c, {**after, "ttl": c.ttl}, "mta_sts_host",
+                                   norm(c.content) == server.hostname and not c.proxied))
+    else:
+        # A CNAME cannot sit next to other records with the same name
+        for t in ("A", "AAAA"):
+            changes += [Change("delete", t, host, r.snapshot(), None, "mta_sts_host") for r in cf.records(zone, name=host, type=t)]
+        changes.append(Change("create", "CNAME", host, None, after, "mta_sts_host"))
+    name = f"_mta-sts.{domain}"
+    cur = [r for r in _txt_records(cf, zone, name) if r.content.replace(" ", "").lower().startswith("v=stsv1")]
+    changes.append(_txt_change(cur[0] if cur else None, name, txt, "mta_sts"))
+    changes += [Change("delete", "TXT", name, r.snapshot(), None, "mta_sts") for r in cur[1:]]
+    return changes
+
+
+def plan_tls_rpt(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
+    from .tlssec import is_tlsrpt
+
+    name = f"_smtp._tls.{norm(domain)}"
+    cur = [r for r in _txt_records(cf, zone, name) if is_tlsrpt(r.content)]
+    if len(cur) > 1:
+        raise ValueError("multiple_tlsrpt")
+    return _txt_change(cur[0] if cur else None, name, value, "tls_rpt")
+
+
+def plan_tlsa(cf: Cloudflare, zone: Zone, host: str, value: str, port: int = 25) -> list[Change]:
+    """``_25._tcp.<host>`` TLSA with the server's key. Records with an old key go."""
+    from .tlssec import norm_tlsa, tlsa_name
+
+    name = tlsa_name(host, port)
+    value = norm_tlsa(value)
+    cur = cf.records(zone, name=name, type="TLSA")
+    keep = next((r for r in cur if norm_tlsa(r.content) == value), None)
+    after = {"type": "TLSA", "name": name, "content": value, "ttl": keep.ttl if keep else 1}
+    changes = [_one_change(keep, after, "tlsa", True)]
+    changes += [Change("delete", "TLSA", name, r.snapshot(), None, "tlsa") for r in cur if r is not keep]
+    return changes
+
+def plan_dmarc_merge(cf: Cloudflare, zone: Zone, domain: str, *, add_rua: str | None = None,
+                     policy: str | None = None) -> Change:
+    """Change the domain's DMARC record in place: add a report address or set
+    a new policy, keeping every other tag (see ``dmarc.merge``)."""
+    from . import dmarc as dmarc_mod
+
+    name = f"_dmarc.{norm(domain)}"
+    recs = [r for r in _txt_records(cf, zone, name) if dmarc_mod.is_dmarc(r.content)]
+    if len(recs) > 1:
+        raise ValueError("multiple_dmarc")
+    cur = recs[0] if recs else None
+    if cur is None and policy is not None and add_rua is None:
+        raise ValueError("no_dmarc")
+    value = dmarc_mod.merge(cur.content if cur else None, add_rua=add_rua, policy=policy)
+    return _txt_change(cur, name, value, "dmarc_rua" if add_rua else "dmarc_policy")
+
+
+def plan_report_auth(cf: Cloudflare, zone: Zone, rua_domain: str) -> Change:
+    """``*._report._dmarc.<rua domain>``: allows every domain to send its DMARC
+    reports to an address in ``rua_domain`` (RFC 7489 7.1). One wildcard record
+    covers customer domains too, also the ones added later."""
+    name = f"*._report._dmarc.{norm(rua_domain)}"
+    cur = next((r for r in _txt_records(cf, zone, name) if r.content.strip().lower().startswith("v=dmarc1")), None)
+    if cur is not None:
+        return Change("none", "TXT", name, cur.snapshot(), cur.snapshot(), "dmarc_auth")
+    return _txt_change(None, name, "v=DMARC1", "dmarc_auth")
+
+
+def plan_bimi(cf: Cloudflare, zone: Zone, domain: str, value: str) -> list[Change]:
+    """``default._bimi.<domain>`` TXT. Other BIMI records on that name go."""
+    from .bimi import is_bimi, record_name
+
+    name = record_name(domain)
+    cur = [r for r in _txt_records(cf, zone, name) if is_bimi(r.content)]
+    changes = [_txt_change(cur[0] if cur else None, name, value, "bimi")]
+    changes += [Change("delete", "TXT", name, r.snapshot(), None, "bimi") for r in cur[1:]]
+    return changes
+
+
+def plan_mx(cf: Cloudflare, zone: Zone, domain: str, targets: list[tuple[int, str]]) -> list[Change]:
+    """Make the domain's MX records in Cloudflare exactly ``targets``
+    ((priority, host) pairs). Records whose host stays are kept or get a new
+    priority; new hosts are created before old ones are deleted, so the domain
+    never has no MX at all."""
+    domain = norm(domain)
+    want: dict[str, int] = {}
+    for prio, host in targets:
+        want.setdefault(norm(host), int(prio))
+    if not want:
+        raise ValueError("no_mx")
+    current = cf.records(zone, name=domain, type="MX")
+    changes: list[Change] = []
+    seen: set[str] = set()
+    for r in current:
+        host = norm(r.content)
+        if host in want and host not in seen:
+            seen.add(host)
+            after = {"type": "MX", "name": domain, "content": host, "priority": want[host], "ttl": r.ttl}
+            changes.append(Change("none" if r.priority == want[host] else "update", "MX", domain,
+                                  r.snapshot(), after, "mx"))
+        else:
+            changes.append(Change("delete", "MX", domain, r.snapshot(), None, "mx"))
+    for host, prio in want.items():
+        if host not in seen:
+            changes.append(Change("create", "MX", domain, None,
+                                  {"type": "MX", "name": domain, "content": host, "priority": prio, "ttl": 1}, "mx"))
+    changes.sort(key=lambda c: {"create": 0, "update": 1, "none": 2, "delete": 3}[c.action])
+    return changes
 
 
 def apply(cf: Cloudflare, plan: Plan, *, actor: str = "", journal: Path | None = None, undo_of: str | None = None) -> list[dict]:

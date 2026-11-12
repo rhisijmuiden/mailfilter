@@ -48,7 +48,23 @@ De instellingen staan in `/etc/mailfilter/backup.json` en zijn aan te passen in 
 | `keep_full` | `4` | Aantal volledige backups (met hun incrementele) dat bewaard blijft |
 | `location` | `/var/backups/mailfilter` | Map voor de backups |
 
-Externe locaties (FTP, FTPS, SCP) komen in een latere versie.
+## Externe kopieën (SCP, FTPS, FTP)
+
+Onder **Systeem > Backups > Externe kopie** stel je een tweede server in die van elke backup een kopie krijgt. Na elke backup (ook de nachtelijke) wordt de nieuwe volledige of incrementele backup geüpload; **Nu kopiëren** haalt alles in wat eerder mislukte. Oude reeksen worden extern verwijderd na het aantal volledige backups dat je kiest. Een mislukte kopie laat de lokale backup niet mislukken: je ziet het op de Backups-pagina en het gaat als `remote.failed`-event naar buiten (zie hieronder).
+
+* **SCP / SFTP** (aanbevolen): Mailfilter maakt een SSH-sleutelpaar in `/etc/mailfilter/backup-ssh/`. Zet de publieke sleutel uit de instellingen in `~/.ssh/authorized_keys` op de backupserver. De eerste **Opslaan en verbinding testen** slaat de vingerafdruk van de server op; een gewijzigde sleutel wordt geweigerd tot je op **Vingerafdruk vergeten** drukt.
+* **FTPS**: FTP met expliciete TLS (TLS 1.2 of nieuwer, versleutelde dataverbindingen). Het certificaat wordt gecontroleerd, tenzij je dat uitzet voor een zelfondertekend certificaat.
+* **FTP**: alleen binnen een vertrouwd netwerk, het wachtwoord gaat onversleuteld over de lijn.
+
+Bestanden worden met AES-256 (GnuPG) versleuteld voordat ze de server verlaten; alleen `manifest.json` (datums, groottes, controlegetallen) blijft leesbaar, zodat de lijst met externe backups ook zonder wachtwoordzin werkt. **Bewaar de wachtwoordzin in je wachtwoordmanager**: je hebt hem nodig om op een nieuwe server terug te zetten. De instellingen staan in `/etc/mailfilter/backup-remote.json`, het FTP-wachtwoord en de wachtwoordzin in `backup-remote.secret.json` (alleen root).
+
+Opbouw extern: `<map>/<reeks>/<NNN>/` met `*.gpg`-bestanden en `manifest.json`, dat als laatste wordt geüpload en een complete backup markeert.
+
+Opdrachtregel: `mailfilterctl remote show|set|test|list|sync|forget-hostkey`, bijvoorbeeld `mailfilterctl remote set protocol=scp host=backup.example.org username=mf enabled=true`.
+
+## Events en hooks
+
+Elke afgeronde taak geeft een event: `backup.succeeded|failed`, `remote.succeeded|failed`, `restore.succeeded|failed`, `update.succeeded|failed`. Ze worden bewaard in `/var/lib/mailfilterctl/events.jsonl` (`mailfilterctl events`, API `GET /api/system/events`) en als JSON op stdin (naam in `$MF_EVENT`) doorgegeven aan elk uitvoerbaar bestand in `/etc/mailfilter/hooks.d/` dat van root is en niet door anderen te wijzigen. Hooks krijgen 60 seconden en kunnen een taak niet laten mislukken. Hier haken meldingen op in.
 
 ## Terugzetten
 
@@ -61,7 +77,7 @@ Kies in de webinterface een backup en klik op **Terugzetten**, of draai `mailfil
 5. zet de database en de leerdata van het spamfilter terug;
 6. draait de installer met de teruggezette instellingen en start alles weer.
 
-Met `--only files,database,redis` zet je alleen bepaalde onderdelen terug. Dit werkt ook op een vers geïnstalleerde server: installeer Mailfilter, kopieer de backupmap naar `/var/backups/mailfilter` en zet hem terug.
+Met `--only files,database,redis` zet je alleen bepaalde onderdelen terug. Dit werkt ook op een vers geïnstalleerde server: installeer Mailfilter, kopieer de backupmap naar `/var/backups/mailfilter` en zet hem terug, of stel de externe locatie in met dezelfde wachtwoordzin en kies **Externe backups tonen > Terugzetten** (`mailfilterctl restore ID --from-remote`).
 
 ## E-mail verzenden
 

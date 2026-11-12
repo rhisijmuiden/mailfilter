@@ -12,8 +12,8 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from ..audit import audit
-from ..deps import DB, CurrentUser
+from ..audit import audit, domain_of
+from ..deps import DB, CurrentUser, visible_domains
 from ..models import QuarantineAction, TraceMessage
 from ..queuectl import QueueError, delete, held_ids, learn, raw_message, release
 from .trace import MessageOut, get_visible, message_out, scope, search
@@ -88,6 +88,18 @@ def _held_message(db, user, queue_id: str) -> TraceMessage:
     return m
 
 
+def _message_domain(m: TraceMessage, user) -> str | None:
+    """The domain the message belongs to, for the audit log."""
+    addrs = [m.sender] if m.direction == "outbound" else []
+    addrs += [r.address for r in m.recipients] + ([] if m.direction == "outbound" else [m.sender])
+    domains = [domain_of(a) for a in addrs if a]
+    mine = visible_domains(user)
+    for d in domains:
+        if d and (mine is None or d in {x.lower() for x in mine}):
+            return d
+    return None
+
+
 def _raw(queue_id: str) -> bytes:
     try:
         return raw_message(queue_id)
@@ -144,7 +156,7 @@ def _decide(queue_id: str, body: DecisionIn, request: Request, user, db, action:
         raise HTTPException(status.HTTP_409_CONFLICT, code) from e
     a = QuarantineAction(queue_id=m.queue_id, action=action, learned=learned, user_id=user.id, user_email=user.email)
     db.add(a)
-    audit(db, request, user, f"quarantine_{action}", m.queue_id, sender=m.sender, learned=learned)
+    audit(db, request, user, f"quarantine_{action}", m.queue_id, domain=_message_domain(m, user), sender=m.sender, learned=learned)
     db.commit()
     return DecisionOut(queue_id=m.queue_id, action=action, learned=learned, at=a.at)
 

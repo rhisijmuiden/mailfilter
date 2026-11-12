@@ -1,4 +1,4 @@
-import { Ban, Check, Clock, Hourglass, ShieldAlert, X, type LucideIcon } from "lucide-react";
+import { Ban, Check, Clock, FlaskConical, Hourglass, ShieldAlert, X, type LucideIcon } from "lucide-react";
 
 export type Explanation = { title: string; action: string; who: "recipient" | "sender" | "us" | "nobody" | string };
 export type Recipient = {
@@ -12,9 +12,19 @@ export type Message = {
   explanation: Explanation | null;
 };
 export type RouteNode = { kind: "source" | "filter" | "destination"; name: string | null; ip: string | null; detail: string | null; status: string | null };
+export type ReportItem = { symbol: string; label: string | null; score: number; options: string[]; decisive: boolean };
+export type ReportGroup = {
+  id: "auth" | "reputation" | "links" | "attachments" | "content" | "format" | "policy";
+  status: "ok" | "warn" | "bad" | "neutral" | "skipped"; points: number; items: ReportItem[];
+};
+export type SpamReport = {
+  score: number; action: string; decisive: string[]; groups: ReportGroup[];
+  thresholds: { greylist: number; add_header: number; quarantine: number; reject: number };
+};
 export type Detail = Message & {
   symbols: { name: string; score: number }[]; route: RouteNode[]; parent: string | null; bounces: string[]; held: boolean;
   quarantine_actions: { action: string; learned: string | null; user_email: string; at: string }[];
+  report: SpamReport | null;
 };
 export type Stats = { hours: number; total: number; inbound: number; outbound: number; by_status: Record<string, number>; quarantined_now: number };
 
@@ -24,6 +34,7 @@ const MESSAGE: Record<string, [Tone, LucideIcon]> = {
   partly_delivered: ["warn", Check], deferred: ["warn", Clock],
   bounced: ["bad", X], expired: ["bad", X],
   quarantined: ["info", ShieldAlert],
+  trapped: ["info", FlaskConical],
   rejected: ["mute", Ban],
   queued: ["mute", Hourglass],
 };
