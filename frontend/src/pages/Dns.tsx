@@ -39,11 +39,11 @@ type Tab = (typeof TABS)[number];
 
 // --- small parts -------------------------------------------------------------
 
-const STATUS_CLASS: Record<string, string> = { ok: "s-ok", weak: "s-warn", missing: "s-bad", bad: "s-bad", error: "s-bad", listed: "s-bad", clean: "s-ok", unusable: "s-mute", skipped: "s-mute" };
+const STATUS_CLASS: Record<string, string> = { pending: "s-info", ok: "s-ok", weak: "s-warn", missing: "s-bad", bad: "s-bad", error: "s-bad", listed: "s-bad", clean: "s-ok", unusable: "s-mute", skipped: "s-mute" };
 
 function Pill({ s, label }: { s: string; label?: string }) {
   const { t } = useTranslation();
-  const icon = s === "ok" || s === "clean" ? <Check /> : s === "weak" ? <Clock /> : s === "unusable" || s === "skipped" ? <Info /> : <X />;
+  const icon = s === "ok" || s === "clean" ? <Check /> : s === "weak" || s === "pending" ? <Clock /> : s === "unusable" || s === "skipped" ? <Info /> : <X />;
   return <span className={`status ${STATUS_CLASS[s] ?? "s-mute"}`}>{icon}{label ?? t(`dns.status.${s}`, { defaultValue: s })}</span>;
 }
 
@@ -274,7 +274,12 @@ function GoLive({ domain }: { domain: string }) {
         {live && <div className="right"><span className="status s-ok"><Check />{t("dns.gl.live")}</span></div>}
       </div>
       <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {q.isLoading ? <Loading /> : q.error ? <ErrorText error={q.error} /> : d && (live ? (
+        {q.isLoading || q.isFetching ? <Loading /> : q.error ? (
+          <>
+            <ErrorText error={q.error} />
+            <div><button className="btn small" type="button" onClick={() => q.refetch()}><RefreshCw /> {t("common.refresh")}</button></div>
+          </>
+        ) : d && (live ? (
           <>
             <p style={{ margin: 0 }}>{t("dns.gl.live_since", { host: d.hostname, time: formatDate(d.state!.time, i18n.language), who: d.state!.actor })}</p>
             <dl className="kv">

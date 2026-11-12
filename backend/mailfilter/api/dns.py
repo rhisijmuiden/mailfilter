@@ -8,6 +8,7 @@ applied, so the browser can never send records of its own.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Literal
 
@@ -24,6 +25,7 @@ from ..deps import DB, AdminUser, CurrentUser
 from ..settings_store import get_secret, set_secret
 
 router = APIRouter(prefix="/dns", tags=["dns"])
+log = logging.getLogger("mailfilter.dns")
 
 TOKEN_KEY = "cloudflare_token"
 DOMAIN_RE = r"^(?=.{1,253}$)([a-zA-Z0-9_](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}\.?$"
@@ -146,13 +148,50 @@ def server_info(_: AdminUser) -> dict:
 
 # Check, lookup, generators ---------------------------------------------------------
 
+def _cloudflare_view(cf: Cloudflare, d: str, items: list[dict]) -> None:
+    """Mark records that are already in Cloudflare but not yet visible in DNS.
+
+    DNS answers are cached (a "does not exist" answer for up to 30 minutes on
+    Cloudflare zones), so right after publishing the check would still say
+    "missing". Cloudflare itself is the source of truth for what was published.
+    """
+    zone = cf.zone_for(d)
+    if zone is None:
+        return
+    key = dkim.local_key(d)
+    names = {"spf": (d, spf.is_spf), "dmarc": (f"_dmarc.{d}", dmarc.is_dmarc)}
+    if key:
+        names["dkim"] = (key.name, lambda t: "p=" in t.replace(" ", ""))
+    for item in items:
+        if item["code"] not in names or item["status"] == "ok":
+            continue
+        name, match = names[item["code"]]
+        recs = [r.content for r in cf.records(zone, name=name, type="TXT") if match(r.content)]
+        if not recs:
+            continue
+        published = recs[0]
+        if published == item["value"]:
+            continue  # DNS already shows what Cloudflare has, so the DNS verdict stands
+        fix = item.get("fix")
+        if fix and (fix == published or (item["code"] == "dkim" and key
+                                         and dkim.parse_record(published).get("p") == key.public_key)):
+            fix = None
+        item.update(status="pending", value=published, problems=["waiting_for_dns"], fix=fix)
+
+
 @router.get("/check/{domain}")
-def check(domain: str, _: AdminUser) -> dict:
+def check(domain: str, _: AdminUser, db: DB) -> dict:
     d = _domain(domain)
     server = get_server()
     out = domaincheck.check_domain(d, server, get_resolver()).to_dict()
     out["managed"] = d in relay_domains()
     out["golive"] = golive.state(d)
+    token = get_secret(db, TOKEN_KEY)
+    if token:
+        try:
+            _cloudflare_view(make_cloudflare(token), d, out["items"])
+        except Exception:  # the DNS check itself is still useful without Cloudflare
+            log.exception("reading records from Cloudflare for %s failed", d)
     return out
 
 
@@ -287,6 +326,18 @@ def undo(batch: str, request: Request, user: AdminUser, db: DB) -> dict:
 @router.get("/golive/{domain}")
 def golive_status(domain: str, _: AdminUser, db: DB) -> dict:
     d = _domain(domain)
+    try:
+        return _golive_status(d, db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Show the real reason instead of a bare "something went wrong"
+        log.exception("go-live status for %s failed", d)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            f"golive_error:{type(exc).__name__} {str(exc).replace(':', '')}"[:300]) from exc
+
+
+def _golive_status(d: str, db) -> dict:
     server = get_server()
     pf = golive.preflight(d, server, get_resolver())
     out = {"domain": d, "state": golive.state(d), "preflight": pf.to_dict(), "plan": None, "plan_error": None,

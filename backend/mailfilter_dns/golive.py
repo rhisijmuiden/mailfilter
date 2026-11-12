@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -26,6 +27,7 @@ from .config import STATE, ServerConfig, destination_host, relay_domains
 from .resolver import DnsError, Resolver, norm
 
 GOLIVE_DIR = STATE / "golive"
+log = logging.getLogger("mailfilter.dns.golive")
 
 
 @dataclass
@@ -77,8 +79,12 @@ def preflight(
     if dest is None:
         pf.checks.append(Check("destination", False, "no_destination"))
     else:
-        pr = smtp(*dest)
-        pf.checks.append(Check("destination", pr.reachable, f"{dest[0]}:{dest[1]}" + (f" {pr.error}" if pr.error else "")))
+        try:
+            pr = smtp(*dest)
+            pf.checks.append(Check("destination", pr.reachable, f"{dest[0]}:{dest[1]}" + (f" {pr.error}" if pr.error else "")))
+        except Exception as exc:  # a probe must never break the whole check list
+            log.exception("go-live destination probe failed")
+            pf.checks.append(Check("destination", False, f"{dest[0]}:{dest[1]} {type(exc).__name__}: {exc}"[:200]))
 
     # 3. SPF of the domain includes Mailfilter (warning only: inbound mail does not need it)
     try:
@@ -93,12 +99,20 @@ def preflight(
         pf.checks.append(Check("spf", has, spf or "missing", blocking=False))
 
     # 4. DKIM key published and matching (warning only, signing works without DNS)
-    key = dkim_mod.local_key(domain) if dkim_key is False else dkim_key
+    try:
+        key = dkim_mod.local_key(domain) if dkim_key is False else dkim_key
+    except Exception:
+        log.exception("reading the DKIM key failed")
+        key = None
     res = dkim_mod.verify(key or None, resolver)
     pf.checks.append(Check("dkim", res.status == "ok", res.status, blocking=False))
 
     # 5. Our own certificate is valid for the host name the MX will point to
-    info, err = cert(server.hostname)
+    try:
+        info, err = cert(server.hostname)
+    except Exception as exc:
+        log.exception("go-live certificate probe failed")
+        info, err = None, f"{type(exc).__name__}: {exc}"[:200]
     good = bool(info and info.matches and (info.days_left or 0) > 7)
     pf.checks.append(Check("certificate", good, err or (f"{info.not_after}" if info else "")))
 

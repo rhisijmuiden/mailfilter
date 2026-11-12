@@ -111,7 +111,8 @@
     "smtp_tls_certificate": "Het certificaat van de server is niet geldig: {{value}}",
     "smtp_tls_failed": "Versleutelde verbinding mislukt: {{value}}",
     "smtp_timeout": "De SMTP-server antwoordde niet op tijd.",
-    "smtp_connect_failed": "Kan geen verbinding maken met de SMTP-server: {{value}}"
+    "smtp_connect_failed": "Kan geen verbinding maken met de SMTP-server: {{value}}",
+    "golive_error": "De controles voor de livegang mislukten: {{value}}"
   },
   "login": {
     "title": "Inloggen",
@@ -432,6 +433,7 @@
       "tls_rpt": "TLS-rapportage (TLS-RPT)"
     },
     "status": {
+      "pending": "Gepubliceerd, wacht op DNS",
       "ok": "OK",
       "weak": "Zwak",
       "missing": "Ontbreekt",
@@ -473,6 +475,7 @@
       "server_spf": "Het gedeelde record met alle adressen van Mailfilter. Domeinen verwijzen naar deze naam."
     },
     "problem": {
+      "waiting_for_dns": "Cloudflare heeft dit record al. Het kan tot 30 minuten duren voordat DNS-servers het tonen; je hoeft niets meer te doen.",
       "missing": "Geen record gevonden.",
       "syntax": "Het record bevat een fout.",
       "multiple_spf": "Het domein heeft meer dan één SPF-record; ontvangers zien dat als fout. Laat er één over.",
