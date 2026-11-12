@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Path, Request
+from fastapi import APIRouter, Path, Query, Request
 from pydantic import BaseModel
 
 from .. import __version__, ctl
@@ -84,6 +84,12 @@ def update(body: UpdateIn, request: Request, db: DB, user: AdminUser) -> dict[st
 @router.get("/jobs")
 def jobs(_: AdminUser) -> dict[str, Any]:
     return ctl.call("job", "list")
+
+
+@router.get("/events")
+def system_events(_: AdminUser, limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Recent system events (backups, remote copies, restores, updates), newest first."""
+    return ctl.call("events", "--limit", str(limit))
 
 
 JobId = Annotated[str, Path(pattern=r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9]{6}$")]
