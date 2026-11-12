@@ -1,17 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { Loading, ToastProvider } from "./components/ui";
-import "./i18n";
+import { i18nReady } from "./i18n";
 import { useMe } from "./lib/auth";
 import Login from "./pages/Login";
 import TwoFactorGate from "./pages/TwoFactorGate";
 import NotFound from "./pages/NotFound";
-import ReportAction from "./pages/ReportAction";
 import { ROUTES } from "./routes";
 import "./styles/index.css";
+
+const ReportAction = lazy(() => import("./pages/ReportAction"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -39,17 +40,25 @@ function App() {
 // The links in the daily quarantine report work without logging in.
 function Root() {
   const m = window.location.pathname.match(/^\/report\/([^/]+)$/);
-  return m ? <ReportAction token={decodeURIComponent(m[1])} /> : <App />;
+  return m ? (
+    <Suspense fallback={<Loading />}>
+      <ReportAction token={decodeURIComponent(m[1])} />
+    </Suspense>
+  ) : (
+    <App />
+  );
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ToastProvider>
-          <Root />
-        </ToastProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
-  </StrictMode>,
+void i18nReady.finally(() =>
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <ToastProvider>
+            <Root />
+          </ToastProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </StrictMode>,
+  ),
 );

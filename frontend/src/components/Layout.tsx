@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Info, LogOut, Menu, Moon, Sun, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { setLanguage, type Lang } from "../i18n";
@@ -10,6 +10,7 @@ import type { Stats } from "../lib/trace";
 import { GROUPS, NAV } from "../nav";
 import { InfoModal, useSystemInfo } from "./InfoModal";
 import { Logo } from "./Logo";
+import { Loading } from "./ui";
 
 function useTheme(): [string, () => void] {
   const dark = () => {
@@ -120,7 +121,9 @@ export function Layout({ me }: { me: Me }) {
           </div>
         </header>
         <main className="content" id="content">
-          <Outlet />
+          <Suspense fallback={<Loading />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
       {info && <InfoModal onClose={() => setInfo(false)} />}

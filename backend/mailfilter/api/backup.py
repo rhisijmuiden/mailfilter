@@ -31,7 +31,7 @@ class CreateIn(BaseModel):
 
 @router.post("")
 def create(body: CreateIn, request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
-    job = ctl.call("backup", "create", "--type", body.type, "--label", body.label or f"by {user.email}")
+    job = ctl.call("backup", "create", "--type", body.type, f"--label={body.label or f'by {user.email}'}")
     audit(db, request, user, "backup.create", body.type, job=job.get("id"))
     db.commit()
     return job

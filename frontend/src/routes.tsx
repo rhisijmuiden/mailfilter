@@ -1,26 +1,28 @@
 // Page routes. Each feature adds its page here (and its menu entry in nav.ts).
-import type { ReactNode } from "react";
+// Pages load on first visit (code splitting), so the first screen stays small.
+import { lazy, type ReactNode } from "react";
 import type { Me } from "./lib/auth";
-import Account from "./pages/Account";
-import AuditLog from "./pages/AuditLog";
-import Backups from "./pages/Backups";
-import Cluster from "./pages/Cluster";
-import CustomRules from "./pages/CustomRules";
-import Dashboard from "./pages/Dashboard";
-import Dmarc from "./pages/Dmarc";
-import Domains from "./pages/Domains";
-import Dns from "./pages/Dns";
-import MailSending from "./pages/MailSending";
-import Notifications from "./pages/Notifications";
-import ImportPmg from "./pages/ImportPmg";
-import Lists from "./pages/Lists";
-import Quarantine from "./pages/Quarantine";
-import QuarantineReport from "./pages/QuarantineReport";
-import RelayAccess from "./pages/RelayAccess";
-import Security from "./pages/Security";
-import Throttling from "./pages/Throttling";
-import Trace from "./pages/Trace";
-import Users from "./pages/Users";
+
+const Account = lazy(() => import("./pages/Account"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
+const Backups = lazy(() => import("./pages/Backups"));
+const Cluster = lazy(() => import("./pages/Cluster"));
+const CustomRules = lazy(() => import("./pages/CustomRules"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Dmarc = lazy(() => import("./pages/Dmarc"));
+const Domains = lazy(() => import("./pages/Domains"));
+const Dns = lazy(() => import("./pages/Dns"));
+const MailSending = lazy(() => import("./pages/MailSending"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const ImportPmg = lazy(() => import("./pages/ImportPmg"));
+const Lists = lazy(() => import("./pages/Lists"));
+const Quarantine = lazy(() => import("./pages/Quarantine"));
+const QuarantineReport = lazy(() => import("./pages/QuarantineReport"));
+const RelayAccess = lazy(() => import("./pages/RelayAccess"));
+const Security = lazy(() => import("./pages/Security"));
+const Throttling = lazy(() => import("./pages/Throttling"));
+const Trace = lazy(() => import("./pages/Trace"));
+const Users = lazy(() => import("./pages/Users"));
 
 export type AppRoute = { path: string; element: (me: Me) => ReactNode; adminOnly?: boolean };
 

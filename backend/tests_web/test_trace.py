@@ -136,3 +136,21 @@ def test_virus_release_is_admin_only(admin, customer, trace, queue):
 
 def test_customer_cannot_touch_other_domains(customer, trace, queue):
     assert customer.post("/api/quarantine/DDD444/delete", json={}).status_code == 404
+
+
+def test_forged_sender_does_not_expose_other_customers_mail(customer, users):
+    """Spam to rhis.nl (another customer) with a forged klant.nl sender is not the
+    customer's mail: they may not see, preview or release it. Their own mail to
+    the outside world stays visible."""
+    with session() as db:
+        db.add_all([
+            msg("FFF666", "ceo@klant.nl", [("admin@rhis.nl", "quarantined", "quarantine", "", None)], "quarantined",
+                direction="inbound"),
+            msg("GGG777", "info@klant.nl", [("piet@gmail.com", "sent", None, "250 ok", None)], "delivered",
+                direction="outbound"),
+        ])
+        db.commit()
+    ids = {m["queue_id"] for m in customer.get("/api/trace").json()["items"]}
+    assert "FFF666" not in ids and "GGG777" in ids
+    assert customer.get("/api/trace/FFF666").status_code == 404
+    assert customer.post("/api/quarantine/FFF666/release", json={"learn": False}).status_code == 404
