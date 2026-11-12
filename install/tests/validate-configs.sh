@@ -15,7 +15,7 @@ export DEBIAN_FRONTEND=noninteractive
 echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends postfix postfix-lmdb rspamd dovecot-core unbound dns-root-data caddy nftables ssl-cert ca-certificates python3 \
-  sudo systemd python3-pytest zstd git >/dev/null
+  sudo systemd python3-pytest zstd git gnupg openssh-client openssh-server python3-pyftpdlib python3-openssl >/dev/null
 echo "Versions: $(dpkg-query -W -f='${Package} ${Version}, ' postfix rspamd dovecot-core caddy unbound nftables)"
 
 fail=0
