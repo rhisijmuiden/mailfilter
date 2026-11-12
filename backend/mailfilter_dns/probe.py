@@ -78,7 +78,9 @@ def smtp(host: str, ip: str | None = None, port: int = 25, timeout: float = 10.0
     try:
         s = smtplib.SMTP(timeout=timeout, local_hostname=helo)
         code, msg = s.connect(ip or host, port)
-    except (OSError, smtplib.SMTPException) as exc:
+        # connect() does not remember the name; starttls() sends it as SNI and refuses an empty one
+        s._host = norm(host) or ip or host
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
         res.error = _err(exc)
         return res
     res.reachable = code == 220
@@ -94,7 +96,7 @@ def smtp(host: str, ip: str | None = None, port: int = 25, timeout: float = 10.0
                 res.tls_version = sock.version() or ""
                 res.cert = cert_info(sock.getpeercert(binary_form=True), host)
         s.quit()
-    except (OSError, smtplib.SMTPException, ssl.SSLError) as exc:
+    except (OSError, smtplib.SMTPException, ssl.SSLError, ValueError) as exc:
         res.error = _err(exc)
         try:
             s.close()
