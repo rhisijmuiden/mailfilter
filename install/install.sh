@@ -363,8 +363,10 @@ ok "$(jq '.relay_networks | length' "$MF_ETC/gateway.json" 2>/dev/null || echo 0
 chown -R root:root "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
 chmod -R go-w "$MF_SRC/backend/bin" "$MF_SRC/backend/mailfilter_config"
 SUDOERS_TMP=$(mktemp)
-printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s apply --stdin --json\n' \
-  "$(readlink -f "$MF_SRC/backend/bin/mailfilter-config")" >"$SUDOERS_TMP"
+# Second line: a cluster node exports and imports DKIM keys, so all nodes sign with the same key.
+MFC_BIN=$(readlink -f "$MF_SRC/backend/bin/mailfilter-config")
+printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s apply --stdin --json\nmailfilter ALL=(root) NOPASSWD: /usr/bin/systemd-run --quiet --pipe --wait --collect --service-type=exec %s dkim --stdin --json\n' \
+  "$MFC_BIN" "$MFC_BIN" >"$SUDOERS_TMP"
 run visudo -cf "$SUDOERS_TMP"
 install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/mailfilter-config
 rm -f "$SUDOERS_TMP"
@@ -441,7 +443,7 @@ ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minu
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer mailfilter-cluster.timer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
