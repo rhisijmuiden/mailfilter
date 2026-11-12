@@ -21,7 +21,7 @@ type MxRow = { priority: number; host: string };
 type MxCloudflare = { domain: string; zone: string; managed: boolean; hostname: string; mx_priority: number; golive: GoLiveState; records: MxRow[] };
 type Server = { hostname: string; addresses: string[]; spf_name: string; spf_include: string; domains: string[] };
 type CfStatus = { configured: boolean; status: string | null; zones: string[] };
-type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx" | "mta_sts" | "tls_rpt" | "tlsa";
+export type PublishKind = "spf" | "spf_value" | "dkim" | "dmarc" | "server_spf" | "mx" | "mta_sts" | "tls_rpt" | "tlsa" | "dmarc_rua" | "dmarc_policy" | "dmarc_auth";
 type Smtp = { reachable: boolean; starttls: boolean; tls_ok: boolean; error: string; cert: { matches: boolean; days_left: number | null } | null } | null;
 type MxResult = {
   domain: string; null_mx: boolean; implicit: boolean; error: string;
@@ -224,7 +224,7 @@ function PlanView({ plan }: { plan: Plan }) {
   );
 }
 
-function PublishModal({ kind, domain, value, mx, onClose, onDone }: { kind: PublishKind; domain: string; value?: string; mx?: MxRow[]; onClose: () => void; onDone?: () => void }) {
+export function PublishModal({ kind, domain, value, mx, onClose, onDone }: { kind: PublishKind; domain: string; value?: string; mx?: MxRow[]; onClose: () => void; onDone?: () => void }) {
   const { t } = useTranslation();
   const toast = useToast();
   const qc = useQueryClient();

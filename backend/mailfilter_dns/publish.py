@@ -171,6 +171,33 @@ def plan_tlsa(cf: Cloudflare, zone: Zone, host: str, value: str, port: int = 25)
     changes += [Change("delete", "TLSA", name, r.snapshot(), None, "tlsa") for r in cur if r is not keep]
     return changes
 
+def plan_dmarc_merge(cf: Cloudflare, zone: Zone, domain: str, *, add_rua: str | None = None,
+                     policy: str | None = None) -> Change:
+    """Change the domain's DMARC record in place: add a report address or set
+    a new policy, keeping every other tag (see ``dmarc.merge``)."""
+    from . import dmarc as dmarc_mod
+
+    name = f"_dmarc.{norm(domain)}"
+    recs = [r for r in _txt_records(cf, zone, name) if dmarc_mod.is_dmarc(r.content)]
+    if len(recs) > 1:
+        raise ValueError("multiple_dmarc")
+    cur = recs[0] if recs else None
+    if cur is None and policy is not None and add_rua is None:
+        raise ValueError("no_dmarc")
+    value = dmarc_mod.merge(cur.content if cur else None, add_rua=add_rua, policy=policy)
+    return _txt_change(cur, name, value, "dmarc_rua" if add_rua else "dmarc_policy")
+
+
+def plan_report_auth(cf: Cloudflare, zone: Zone, rua_domain: str) -> Change:
+    """``*._report._dmarc.<rua domain>``: allows every domain to send its DMARC
+    reports to an address in ``rua_domain`` (RFC 7489 7.1). One wildcard record
+    covers customer domains too, also the ones added later."""
+    name = f"*._report._dmarc.{norm(rua_domain)}"
+    cur = next((r for r in _txt_records(cf, zone, name) if r.content.strip().lower().startswith("v=dmarc1")), None)
+    if cur is not None:
+        return Change("none", "TXT", name, cur.snapshot(), cur.snapshot(), "dmarc_auth")
+    return _txt_change(None, name, "v=DMARC1", "dmarc_auth")
+
 
 def plan_mx(cf: Cloudflare, zone: Zone, domain: str, targets: list[tuple[int, str]]) -> list[Change]:
     """Make the domain's MX records in Cloudflare exactly ``targets``
