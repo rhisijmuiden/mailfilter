@@ -182,3 +182,9 @@ th[aria-sort="ascending"] svg, th[aria-sort="descending"] svg { opacity: 1; colo
 }
 .show-xs { display: none !important; }
 @media (max-width: 520px) { .hide-xs { display: none !important; } .show-xs { display: grid !important; } .topbar { gap: 8px; } .top-actions { gap: 6px; } }
+
+/* Usage page */
+.usage-kpis { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.usage-kpis .value { font-size: 24px; overflow-wrap: anywhere; }
+.usage-how { margin: 0; padding-left: 18px; display: grid; gap: 8px; max-width: 80ch; }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent-text); font-weight: 650; cursor: pointer; text-decoration: underline; }

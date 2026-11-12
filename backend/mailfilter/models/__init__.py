@@ -1,6 +1,7 @@
 """ORM models. Each feature keeps its models in its own module; import them here
 so Alembic sees every table."""
 
+from .billing import BillingCustomer, Reseller, UsageCustomerMonth, UsageDaily, UsageMonth
 from .core import AppSetting, AuditLog, AuthSession, Domain, User, user_domain
 from .dmarc import DmarcIngest, DmarcReport, DmarcRow
 from .feedback import SpamFeedback
@@ -16,4 +17,5 @@ __all__ = ["AppSetting", "AuditLog", "AuthSession", "Domain", "User", "user_doma
            "AddressRoute", "DestinationPolicy", "OutboundHold", "DomainDestination", "DomainRoute", "RelayNetwork", "RelayPort", "SmtpAccount", "TlsPolicy",
            "ClusterNode", "ClusterNonce",
            "DigestDomain", "DigestSent", "SenderListEntry", "MailTrap", "MailTrapNetwork", "mailtrap_user",
-           "MonthlyReportUser", "MonthlyStats", "SpamFeedback"]
+           "MonthlyReportUser", "MonthlyStats", "SpamFeedback",
+           "BillingCustomer", "Reseller", "UsageCustomerMonth", "UsageDaily", "UsageMonth"]

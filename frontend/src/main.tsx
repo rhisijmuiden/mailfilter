@@ -27,9 +27,10 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout me={user} />}>
-        {ROUTES.filter((r) => !r.adminOnly || user.role === "admin").map((r) => (
+        {ROUTES.filter((r) => (user.role === "reseller" ? r.reseller : !r.adminOnly || user.role === "admin")).map((r) => (
           <Route key={r.path} path={r.path} element={r.element(user)} />
         ))}
+        {user.role === "reseller" && <Route path="/" element={<Navigate to="/usage" replace />} />}
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Route>
