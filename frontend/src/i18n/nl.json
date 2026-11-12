@@ -281,6 +281,7 @@
     "deferred": "Vertraagd",
     "bounced": "Niet afgeleverd",
     "quarantined": "In quarantaine",
+    "held": "Vastgehouden (afzender gepauzeerd)",
     "rejected": "Geweigerd",
     "queued": "Wachtrij"
   },
@@ -290,6 +291,7 @@
     "bounced": "Niet afgeleverd",
     "expired": "Opgegeven",
     "quarantined": "In quarantaine",
+    "held": "Vastgehouden (afzender gepauzeerd)",
     "rejected": "Geweigerd",
     "queued": "Wachtrij"
   },

@@ -85,6 +85,23 @@ def test_quarantine_hold():
     assert m.recipients["info@rhis.nl"].explain == "quarantine"
 
 
+def test_outbound_pause_hold_is_not_quarantine():
+    _, msgs = run([
+        f"Nov 11 12:05:00 mailfilter01 postfix/submission/smtpd[401]: {QB}: client=web01.rhis.nl[198.51.100.7], "
+        "sasl_method=PLAIN, sasl_username=web01@rhis.nl",
+        f"Nov 11 12:05:01 mailfilter01 postfix/submission/smtpd[401]: {QB}: hold: END-OF-MESSAGE from "
+        "web01.rhis.nl[198.51.100.7]: Paused by Mailfilter: 400 messages in 5 minutes; "
+        "from=<noreply@rhis.nl> to=<x@gmail.com> proto=ESMTP helo=<web01.rhis.nl>",
+    ])
+    m = msgs[QB]
+    assert m.status == "held" and m.direction == "outbound"
+    assert m.client_ip == "198.51.100.7" and m.sasl_user == "web01@rhis.nl"
+    r = m.recipients["x@gmail.com"]
+    assert r.status == "held" and r.explain == "outbound_paused"
+    assert r.reply.startswith("Paused by Mailfilter")
+    assert explain.text("outbound_paused", "nl")["title"].startswith("Vastgehouden")
+
+
 def test_postscreen_and_smtpd_rejects_get_made_up_ids():
     t, msgs = run([
         "Nov 11 13:00:00 mailfilter01 postfix/postscreen[50]: NOQUEUE: reject: RCPT from [203.0.113.66]:51122: "

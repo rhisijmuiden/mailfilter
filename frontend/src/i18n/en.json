@@ -281,6 +281,7 @@
     "deferred": "Delayed",
     "bounced": "Not delivered",
     "quarantined": "In quarantine",
+    "held": "Held (sender paused)",
     "rejected": "Refused",
     "queued": "Waiting"
   },
@@ -290,6 +291,7 @@
     "bounced": "Not delivered",
     "expired": "Gave up",
     "quarantined": "In quarantine",
+    "held": "Held (sender paused)",
     "rejected": "Refused",
     "queued": "Waiting"
   },
