@@ -41,7 +41,21 @@ def get_resolver() -> Resolver:
 
 
 def get_server() -> ServerConfig:
-    return ServerConfig.load()
+    """This server; in a cluster the shared SPF record lists the addresses of all nodes."""
+    server = ServerConfig.load()
+    try:
+        from ..cluster.state import cluster_server_facts
+        from ..db import session
+
+        with session() as db:
+            facts = cluster_server_facts(db)
+    except Exception:  # noqa: BLE001 - the toolbox must keep working without the database
+        facts = None
+    if facts:
+        server.spf_name = facts["spf_name"] or server.spf_name
+        server.public_v4 = list(dict.fromkeys([*server.public_v4, *facts["v4"]]))
+        server.public_v6 = list(dict.fromkeys([*server.public_v6, *facts["v6"]]))
+    return server
 
 
 def make_cloudflare(token: str) -> Cloudflare:
