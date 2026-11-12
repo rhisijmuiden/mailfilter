@@ -33,7 +33,69 @@
     "quarantine_report": "Quarantaine-overzicht",
     "cluster": "Cluster"
   },
+  "theme": {
+    "light": "Licht",
+    "dark": "Donker",
+    "system": "Automatisch (volg mijn computer)"
+  },
+  "table": {
+    "filter": "Filter deze lijst…",
+    "no_match": "Niets gevonden met dit filter.",
+    "empty": "Hier staat nog niets.",
+    "columns": "Kolommen",
+    "columns_show": "Kolommen tonen"
+  },
+  "search": {
+    "title": "Zoeken",
+    "placeholder": "Zoek een bericht, domein of instelling…",
+    "messages": "Berichten",
+    "all_messages": "Alle berichten met “{{q}}” in Mail trace",
+    "domains": "Domeinen",
+    "domain_sub": "Open de domeininstellingen",
+    "users": "Gebruikers",
+    "pages": "Pagina's en instellingen",
+    "actions": "Acties",
+    "info": "Info en updates",
+    "nothing": "Niets gevonden voor “{{q}}”.",
+    "choose": "kiezen",
+    "open": "openen",
+    "searching": "Zoeken…",
+    "kw": {
+      "dashboard": "overzicht grafieken live nu statistieken",
+      "trace": "log zoeken bericht afgeleverd bounce queue id",
+      "quarantine": "spam virus tegengehouden vrijgeven blokkeren",
+      "mailtrap": "testomgeving staging opvangen",
+      "lists": "toestaan blokkeren whitelist blacklist afzender",
+      "quarantine_report": "dagelijks overzicht rapport klanten e-mail",
+      "dmarc": "dmarc rapporten rua alignment spf dkim",
+      "domains": "domein mailserver aflevering dkim relaydomein",
+      "relay": "relay ip netwerk webserver smtp poort 587 465 login",
+      "custom_rules": "regels phishing bijlagen arc filter nieuwsbrief",
+      "throttling": "limiet throttling per uur uitgaand misbruik",
+      "dns": "dns spf dkim dmarc mx mta-sts tls-rpt dane cloudflare blacklist",
+      "users": "gebruikers klanten accounts beheerder",
+      "security": "tweestapsverificatie 2fa beveiliging beleid",
+      "audit": "audit log geschiedenis wie gewijzigd",
+      "mail_sending": "smtp mailserver uitgaand afzender",
+      "notifications": "meldingen telegram webhook waarschuwingen",
+      "cluster": "cluster synchronisatie redundantie tweede server",
+      "backups": "backup herstellen terugzetten ftp ftps scp remote volledig incrementeel",
+      "import_pmg": "proxmox mail gateway importeren migreren",
+      "account": "mijn account wachtwoord taal tweestapsverificatie"
+    }
+  },
+  "live": {
+    "live": "Live",
+    "paused": "Gepauzeerd",
+    "pause": "Pauzeer",
+    "resume": "Hervat",
+    "chart_title": "Laatste 60 minuten",
+    "chart_note": "Berichten per minuut. Ververst elke {{seconds}} seconden.",
+    "feed_title": "Nu",
+    "empty": "Geen mail in de afgelopen 24 uur."
+  },
   "common": {
+    "deleted": "Verwijderd",
     "saving": "Opslaan…",
     "done": "Klaar",
     "save": "Opslaan",
@@ -443,6 +505,9 @@
     "verdict_quarantined": "Vastgehouden omdat het op spam lijkt of gevaarlijk is. Geef het vrij als het goede mail is."
   },
   "quarantine": {
+    "col_from": "Van",
+    "col_to": "Aan",
+    "col_client": "Verzendende server",
     "title": "Quarantaine",
     "sub": "Mail die op spam lijkt of gevaarlijk is, wordt hier vastgehouden. Geef vrij wat goed is en blokkeer wat niet deugt; het spamfilter leert van elke keuze.",
     "search": "Zoek op afzender of ontvanger",

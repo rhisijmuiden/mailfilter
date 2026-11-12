@@ -33,7 +33,69 @@
     "quarantine_report": "Quarantine report",
     "cluster": "Cluster"
   },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "Automatic (follow my computer)"
+  },
+  "table": {
+    "filter": "Filter this list…",
+    "no_match": "Nothing matches this filter.",
+    "empty": "Nothing here yet.",
+    "columns": "Columns",
+    "columns_show": "Show columns"
+  },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search a message, domain or setting…",
+    "messages": "Messages",
+    "all_messages": "All messages matching “{{q}}” in Mail trace",
+    "domains": "Domains",
+    "domain_sub": "Open the domain settings",
+    "users": "Users",
+    "pages": "Pages and settings",
+    "actions": "Actions",
+    "info": "Info and updates",
+    "nothing": "Nothing found for “{{q}}”.",
+    "choose": "choose",
+    "open": "open",
+    "searching": "Searching…",
+    "kw": {
+      "dashboard": "overview charts live now statistics",
+      "trace": "log search message delivered bounce queue id",
+      "quarantine": "spam virus held release block",
+      "mailtrap": "test environment staging catch",
+      "lists": "allow block whitelist blacklist sender",
+      "quarantine_report": "daily digest report customers e-mail",
+      "dmarc": "dmarc reports rua alignment spf dkim",
+      "domains": "domain mail server delivery dkim relay domain",
+      "relay": "relay ip network webserver smtp port 587 465 login",
+      "custom_rules": "rules phishing attachments arc filter newsletter",
+      "throttling": "rate limit throttling per hour outbound abuse",
+      "dns": "dns spf dkim dmarc mx mta-sts tls-rpt dane cloudflare blacklist",
+      "users": "users customers accounts admin",
+      "security": "two-factor 2fa security policy",
+      "audit": "audit log history who changed",
+      "mail_sending": "smtp mail server outgoing sender",
+      "notifications": "alerts telegram webhook notifications",
+      "cluster": "cluster sync redundancy second server",
+      "backups": "backup restore ftp ftps scp remote full incremental",
+      "import_pmg": "proxmox mail gateway import migrate",
+      "account": "my account password language two-factor"
+    }
+  },
+  "live": {
+    "live": "Live",
+    "paused": "Paused",
+    "pause": "Pause",
+    "resume": "Resume",
+    "chart_title": "Last 60 minutes",
+    "chart_note": "Messages per minute. Updates every {{seconds}} seconds.",
+    "feed_title": "Now",
+    "empty": "No mail in the last 24 hours."
+  },
   "common": {
+    "deleted": "Deleted",
     "saving": "Saving…",
     "done": "Done",
     "save": "Save",
@@ -443,6 +505,9 @@
     "verdict_quarantined": "Held because it looks like spam or is dangerous. Release it if it is good mail."
   },
   "quarantine": {
+    "col_from": "From",
+    "col_to": "To",
+    "col_client": "Sending server",
     "title": "Quarantine",
     "sub": "Mail that looks like spam or is dangerous is held here. Release what is good, block what is not; the spam filter learns from every choice.",
     "search": "Search by sender or recipient",

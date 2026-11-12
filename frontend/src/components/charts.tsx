@@ -18,6 +18,7 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] {
 
 function niceMax(v: number): number {
   if (v <= 4) return 4;
+  if (v <= 40) return Math.ceil(v / 4) * 4; // whole numbers on all four grid lines
   const p = 10 ** Math.floor(Math.log10(v));
   for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p;
   return 10 * p;
@@ -152,5 +153,23 @@ export function BarList({ items, color, empty, render }: {
         </div>
       ))}
     </div>
+  );
+}
+
+/** Tiny trend line for a KPI tile: area fill, line and an emphasised last point. */
+export function Sparkline({ values, color, label }: { values: number[]; color: string; label?: string }) {
+  if (values.length < 2) return null;
+  const w = 120, h = 34, pad = 3;
+  const max = Math.max(1, ...values);
+  const x = (i: number) => (i / (values.length - 1)) * w;
+  const y = (v: number) => h - pad - (v / max) * (h - pad * 2);
+  const line = values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  const last = values.length - 1;
+  return (
+    <svg className="spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+      <path className="area" d={`${line} L${w} ${h} L0 ${h} Z`} fill={color} />
+      <path d={line} fill="none" stroke={color} strokeWidth="1.8" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <circle cx={x(last)} cy={y(values[last])} r="2.6" fill={color} vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }

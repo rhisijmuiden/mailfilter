@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, ShieldCheck, ShieldOff, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { DataTable, type Column } from "../components/DataTable";
 import { useTranslation } from "react-i18next";
-import { Card, Drawer, ErrorText, Field, Loading, PageHead, formatDate, useToast } from "../components/ui";
+import { Card, Drawer, ErrorText, Field, PageHead, formatDate, useToast } from "../components/ui";
 import { api } from "../lib/api";
 
 type User = {
@@ -17,6 +19,39 @@ export default function Users() {
   const { t, i18n } = useTranslation();
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
   const [editing, setEditing] = useState<User | "new" | null>(null);
+  // Opened from the search box (Ctrl+K): /users?id=…
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = Number(params.get("id"));
+    const u = id && users.data?.find((x) => x.id === id);
+    if (u) {
+      setEditing(u);
+      setParams({}, { replace: true });
+    }
+  }, [params, users.data, setParams]);
+  const columns: Column<User>[] = [
+    { key: "user", label: t("users.email"), always: true, sort: (u) => (u.name || u.email).toLowerCase(), text: (u) => `${u.name} ${u.email}`, mobile: "title",
+      render: (u) => (
+        <>
+          <div className="cell-main">{u.name || u.email}</div>
+          <div className="cell-sub">{u.email}</div>
+        </>
+      ) },
+    { key: "role", label: t("users.role"), sort: (u) => u.role, text: (u) => t(`users.${u.role}`), nowrap: true, mobile: "aside",
+      render: (u) => (
+        <>
+          <span className={`status ${u.role === "admin" ? "s-info" : "s-mute"}`}>{t(`users.${u.role}`)}</span>
+          {!u.is_active && <span className="status s-bad" style={{ marginLeft: 6 }}>{t("users.inactive")}</span>}
+        </>
+      ) },
+    { key: "domains", label: t("users.domains"), sort: (u) => u.domains.join(","), text: (u) => u.domains.join(" "),
+      render: (u) => (u.role === "admin" ? <span className="muted">{t("users.all_domains")}</span> : u.domains.map((d) => <span key={d} className="tag" style={{ marginRight: 4 }}>{d}</span>)) },
+    { key: "twofa", label: t("users.twofa"), sort: (u) => (u.two_factor_enabled ? 1 : 0), nowrap: true,
+      render: (u) => (u.two_factor_enabled ? <span className="status s-ok"><ShieldCheck /> {t("twofa.on")}</span> : <span className="status s-mute">{t("twofa.off")}</span>) },
+    { key: "last", label: t("users.last_login"), sort: (u) => u.last_login_at ?? "", nowrap: true, mobileLabel: true,
+      render: (u) => <span className="muted">{u.last_login_at ? formatDate(u.last_login_at, i18n.language) : t("common.never")}</span> },
+    { key: "lang", label: t("common.language"), optional: true, sort: (u) => u.language, render: (u) => u.language.toUpperCase() },
+  ];
   return (
     <>
       <PageHead
@@ -29,48 +64,16 @@ export default function Users() {
         }
       />
       <Card flush>
-        {users.isLoading ? (
-          <Loading />
-        ) : !users.data?.length ? (
-          <div className="empty">{t("users.empty")}</div>
-        ) : (
-          <div className="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("users.email")}</th>
-                  <th>{t("users.role")}</th>
-                  <th>{t("users.domains")}</th>
-                  <th>{t("users.twofa")}</th>
-                  <th>{t("users.last_login")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.data.map((u) => (
-                  <tr key={u.id} className="click" onClick={() => setEditing(u)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setEditing(u)}>
-                    <td>
-                      <div className="cell-main">{u.name || u.email}</div>
-                      <div className="cell-sub">{u.email}</div>
-                    </td>
-                    <td className="nowrap">
-                      <span className={`status ${u.role === "admin" ? "s-info" : "s-mute"}`}>{t(`users.${u.role}`)}</span>
-                      {!u.is_active && <span className="status s-bad" style={{ marginLeft: 6 }}>{t("users.inactive")}</span>}
-                    </td>
-                    <td>{u.role === "admin" ? <span className="muted">{t("users.all_domains")}</span> : u.domains.map((d) => <span key={d} className="tag" style={{ marginRight: 4 }}>{d}</span>)}</td>
-                    <td className="nowrap">
-                      {u.two_factor_enabled ? (
-                        <span className="status s-ok"><ShieldCheck /> {t("twofa.on")}</span>
-                      ) : (
-                        <span className="status s-mute">{t("twofa.off")}</span>
-                      )}
-                    </td>
-                    <td className="nowrap muted">{u.last_login_at ? formatDate(u.last_login_at, i18n.language) : t("common.never")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          id="users"
+          rows={users.data}
+          rowKey={(u) => u.id}
+          loading={users.isLoading}
+          columns={columns}
+          defaultSort={{ key: "user", dir: 1 }}
+          empty={t("users.empty")}
+          onRowClick={(u) => setEditing(u)}
+        />
       </Card>
       {editing && <UserDrawer user={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
     </>

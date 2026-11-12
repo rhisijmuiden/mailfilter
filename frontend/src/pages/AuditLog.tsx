@@ -1,10 +1,11 @@
 // Audit log: who changed what and when. Admins see everything; customers see
 // their own actions and the entries about their own domains.
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, Loading, PageHead, formatDate } from "../components/ui";
+import { DataTable, type Column } from "../components/DataTable";
+import { Card, PageHead, formatDate } from "../components/ui";
 import { api, qs } from "../lib/api";
 import type { Me } from "../lib/auth";
 
@@ -103,6 +104,49 @@ export default function AuditLog({ me }: { me: Me }) {
   const pages = list.data ? Math.max(1, Math.ceil(list.data.total / PAGE_SIZE)) : 1;
   const exportHref = `/api/audit/export.csv${qs({ ...params, action: actionParam })}`;
 
+  const tone = (action: string) => (/failed/.test(action) ? "s-bad" : /deleted|removed|disabled|reset|paused/.test(action) ? "s-warn" : "s-mute");
+  const columns: Column<Entry>[] = [
+    { key: "time", label: t("audit.time"), sort: (e) => e.at, nowrap: true, mobile: "aside",
+      render: (e) => <span className="num">{formatDate(e.at, i18n.language)}</span> },
+    { key: "who", label: t("audit.who"), sort: (e) => e.user_name || e.user_email || "",
+      render: (e) => (
+        <>
+          <div className="cell-main">{e.user_name || e.user_email || t("audit.system")}</div>
+          <div className="cell-sub">
+            {e.user_name && e.user_email ? e.user_email : ""}
+            {e.ip && <span className="mono">{e.user_email ? " · " : ""}{e.ip}</span>}
+          </div>
+        </>
+      ) },
+    { key: "what", label: t("audit.what"), sort: (e) => actionLabel(t, e.action), mobile: "title",
+      render: (e) => (
+        <>
+          <div className="cell-main">
+            <span className={`status ${tone(e.action)}`} style={{ paddingLeft: 9 }}>{actionLabel(t, e.action)}</span>
+          </div>
+          <div className="cell-sub" style={{ wordBreak: "break-all", marginTop: 4 }}>
+            {e.target}
+            {e.domain && e.domain !== e.target && !e.target.endsWith("@" + e.domain) && (
+              <span className="tag" style={{ marginLeft: 6 }}>{e.domain}</span>
+            )}
+          </div>
+        </>
+      ) },
+    { key: "details", label: t("audit.details"),
+      render: (e) =>
+        Object.keys(e.detail).length === 0 ? (
+          <span className="muted">–</span>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {Object.entries(e.detail).map(([k, v]) => (
+              <span key={k} className="tag" style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
+                <span className="muted">{t(`audit.fields.${k}`, { defaultValue: k.replace(/_/g, " ") })}:</span> {value(v)}
+              </span>
+            ))}
+          </div>
+        ) },
+  ];
+
   return (
     <>
       <PageHead
@@ -120,110 +164,61 @@ export default function AuditLog({ me }: { me: Me }) {
         }
       />
       <Card flush>
-        <div className="filters">
-          <label className="search" style={{ flex: "1 1 240px", maxWidth: "none" }}>
-            <Search aria-hidden />
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("audit.search")} aria-label={t("audit.search")} />
-          </label>
-          <select className="select inline" value={group} onChange={(e) => setGroup(e.target.value)} aria-label={t("audit.action")}>
-            <option value="">{t("audit.all_actions")}</option>
-            {groups.map((g) => (
-              <option key={g} value={g}>{t(`audit.groups.${g}`)}</option>
-            ))}
-          </select>
-          {me.role === "admin" && (
-            <select className="select inline" value={userId} onChange={(e) => setUserId(e.target.value)} aria-label={t("audit.user")}>
-              <option value="">{t("audit.all_users")}</option>
-              {filters.data?.users.map((u) => (
-                <option key={u.id} value={u.id}>{u.email}</option>
-              ))}
-            </select>
-          )}
-          {(filters.data?.domains.length ?? 0) > 0 && (
-            <select className="select inline" value={domain} onChange={(e) => setDomain(e.target.value)} aria-label={t("audit.domain")}>
-              <option value="">{t("audit.all_domains")}</option>
-              {filters.data?.domains.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          )}
-          <select className="select inline" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label={t("audit.period")}>
-            {PERIODS.map((p) => (
-              <option key={p} value={p}>{t(`audit.period_${p}`)}</option>
-            ))}
-          </select>
-        </div>
-        {list.isLoading ? (
-          <Loading />
-        ) : !list.data?.items.length ? (
-          <div className="empty">{t("audit.empty")}</div>
-        ) : (
-          <div className="tbl-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("audit.time")}</th>
-                  <th>{t("audit.who")}</th>
-                  <th>{t("audit.what")}</th>
-                  <th>{t("audit.details")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((e) => (
-                  <tr key={e.id}>
-                    <td className="nowrap num">{formatDate(e.at, i18n.language)}</td>
-                    <td style={{ minWidth: 0 }}>
-                      <div className="cell-main">{e.user_name || e.user_email || t("audit.system")}</div>
-                      <div className="cell-sub">
-                        {e.user_name && e.user_email ? e.user_email : ""}
-                        {e.ip && <span className="mono">{e.user_email ? " · " : ""}{e.ip}</span>}
-                      </div>
-                    </td>
-                    <td style={{ minWidth: 0 }}>
-                      <div className="cell-main">
-                        <span className={`status ${/failed/.test(e.action) ? "s-bad" : /deleted|removed|disabled|reset|paused/.test(e.action) ? "s-warn" : "s-mute"}`} style={{ paddingLeft: 9 }}>
-                          {actionLabel(t, e.action)}
-                        </span>
-                      </div>
-                      <div className="cell-sub" style={{ wordBreak: "break-all", marginTop: 4 }}>
-                        {e.target}
-                        {e.domain && e.domain !== e.target && !e.target.endsWith("@" + e.domain) && (
-                          <span className="tag" style={{ marginLeft: 6 }}>{e.domain}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ minWidth: 0 }}>
-                      {Object.keys(e.detail).length === 0 ? (
-                        <span className="muted">–</span>
-                      ) : (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                          {Object.entries(e.detail).map(([k, v]) => (
-                            <span key={k} className="tag" style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
-                              <span className="muted">{t(`audit.fields.${k}`, { defaultValue: k.replace(/_/g, " ") })}:</span> {value(v)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+        <DataTable
+          id="audit"
+          rows={list.data?.items}
+          rowKey={(e) => e.id}
+          loading={list.isLoading}
+          columns={columns}
+          search={{ value: q, onChange: setQ, placeholder: t("audit.search") }}
+          tools={
+            <>
+              <select className="select inline" value={group} onChange={(e) => setGroup(e.target.value)} aria-label={t("audit.action")}>
+                <option value="">{t("audit.all_actions")}</option>
+                {groups.map((g) => (
+                  <option key={g} value={g}>{t(`audit.groups.${g}`)}</option>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {list.data && list.data.total > 0 && (
-          <div className="filters" style={{ borderBottom: 0, borderTop: "1px solid var(--line)", justifyContent: "space-between" }}>
-            <span className="muted">{t("audit.count", { total: list.data.total, page, pages })}</span>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button className="btn small" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label={t("audit.prev")}>
-                <ChevronLeft />
-              </button>
-              <button className="btn small" disabled={page >= pages} onClick={() => setPage(page + 1)} aria-label={t("audit.next")}>
-                <ChevronRight />
-              </button>
-            </div>
-          </div>
-        )}
+              </select>
+              {me.role === "admin" && (
+                <select className="select inline" value={userId} onChange={(e) => setUserId(e.target.value)} aria-label={t("audit.user")}>
+                  <option value="">{t("audit.all_users")}</option>
+                  {filters.data?.users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.email}</option>
+                  ))}
+                </select>
+              )}
+              {(filters.data?.domains.length ?? 0) > 0 && (
+                <select className="select inline" value={domain} onChange={(e) => setDomain(e.target.value)} aria-label={t("audit.domain")}>
+                  <option value="">{t("audit.all_domains")}</option>
+                  {filters.data?.domains.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              )}
+              <select className="select inline" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label={t("audit.period")}>
+                {PERIODS.map((p) => (
+                  <option key={p} value={p}>{t(`audit.period_${p}`)}</option>
+                ))}
+              </select>
+            </>
+          }
+          empty={t("audit.empty")}
+          footer={
+            list.data && list.data.total > 0 && (
+              <>
+                <span className="muted">{t("audit.count", { total: list.data.total, page, pages })}</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="btn small" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label={t("audit.prev")}>
+                    <ChevronLeft />
+                  </button>
+                  <button className="btn small" disabled={page >= pages} onClick={() => setPage(page + 1)} aria-label={t("audit.next")}>
+                    <ChevronRight />
+                  </button>
+                </div>
+              </>
+            )
+          }
+        />
       </Card>
     </>
   );

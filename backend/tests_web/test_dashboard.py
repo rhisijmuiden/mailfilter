@@ -71,3 +71,23 @@ def test_outbound_spike(admin, users, monkeypatch):
         db.commit()
     alerts = [a for a in admin.get("/api/dashboard").json()["alerts"] if a["code"] == "outbound_spike"]
     assert alerts and alerts[0]["params"]["source"] == "webshop@rhis.nl" and alerts[0]["level"] == "critical"
+
+
+def test_live_minutes_and_feed(admin, flow):
+    with session() as db:
+        add(db, "L1", "delivered", 2)
+        add(db, "L2", "deferred", 1, rcpt="jan@traag.nl", rstatus="deferred", direction="outbound", sender="shop@rhis.nl")
+        db.commit()
+    d = admin.get("/api/dashboard/live").json()
+    assert len(d["minutes"]) == 60
+    total = sum(b["delivered"] + b["spam"] + b["refused"] + b["delayed"] + b["failed"] for b in d["minutes"])
+    assert total == 6  # L1, L2 and D1, S1, S2, R1 (30-55 minutes ago)
+    assert [e["queue_id"] for e in d["events"][:2]] == ["L2", "L1"]
+    assert d["events"][0]["category"] == "delayed" and d["events"][1]["category"] == "delivered"
+    out = admin.get("/api/dashboard/live?direction=outbound").json()
+    assert {e["queue_id"] for e in out["events"]} == {"L2", "D2", "W1"}
+
+
+def test_live_customer_is_scoped(customer, flow):
+    d = customer.get("/api/dashboard/live").json()
+    assert {e["queue_id"] for e in d["events"]} == {"D1", "S1", "S2", "R1"}
