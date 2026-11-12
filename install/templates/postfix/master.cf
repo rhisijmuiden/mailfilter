@@ -33,6 +33,10 @@ submissions inet n      -       y       -       -       smtpd
 # BEGIN mailfilter-config (managed by the web interface, do not edit)
 # END mailfilter-config
 
+# DMARC reports for dmarc-reports@<hostname>: parsed and stored for the DMARC page
+mfdmarc   unix  -       n       n       -       2       pipe
+  flags=Rq user=mailfilter argv=/var/lib/mailfilter/venv/bin/mailfilter-dmarc-ingest ${sender}
+
 pickup    unix  n       -       y       60      1       pickup
 cleanup   unix  n       -       y       -       0       cleanup
 qmgr      unix  n       -       n       300     1       qmgr
