@@ -62,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     qr.add_argument("--now", action="store_true", help="send now, even when not due")
     mr = sub.add_parser("monthly-report")
     mr.add_argument("--now", action="store_true", help="send last month's reports now, even when not due")
+    sub.add_parser("dkim-rotate", help="start due DKIM key rotations and move running ones forward")
     sub.add_parser("cluster-sync")
     sub.add_parser("cluster-leave")
     args = p.parse_args(argv)
@@ -83,6 +84,25 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{a.event} {a.key}")
             db.commit()
             return 0
+        if args.cmd == "dkim-rotate":
+            from .dkim_rotation import run as rotate
+
+            res = rotate(db)
+            switched = db.info.pop("dkim_switched", False)
+            db.info.pop("cluster_push", None)
+            db.commit()
+            if switched:
+                from .cluster.peer import push_all
+
+                push_all()
+            if not res.ran:
+                print(f"not run: {res.reason}")
+                return 0 if res.reason.startswith("not_leader") else 1
+            for e in res.events:
+                print(e)
+            for e in res.errors:
+                print(e, file=sys.stderr)
+            return 1 if res.errors else 0
         if args.cmd in ("cluster-sync", "cluster-leave"):
             from .cluster import peer, state
 

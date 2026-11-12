@@ -10,6 +10,7 @@ import { Card, ErrorText, Field, Loading, Modal, PageHead, formatDate, useToast 
 import { ApiError, api } from "../lib/api";
 
 const BimiTab = lazy(() => import("./DnsBimi"));
+const DkimTab = lazy(() => import("./DnsDkim"));
 
 // --- types -----------------------------------------------------------------
 
@@ -38,7 +39,7 @@ export type Blacklist = {
 };
 type Journal = { time: string; batch: string; actor: string; domain: string; action: string; reason: string; before: Rec | null; after: Rec | null; undo?: string }[];
 
-const TABS = ["check", "mx", "spf", "dmarc", "tls", "bimi", "blacklist", "cloudflare", "journal"] as const;
+const TABS = ["check", "mx", "spf", "dkim", "dmarc", "tls", "bimi", "blacklist", "cloudflare", "journal"] as const;
 type Tab = (typeof TABS)[number];
 
 // --- small parts -------------------------------------------------------------
@@ -120,6 +121,7 @@ export default function Dns() {
           {tab === "check" && <CheckTab />}
           {tab === "mx" && <MxTab />}
           {tab === "spf" && <SpfTab />}
+          {tab === "dkim" && <Suspense fallback={<Loading />}><DkimTab /></Suspense>}
           {tab === "dmarc" && <DmarcTab />}
           {tab === "tls" && <TlsTab />}
           {tab === "bimi" && <Suspense fallback={<Loading />}><BimiTab /></Suspense>}

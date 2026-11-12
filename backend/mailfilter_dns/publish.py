@@ -106,6 +106,13 @@ def plan_dkim(cf: Cloudflare, zone: Zone, key: dkim_mod.DkimKey) -> Change:
     return _txt_change(cur, key.name, key.record, "dkim")
 
 
+def plan_dkim_remove(cf: Cloudflare, zone: Zone, key: dkim_mod.DkimKey) -> list[Change]:
+    """Delete the record of a retired key; only a record with exactly this public key."""
+    return [Change("delete", "TXT", key.name, r.snapshot(), None, "dkim_retire")
+            for r in _txt_records(cf, zone, key.name)
+            if dkim_mod.parse_record(r.content).get("p") == key.public_key]
+
+
 def plan_dmarc(cf: Cloudflare, zone: Zone, domain: str, value: str) -> Change:
     from . import dmarc as dmarc_mod
 
