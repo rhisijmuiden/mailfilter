@@ -143,12 +143,12 @@ def apply(branch: str | None = None, backup: bool = True, log=print, step=None) 
     """
     from . import backup as backup_mod  # local import: backup imports this module
 
-    step = step or log
+    step = step or (lambda text, *_, **__: log(text))
     current = version_info()
     branch = branch or current.get("branch")
     if branch not in BRANCHES:
         raise CtlError(f"Choose the production (main) or test branch, not '{branch}'")
-    step(f"Downloading the newest {BRANCHES[branch]} version")
+    step(f"Downloading the newest {BRANCHES[branch]} version", "update_download", channel=BRANCHES[branch])
     _git("fetch", "--quiet", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}", log=log)
     target = _remote_branch_info(branch)
     if not target:
@@ -164,18 +164,19 @@ def apply(branch: str | None = None, backup: bool = True, log=print, step=None) 
         log("Local changes in the checkout will be overwritten:\n" + dirty)
 
     if backup:
-        step("Making a backup before updating")
+        step("Making a backup before updating", "update_backup")
         backup_mod.create("auto", label=f"before update to {target['version']} ({branch})", log=log)
 
     previous = {"branch": current.get("branch"), "commit": current.get("commit")}
-    step(f"Installing {target['version']} ({branch} {target['commit_short']})")
+    step(f"Installing {target['version']} ({branch} {target['commit_short']})", "update_install",
+         version=target["version"], branch=branch, commit=target["commit_short"])
     _git("checkout", "--quiet", "--force", "-B", branch, f"origin/{branch}", log=log)
     _git("branch", "--quiet", f"--set-upstream-to=origin/{branch}", branch, check=False)
     try:
-        step("Applying configuration and restarting services")
+        step("Applying configuration and restarting services", "update_apply")
         reconfigure(log)
     except CtlError as e:
-        step("Update failed, putting the previous version back")
+        step("Update failed, putting the previous version back", "update_rollback")
         if previous["commit"]:
             _git("checkout", "--quiet", "--force", "-B", previous["branch"] or branch, previous["commit"], log=log)
             try:

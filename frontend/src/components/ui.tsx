@@ -94,7 +94,9 @@ export function ErrorText({ error }: { error: unknown }) {
   if (!error) return null;
   let msg = t("errors.error");
   if (error instanceof ApiError) {
-    const [code, value] = error.code.split(":");
+    // "code:value"; the value may itself contain colons (e.g. a server message)
+    const [code, ...rest] = error.code.split(":");
+    const value = rest.join(":");
     msg = t(`errors.${code}`, { value, defaultValue: t("errors.error") });
   }
   return (

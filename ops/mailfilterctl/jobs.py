@@ -128,9 +128,11 @@ class Job:
         if os.environ.get("MF_JOB_ECHO") == "1":
             print(line, file=sys.stderr)
 
-    def step(self, text: str) -> None:
-        """A user-visible step, shown as a progress line in the web interface."""
-        self.data["steps"].append({"at": iso(now()), "text": text})
+    def step(self, text: str, key: str | None = None, **params) -> None:
+        """A user-visible step, shown as a progress line in the web interface.
+
+        ``key`` and ``params`` let the web interface show it in the user's language."""
+        self.data["steps"].append({"at": iso(now()), "text": text, "key": key, "params": params})
         self.log(f"== {text}")
         self.save()
 
