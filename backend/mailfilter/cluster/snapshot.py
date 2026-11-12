@@ -7,6 +7,7 @@ Synced (the same on every node):
   * allow and block lists, and which domains get the daily quarantine report
   * settings listed in SYNCED_SETTINGS (custom rules, hacked-sender protection,
     e-mail sending incl. SMTP password, Cloudflare token)
+  * billing customers, resellers and tariffs (who pays for which domain)
   * DKIM keys, so every node signs with the key that is in DNS
   * the member list and the cluster secret
 
@@ -26,6 +27,7 @@ SYNCED_MODELS plus an export/import pair below, to have it synced.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 import json
 import subprocess
 from typing import Any
@@ -34,7 +36,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import __version__
-from ..models import (AddressRoute, AppSetting, ClusterNode, DestinationPolicy, DigestDomain, Domain, DomainDestination,
+from ..models import (AddressRoute, AppSetting, BillingCustomer, ClusterNode, Reseller, DestinationPolicy, DigestDomain, Domain, DomainDestination,
                       DomainRoute, RelayNetwork, RelayPort, SenderListEntry, SmtpAccount, TlsPolicy, User)
 from ..settings import get_settings
 from ..settings_store import _fernet, set_secret, set_setting
@@ -44,13 +46,14 @@ from .state import ClusterError
 FORMAT = 1
 
 SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp", "smtp.password", "cloudflare_token",
-                             "quarantine_report", "security", "dkim_rotation"})
+                             "quarantine_report", "security", "dkim_rotation", "billing.tariffs"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
-                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount)
+                 TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, Reseller, BillingCustomer)
 
 # Changes to these columns alone are not configuration changes.
 LOCAL_COLUMNS = {User: frozenset({"last_login_at", "created_at", "totp_last_step"}), ClusterNode: ClusterNode.LOCAL,
+                 Reseller: frozenset({"created_at"}), BillingCustomer: frozenset({"created_at"}),
                  SenderListEntry: frozenset({"created_at"}), SmtpAccount: frozenset({"created_at"})}
 ACCOUNT_FIELDS = ("password_hash", "description", "enabled")
 LIST_FIELDS = ("list", "comment", "created_by")
@@ -118,8 +121,21 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
     digest_off = sorted(d.name for d, in db.execute(
         select(Domain).join(DigestDomain, DigestDomain.domain_id == Domain.id).where(DigestDomain.enabled.is_(False))))
 
-    users = [{**_pick(u, USER_FIELDS), "email": u.email, "domains": u.domain_names, **_two_factor_out(u)}
+    resellers = {r.id: r for r in db.execute(select(Reseller).order_by(Reseller.name)).scalars()}
+    users = [{**_pick(u, USER_FIELDS), "email": u.email, "domains": u.domain_names, **_two_factor_out(u),
+              "reseller": resellers[u.reseller_id].name if u.reseller_id in resellers else None}
              for u in db.execute(select(User).order_by(User.email)).scalars()]
+    domain_names = {d.id: d.name for d in db.execute(select(Domain)).scalars()}
+    owners: dict[int, list[str]] = {}
+    for d in db.execute(select(Domain).where(Domain.billing_customer_id.is_not(None))).scalars():
+        owners.setdefault(d.billing_customer_id, []).append(domain_names[d.id])
+    billing = {
+        "resellers": [{"name": r.name, "ref": r.ref, "discount_percent": str(r.discount_percent), "note": r.note}
+                      for r in resellers.values()],
+        "customers": [{"name": c.name, "ref": c.ref, "reseller": resellers[c.reseller_id].name if c.reseller_id in resellers else None,
+                       "tariffs": c.tariffs or {}, "note": c.note, "domains": sorted(owners.get(c.id, []))}
+                      for c in db.execute(select(BillingCustomer).order_by(BillingCustomer.name)).scalars()],
+    }
 
     settings: dict[str, Any] = {}
     for row in db.execute(select(AppSetting).where(AppSetting.key.in_(SYNCED_SETTINGS))).scalars():
@@ -151,6 +167,7 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
         "users": users,
         "lists": lists,
         "digest_off": digest_off,
+        "billing": billing,
         "settings": settings,
         "dkim": dkim,
     }
@@ -258,7 +275,46 @@ def _two_factor_in(u: User, tf: dict[str, Any] | None) -> None:
     u.recovery_codes = list(tf.get("recovery_codes") or [])
 
 
-def _import_users(db: Session, items: list[dict], domains: dict[str, Domain]) -> None:
+def _import_billing(db: Session, b: dict | None, domains: dict[str, Domain]) -> dict[str, Reseller] | None:
+    """Resellers and billing customers by name; returns the resellers by name (None: not sent)."""
+    if b is None:  # snapshot from a version without billing: leave ours alone
+        return None
+    have_r = {r.name: r for r in db.execute(select(Reseller)).scalars()}
+    want_r = {str(i["name"]): i for i in b.get("resellers", [])}
+    have_c = {c.name: c for c in db.execute(select(BillingCustomer)).scalars()}
+    want_c = {str(i["name"]): i for i in b.get("customers", [])}
+    for name, c in have_c.items():
+        if name not in want_c:
+            db.delete(c)
+    for name, r in have_r.items():
+        if name not in want_r:
+            db.delete(r)
+    db.flush()
+    resellers = {}
+    for name, i in want_r.items():
+        r = have_r.get(name) or Reseller(name=name)
+        _put(r, i, ("ref", "note"))
+        r.discount_percent = Decimal(str(i.get("discount_percent") or 0))
+        db.add(r)
+        resellers[name] = r
+    db.flush()
+    owner: dict[str, int] = {}
+    for name, i in want_c.items():
+        c = have_c.get(name) or BillingCustomer(name=name)
+        _put(c, i, ("ref", "tariffs", "note"))
+        rs = resellers.get(i.get("reseller") or "")
+        c.reseller_id = rs.id if rs else None
+        db.add(c)
+        db.flush()
+        for d in i.get("domains", []):
+            owner[str(d).lower()] = c.id
+    for name, dom in domains.items():
+        dom.billing_customer_id = owner.get(name)
+    return resellers
+
+
+def _import_users(db: Session, items: list[dict], domains: dict[str, Domain],
+                  resellers: dict[str, Reseller] | None = None) -> None:
     have = {u.email.lower(): u for u in db.execute(select(User)).scalars()}
     wanted = {str(i["email"]).lower(): i for i in items}
     for email, u in have.items():
@@ -270,6 +326,9 @@ def _import_users(db: Session, items: list[dict], domains: dict[str, Domain]) ->
         _put(u, i, USER_FIELDS)
         _two_factor_in(u, i.get("two_factor"))
         u.domains = [domains[d.lower()] for d in i.get("domains", []) if d.lower() in domains]
+        if resellers is not None:
+            rs = resellers.get(i.get("reseller") or "")
+            u.reseller_id = rs.id if rs else None
         db.add(u)
 
 
@@ -375,7 +434,8 @@ def apply_snapshot(db: Session, snap: dict[str, Any], *, joining: bool = False) 
     _import_accounts(db, g.get("smtp_accounts"), domains)
     for section, (model, key, fields) in SIMPLE.items():
         _import_simple(db, model, key, fields, g.get(section, []))
-    _import_users(db, snap.get("users", []), domains)
+    resellers = _import_billing(db, snap.get("billing"), domains)
+    _import_users(db, snap.get("users", []), domains, resellers)
     _import_lists(db, snap.get("lists"), snap.get("digest_off"), domains)
     _import_settings(db, snap.get("settings") or {})
     set_setting(db, IMPORTED_KEY, {"at": state.now().isoformat(), "from": "cluster"})

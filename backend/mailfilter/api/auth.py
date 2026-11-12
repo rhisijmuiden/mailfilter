@@ -40,6 +40,7 @@ class MeOut(BaseModel):
     language: str
     domains: list[str]
     two_factor_enabled: bool = False
+    reseller: str | None = None  # role "reseller": the reseller's name
     # Policy requires 2FA but the user has not set it up: only the setup works.
     two_factor_setup_required: bool = False
 
@@ -95,7 +96,17 @@ def me_out(user: User, db=None) -> MeOut:
     return MeOut(
         id=user.id, email=user.email, name=user.name, role=user.role, language=user.language, domains=user.domain_names,
         two_factor_enabled=user.two_factor_enabled, two_factor_setup_required=setup,
+        reseller=_reseller_name(db, user),
     )
+
+
+def _reseller_name(db, user: User) -> str | None:
+    if user.role != "reseller" or user.reseller_id is None or db is None:
+        return None
+    from ..models import Reseller
+
+    r = db.get(Reseller, user.reseller_id)
+    return r.name if r else None
 
 
 def _start_session(user: User, request: Request, response: Response, db, method: str) -> MeOut:
