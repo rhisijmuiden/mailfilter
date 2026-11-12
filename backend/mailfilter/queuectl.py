@@ -51,6 +51,12 @@ def held_ids() -> set[str]:
     return ids
 
 
+def summary() -> dict[str, int]:
+    """Messages per Postfix queue, e.g. {"active": 2, "deferred": 14, "hold": 3}."""
+    data = json.loads(_helper("summary").decode() or "{}")
+    return {str(k): int(v) for k, v in data.items()}
+
+
 def raw_message(queue_id: str) -> bytes:
     data = _helper("show", check_id(queue_id), timeout=60)
     return data[:MAX_MESSAGE]

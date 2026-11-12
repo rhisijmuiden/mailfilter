@@ -52,6 +52,8 @@ class Settings:
     config_helper: list[str] = field(default_factory=list)
     cookie_secure: bool = True
     session_hours: int = 12
+    # Used to bucket charts per hour/day in local time.
+    timezone: str = "Europe/Amsterdam"
 
 
 @lru_cache
@@ -77,4 +79,5 @@ def get_settings() -> Settings:
         [*CONFIG_HELPER_PREFIX, str((source / "backend/bin/mailfilter-config").resolve())],
         cookie_secure=env.get("MF_COOKIE_SECURE", "1") != "0",
         session_hours=int(env.get("MF_SESSION_HOURS", "12")),
+        timezone=env.get("MF_TIMEZONE", "Europe/Amsterdam"),
     )

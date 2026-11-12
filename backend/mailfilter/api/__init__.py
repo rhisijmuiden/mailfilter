@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import auth, backup, dns, gateway, pmg_import, quarantine, smtp, system, trace, users
+from . import auth, backup, dashboard, dns, gateway, pmg_import, quarantine, smtp, system, trace, users
 
 router = APIRouter(prefix="/api")
 router.include_router(auth.router)
@@ -10,6 +10,7 @@ router.include_router(users.router)
 router.include_router(gateway.router)
 router.include_router(system.router)
 router.include_router(trace.router)
+router.include_router(dashboard.router)
 router.include_router(quarantine.router)
 router.include_router(dns.router)
 router.include_router(backup.router)
