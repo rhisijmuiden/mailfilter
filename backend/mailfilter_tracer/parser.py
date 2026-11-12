@@ -60,7 +60,7 @@ _RSPAMD = re.compile(
     r"(?: user: (?P<user>[^,]+),)?(?: mid: [^,]*,)? from: <(?P<sender>[^>]*)>,"
     r" \((?P<setting>[\w-]+): (?P<spam>[FTS]) \((?P<action>[^)]+)\):"
     r" \[(?P<score>-?[\d.]+)/(?P<required>-?[\d.]+)\] \[(?P<symbols>.*?)\]\)")
-_SYMBOL = re.compile(r"([A-Z][A-Z0-9_]+)\((-?[\d.]+)\)")
+_SYMBOL = re.compile(r"([A-Z][A-Z0-9_]+)\((-?[\d.]+)\)(?:\{([^}]*)\})?")
 
 _SYSLOG = re.compile(
     r"^(?:(?P<iso>\d{4}-\d\d-\d\dT\S+)|(?P<bsd>\w{3} [ \d]\d \d\d:\d\d:\d\d)) \S+ "
@@ -92,7 +92,11 @@ def parse_message(ident: str, message: str, ts: datetime) -> Event | None:
             qid = None
         d["score"] = float(d["score"])
         d["required"] = float(d["required"])
-        d["symbols"] = {name: float(score) for name, score in _SYMBOL.findall(d["symbols"])}
+        found = _SYMBOL.findall(d["symbols"])
+        d["symbols"] = {name: float(score) for name, score, _ in found}
+        # What each rule found, e.g. the domain in a bad link: R_SPF_ALLOW(-0.20){+ip4:192.0.2.0/24;}
+        d["symbol_options"] = {name: opts for name, _, raw in found
+                               if (opts := [o.strip()[:200] for o in raw.split(";") if o.strip()][:10])}
         return Event("rspamd", ts, "rspamd", qid, {k: v for k, v in d.items() if v is not None})
     return None
 

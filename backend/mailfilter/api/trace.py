@@ -11,6 +11,7 @@ from sqlalchemy import Select, and_, cast, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import TEXT
 
 from ..deps import DB, CurrentUser, visible_domains
+from .. import spamreport
 from ..explain import short_reply, text
 from ..models import Domain, QuarantineAction, TraceMessage, TraceRecipient, User
 from ..settings import get_settings
@@ -88,6 +89,7 @@ class DetailOut(MessageOut):
     bounces: list[str]
     held: bool
     quarantine_actions: list[ActionOut]
+    report: dict | None = None
 
 
 class StatsOut(BaseModel):
@@ -263,4 +265,5 @@ def detail(queue_id: str, user: CurrentUser, db: DB) -> DetailOut:
         symbols=symbols[:40], route=route(m, user), parent=m.parent, bounces=bounces,
         held=m.status == "quarantined" and not m.done,
         quarantine_actions=[ActionOut(action=a.action, learned=a.learned, user_email=a.user_email, at=a.at) for a in actions],
+        report=spamreport.build(m.symbols, m.symbol_options, m.spam_score, m.spam_action, m.direction, user.language),
     )

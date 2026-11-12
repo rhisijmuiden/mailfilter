@@ -261,3 +261,56 @@ pre.log{margin:0;background:var(--code-bg);color:var(--code-ink);font-family:var
 }
 @media (max-width:520px){.kpis{grid-template-columns:minmax(0,1fr)}.kv{grid-template-columns:minmax(0,1fr)}.page-head h1{font-size:24px}.search{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Spam check report in the mail trace drawer */
+.spamrep{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.spamrep-head{display:flex;gap:12px;align-items:center;width:100%;padding:12px 14px;background:var(--surface-sunk);border:0;text-align:left;cursor:pointer}
+.spamrep-head.static{cursor:default}
+.spamrep-head:hover:not(.static){background:color-mix(in srgb,var(--surface-sunk) 70%,var(--line))}
+.spamrep-head .ico{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none}
+.spamrep-head .ico svg{width:18px;height:18px;stroke:currentColor}
+.spamrep-head .grow{flex:1;min-width:0}
+.spamrep-head b{display:block;font-size:14.5px}
+.spamrep-head .why{display:block;font-size:12.5px;color:var(--ink-muted)}
+.spamrep .chev{width:16px;height:16px;flex:none;stroke:currentColor;color:var(--ink-muted);transition:transform .15s}
+.spamrep.open>.spamrep-head .chev{transform:rotate(180deg)}
+.spamrep-body{padding:16px 14px;display:flex;flex-direction:column;gap:16px}
+.gauge{display:flex;flex-direction:column;gap:6px}
+.gauge-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:12.5px}
+.gauge-score{font-stretch:125%;font-weight:800;font-size:22px;font-variant-numeric:tabular-nums}
+.gauge-score small{font-size:12.5px;font-weight:500;color:var(--ink-muted);font-stretch:100%}
+.gauge-bar{position:relative;height:12px;border-radius:999px}
+.gauge-bar .tick{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--line)}
+.gauge-bar .me{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;transform:translate(-50%,-50%);border:3px solid var(--surface-raised);box-shadow:0 0 0 1.5px var(--ink)}
+.gauge-bar .me.s-ok{background:var(--ok)} .gauge-bar .me.s-warn{background:var(--warn)} .gauge-bar .me.s-bad{background:var(--bad)}
+.gauge-scale{position:relative;height:30px;font-size:11px;color:var(--ink-muted)}
+.gauge-scale span{position:absolute;transform:translateX(-50%);text-align:center;line-height:1.2;white-space:nowrap}
+.gauge-scale span:last-child{transform:translateX(-70%)}
+/* Greylist and spam label sit close together: put their labels on either side of the ticks. */
+.gauge-scale span:first-child{transform:translateX(calc(-100% + 4px));text-align:right}
+.gauge-scale span:nth-child(2){transform:translateX(-4px);text-align:left}
+.gauge-scale b{display:block;color:var(--ink)}
+.spamrep-summary{margin:0;font-size:13.5px;max-width:64ch}
+.checks{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.chk{border-top:1px solid var(--line)}
+.chk:first-child{border-top:0}
+.chk summary{list-style:none;display:grid;grid-template-columns:22px minmax(0,1fr) auto 16px;gap:10px;align-items:center;padding:10px 12px;cursor:pointer}
+.chk summary::-webkit-details-marker{display:none}
+.chk summary:hover{background:var(--surface-sunk)}
+.chk[open] summary .chev{transform:rotate(180deg)}
+.chk .st{width:22px;height:22px;border-radius:50%;display:grid;place-items:center}
+.chk .st svg{width:13px;height:13px;stroke:currentColor;stroke-width:3}
+.st-ok{background:var(--ok-soft);color:var(--ok)} .st-warn{background:var(--warn-soft);color:var(--warn)} .st-bad{background:var(--bad-soft);color:var(--bad)}
+.st-neutral,.st-skipped{background:var(--surface-sunk);color:var(--ink-muted)}
+.chk .name{font-weight:600;min-width:0}
+.chk .res{display:block;font-weight:400;font-size:12.5px;color:var(--ink-muted)}
+.chk .pts{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pts.plus{background:var(--bad-soft);color:var(--bad)} .pts.min{background:var(--ok-soft);color:var(--ok)} .pts.zero{background:var(--surface-sunk);color:var(--ink-muted)}
+.chk .items{padding:2px 12px 12px 44px;display:flex;flex-direction:column;gap:8px}
+.chk .item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;font-size:13px}
+.chk .item .rule{font-family:var(--mono);font-size:11px;color:var(--ink-muted);word-break:break-all}
+.chk .item .detail{grid-column:1/-1;font-family:var(--mono);font-size:11.5px;color:var(--ink-muted);word-break:break-all}
+.chk .v{font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:650;text-align:right}
+.v.plus{color:var(--bad)} .v.min{color:var(--ok)} .v.zero{color:var(--ink-muted)}
+.chk .note{font-size:12px}
+@media (prefers-reduced-motion:reduce){.spamrep .chev{transition:none}}
