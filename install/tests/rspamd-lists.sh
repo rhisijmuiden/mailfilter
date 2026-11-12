@@ -15,6 +15,11 @@ klant.nl|evil.example
 MAP
 chmod 0644 "$LISTS"/*.map
 
+# The CI container has no working DNS. Fail DNS lookups fast, or every scan
+# runs into Rspamd's 8 s task timeout before the list rules are checked.
+install -d /etc/rspamd/override.d
+printf 'dns { nameserver = ["127.0.0.1:53"]; timeout = 0.5s; retransmits = 1; }\n' >/etc/rspamd/override.d/options.inc
+
 rspamd -f -u _rspamd -g _rspamd >/tmp/rspamd.log 2>&1 &
 pid=$!
 # Stop Rspamd completely on exit: later CI steps start their own instance.
@@ -24,7 +29,9 @@ stop_rspamd() {
   for _ in $(seq 1 40); do pgrep -x rspamd >/dev/null || return 0; sleep 0.25; done
   pkill -9 -x rspamd || true
 }
-trap stop_rspamd EXIT
+# shellcheck disable=SC2317,SC2329
+cleanup() { stop_rspamd; rm -f /etc/rspamd/override.d/options.inc; }
+trap cleanup EXIT
 for _ in $(seq 1 60); do
   rspamc -h 127.0.0.1:11334 -P test stat >/dev/null 2>&1 && break
   sleep 1
@@ -51,5 +58,8 @@ expect_none spam@bad.example piet@klant.nl
 expect_none factuur@leverancier.nl piet@klant.nl
 out=$(printf '%s' "$msg" | rspamc -h 127.0.0.1:11334 -i 192.0.2.10 -F spam@bad.example -r jan@klant.nl 2>&1 || true)
 if grep -q "Action: reject" <<<"$out"; then echo "PASS blocked sender is refused"; else echo "FAIL blocked sender not refused"; fail=1; fi
-[[ $fail == 0 ]] || { echo "--- rspamd log"; tail -40 /tmp/rspamd.log; }
+if [[ $fail != 0 ]]; then
+  echo "--- rspamd log"; tail -40 /tmp/rspamd.log
+  echo "--- multimap rules Rspamd loaded"; rspamadm configdump multimap 2>&1 | grep -E '^MF_LIST|selector' | head -30
+fi
 exit $fail
