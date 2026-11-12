@@ -1,0 +1,4 @@
+# Installed by the Mailfilter installer. The web app (user mailfilter) may start
+# the root job that applies a queued Proxmox Mail Gateway import. Nothing else:
+# the job only reads requests from /var/lib/mailfilter/pmg-import.
+mailfilter ALL=(root) NOPASSWD: /usr/bin/systemctl start mailfilter-pmg-import.service

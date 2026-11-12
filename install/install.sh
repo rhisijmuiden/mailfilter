@@ -190,7 +190,7 @@ install -d -m 0755 "$MF_ETC/nftables"
 touch "$MF_ETC/relay_networks.list" "$MF_ETC/nftables/relay_ports.nft"
 for f in relay_domains transport sender_block tls_policy recipient_verify; do touch "$MF_ETC/postfix/$f"; done
 for f in relay_networks.cidr client_block.cidr postscreen_access.cidr; do touch "$MF_ETC/postfix/$f"; done
-for f in allow_from allow_domain block_from block_domain block_ip antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
+for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors local_addrs; do touch "$MF_ETC/rspamd/$f.map"; done
 cp "$TPL/postfix/dnsbl_reply" "$MF_ETC/postfix/dnsbl_reply"
 cp "$TPL/postfix/bounce.cf" "$MF_ETC/postfix/bounce.cf"
 ok "Lists and maps in $MF_ETC"
@@ -362,6 +362,17 @@ printf '# Managed by Mailfilter\nmailfilter ALL=(root) NOPASSWD: /usr/bin/system
 run visudo -cf "$SUDOERS_TMP"
 install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/mailfilter-config
 rm -f "$SUDOERS_TMP"
+
+# ---------------------------------------------------------------------------
+step "Import from Proxmox Mail Gateway"
+# The web app (sandboxed, /etc read-only) queues uploads here; a root oneshot
+# applies them. The web app may start exactly that one unit through sudo.
+install -d -o mailfilter -g mailfilter -m 0750 /var/lib/mailfilter/pmg-import
+render "$TPL/systemd/mailfilter-pmg-import.service" /etc/systemd/system/mailfilter-pmg-import.service
+run systemctl daemon-reload
+install -m 0440 "$TPL/sudoers-pmg-import" /etc/sudoers.d/mailfilter-pmg-import
+visudo -cqf /etc/sudoers.d/mailfilter-pmg-import || { rm -f /etc/sudoers.d/mailfilter-pmg-import; die "sudoers rule for the PMG import is invalid"; }
+ok "PMG backups can be imported in the web interface (or: $MF_SRC/backend/bin/mailfilter-pmg-import)"
 
 # ---------------------------------------------------------------------------
 step "Intrusion protection (CrowdSec)"
