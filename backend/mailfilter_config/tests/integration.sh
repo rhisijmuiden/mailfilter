@@ -170,7 +170,20 @@ check "link to an IP address recognised" bash -c "$(declare -f has); has /tmp/sc
 check "fake sender name recognised" bash -c "$(declare -f has); has /tmp/scan-ph2.json MF_DISPLAYNAME_SPOOF"
 check "dangerous attachment refused" bash -c "$(declare -f has action_is); has /tmp/scan-exe.json MF_ATTACHMENT_BLOCKED && action_is /tmp/scan-exe.json reject"
 check "macro document quarantined" bash -c "$(declare -f has action_is); has /tmp/scan-macro.json MF_ATTACHMENT_MACRO && action_is /tmp/scan-macro.json quarantine"
-check "external banner added to the message" bash -c "$(declare -f has); has /tmp/scan-banner.eml 'Waarschuwing: dit bericht' && has /tmp/scan-banner.eml X-Mailfilter-External && has /tmp/scan-banner.eml 'Ben je even beschikbaar'"
+scan2 /tmp/ph-name.eml directeur.rhis@freemail.example >/tmp/scan-banner.json 2>&1 || true
+# The rewritten message: banner first, then the original text, both readable after decoding.
+banner_ok() { python3 - "$1" <<'PY' || { head -c 3000 "$1"; exit 1; }
+import quopri, re, sys
+# rspamc shows the new body but not the milter's header changes (Content-Transfer-Encoding),
+# so decode the quoted-printable body ourselves.
+raw = open(sys.argv[1], "rb").read().replace(b"\r\n", b"\n")
+body = quopri.decodestring(raw.split(b"\n\n", 1)[1]).decode("utf-8", "replace")
+print(repr(body[:300]))
+sys.exit(not (body.startswith("Waarschuwing: dit bericht") and "Ben je even beschikbaar" in body))
+PY
+}
+check "external banner added above the original text" bash -c "$(declare -f banner_ok); banner_ok /tmp/scan-banner.eml"
+check "external banner header added" bash -c "$(declare -f has); has /tmp/scan-banner.json X-Mailfilter-External"
 check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
 pkill -x rspamd || true
 rm -f /etc/rspamd/override.d/worker-normal.inc /etc/rspamd/override.d/options.inc /etc/rspamd/override.d/logging.inc
