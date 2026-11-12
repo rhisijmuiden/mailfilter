@@ -6,6 +6,8 @@
   mailfilter-admin has-users                   exit 0 when at least one user exists
   mailfilter-admin abuse-scan                  pause senders that suddenly send spam (run by a timer)
   mailfilter-admin notify-check                send alerts by e-mail, Telegram and webhook (run by a timer)
+  mailfilter-admin write-lists                 rewrite the allow/block list maps for Rspamd
+  mailfilter-admin quarantine-report [--now]   send the daily quarantine reports when due
 """
 
 from __future__ import annotations
@@ -46,6 +48,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("has-users")
     sub.add_parser("abuse-scan")
     sub.add_parser("notify-check")
+    sub.add_parser("write-lists")
+    qr = sub.add_parser("quarantine-report")
+    qr.add_argument("--now", action="store_true", help="send now, even when not due")
     args = p.parse_args(argv)
 
     if args.cmd == "migrate":
@@ -67,6 +72,23 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == "has-users":
             return 0 if db.execute(select(func.count(User.id))).scalar_one() else 1
+        if args.cmd == "write-lists":
+            from .lists import write_maps
+
+            counts = write_maps(db)
+            print(f"allow: {counts['allow']}, block: {counts['block']}")
+            return 0
+        if args.cmd == "quarantine-report":
+            from .digest import run
+
+            res = run(db, force=args.now)
+            if not res.ran:
+                print(f"not sent: {res.reason}")
+                return 0 if res.reason in ("disabled", "not_due") else 1
+            print(f"sent {res.sent}, skipped {res.skipped} (nothing new), failed {len(res.failed)}")
+            for f in res.failed:
+                print(f"  {f}", file=sys.stderr)
+            return 1 if res.failed else 0
         email = args.email.strip().lower()
         user = db.execute(select(User).where(func.lower(User.email) == email)).scalar_one_or_none()
         password = generate_password()

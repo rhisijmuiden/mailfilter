@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ShellCheck installer
-        run: shellcheck -x -P install -P . install/install.sh install/lib/common.sh install/lib/webapp.sh backend/bin/mf-queuectl install/templates/certbot/deploy-hook.sh install/tests/validate-configs.sh
+        run: shellcheck -x -P install -P . install/install.sh install/lib/common.sh install/lib/webapp.sh backend/bin/mf-queuectl install/templates/certbot/deploy-hook.sh install/tests/validate-configs.sh install/tests/rspamd-lists.sh
       - name: Bash syntax
         run: bash -n install/install.sh
       - name: Helpers work under the installer's strict mode
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate Postfix, Rspamd, Dovecot, unbound, nftables and Caddy configs
-        run: bash install/tests/validate-configs.sh
+        run: bash install/tests/validate-configs.sh install/tests/rspamd-lists.sh
   gateway-config:
     # Domains, relay access and throttling: unit tests, then apply a sample
     # configuration with the real Debian 13 Postfix, Rspamd and nftables
@@ -58,7 +58,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up Postfix and Rspamd from the installer templates
-        run: bash install/tests/validate-configs.sh
+        run: bash install/tests/validate-configs.sh install/tests/rspamd-lists.sh
+      - name: Allow and block lists with the real Rspamd
+        run: bash install/tests/rspamd-lists.sh
       - name: Apply a sample gateway configuration
         run: bash backend/mailfilter_config/tests/integration.sh
       - name: Import a Proxmox Mail Gateway backup
