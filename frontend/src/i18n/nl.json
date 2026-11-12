@@ -4,6 +4,8 @@
     "skip": "Naar inhoud"
   },
   "nav": {
+    "security": "Beveiliging",
+    "audit": "Auditlog",
     "group": {
       "overview": "Overzicht",
       "mail": "Mailverkeer",
@@ -48,6 +50,14 @@
     "refresh": "Vernieuwen"
   },
   "errors": {
+    "bad_code": "Die code klopt niet. Controleer de tijd op je telefoon en probeer het opnieuw.",
+    "challenge_expired": "Het inloggen duurde te lang. Vul je wachtwoord opnieuw in.",
+    "two_factor_already_enabled": "Tweestapsverificatie staat al aan.",
+    "two_factor_not_started": "Start eerst het instellen.",
+    "two_factor_not_enabled": "Tweestapsverificatie staat niet aan.",
+    "two_factor_required_by_policy": "Je beheerder verplicht tweestapsverificatie, dus je kunt het niet uitzetten.",
+    "two_factor_setup_required": "Stel eerst tweestapsverificatie in.",
+    "enable_two_factor_first": "Zet eerst tweestapsverificatie aan voor je eigen account, zodat je jezelf niet buitensluit.",
     "bad_credentials": "E-mailadres of wachtwoord klopt niet.",
     "too_many_attempts": "Te veel pogingen. Wacht 15 minuten en probeer het opnieuw.",
     "wrong_current_password": "Je huidige wachtwoord klopt niet.",
@@ -126,6 +136,13 @@
     "multiple_tlsrpt": "Er staat meer dan één TLS-RPT-record. Verwijder eerst het extra record in Cloudflare."
   },
   "login": {
+    "twofa_title": "Vul je code in",
+    "twofa_sub": "Open je authenticator-app en vul de 6-cijferige code voor Mailfilter in.",
+    "twofa_recovery_sub": "Vul een van je herstelcodes in. Elke code werkt één keer.",
+    "recovery_code": "Herstelcode",
+    "verify": "Controleren",
+    "use_recovery": "Herstelcode gebruiken",
+    "use_app": "Authenticator-app gebruiken",
     "title": "Inloggen",
     "sub": "Log in om mailverkeer, quarantaine en instellingen te beheren.",
     "email": "E-mailadres",
@@ -254,6 +271,11 @@
     "role": "Rol"
   },
   "users": {
+    "twofa": "Tweestapsverificatie",
+    "twofa_reset": "2FA resetten",
+    "twofa_reset_confirm": "Tweestapsverificatie uitzetten voor {{email}}? Deze gebruiker wordt uitgelogd en kan het opnieuw instellen.",
+    "twofa_reset_done": "Tweestapsverificatie is gereset",
+    "twofa_hint": "Reset dit als iemand de telefoon en herstelcodes kwijt is.",
     "title": "Gebruikers",
     "sub": "Beheerders beheren alles. Klanten zien alleen mail van de domeinen die aan hen gekoppeld zijn.",
     "add": "Gebruiker toevoegen",
@@ -1126,5 +1148,8 @@
     "exempt_hint": "IP-adressen of SMTP-accounts, één per regel.",
     "notify": "Ook waarschuwen",
     "notify_hint": "Extra e-mailadressen, één per regel. Beheerders krijgen de melding altijd."
-  }
+  },
+  "twofa": {"title": "Tweestapsverificatie", "on": "Aan", "off": "Uit", "intro": "Beveilig je account met een code uit een authenticator-app (bijvoorbeeld Microsoft Authenticator, Google Authenticator, 1Password of Bitwarden) naast je wachtwoord.", "setup": "Tweestapsverificatie instellen", "step_app": "Installeer een authenticator-app op je telefoon.", "step_scan": "Scan de QR-code met de app, of typ de sleutel over.", "step_code": "Vul de 6-cijferige code in die de app toont.", "qr": "QR-code voor je authenticator-app", "manual": "Lukt scannen niet? Vul deze sleutel in:", "code": "6-cijferige code", "code_or_recovery": "Code uit de app of een herstelcode", "confirm": "Aanzetten", "codes_once": "Bewaar deze herstelcodes op een veilige plek. Met elke code kun je één keer inloggen zonder je telefoon. Ze worden alleen nu getoond.", "codes_file": "Mailfilter herstelcodes. Elke code werkt één keer.", "download": "Downloaden", "codes_saved": "Ik heb ze bewaard", "since": "Aan sinds", "codes_left": "Herstelcodes over", "renew": "Nieuwe herstelcodes", "renew_hint": "Je oude herstelcodes werken dan niet meer. Bevestig met een code uit je app.", "disable": "Uitzetten", "disable_hint": "Bevestig met je wachtwoord en een code uit je app.", "enabled_toast": "Tweestapsverificatie staat aan", "disabled_toast": "Tweestapsverificatie staat uit", "required_notice": "Je beheerder verplicht tweestapsverificatie voor je account.", "required_by_admin": "Verplicht door je beheerder, dus je kunt het niet uitzetten.", "admin_tip": "Alles kwijt? Een andere beheerder kan het resetten bij Gebruikers, of draai mailfilter-admin reset-2fa op de server.", "gate_title": "Tweestapsverificatie instellen", "gate_sub": "Je beheerder verplicht tweestapsverificatie. Stel het in voor {{email}} om verder te gaan."},
+  "security": {"title": "Beveiliging", "sub": "Regels voor het inloggen op Mailfilter.", "require": "Tweestapsverificatie verplichten", "policy_off": "Optioneel", "policy_off_hint": "Iedereen kan het zelf aanzetten bij Mijn account.", "policy_admins": "Verplicht voor beheerders", "policy_admins_hint": "Beheerders moeten het instellen bij de volgende keer inloggen. Klanten kiezen zelf.", "policy_all": "Verplicht voor iedereen", "policy_all_hint": "Elke gebruiker moet het instellen bij de volgende keer inloggen.", "self_first": "Zet eerst tweestapsverificatie aan voor jezelf:", "status": "Status", "with_2fa": "Gebruikers met 2FA", "of": "{{n}} van {{total}}", "missing_one": "1 gebruiker moet het nog instellen bij de volgende keer inloggen:", "missing_other": "{{count}} gebruikers moeten het nog instellen bij de volgende keer inloggen:", "lost_phone": "Is iemand de telefoon kwijt? Reset de tweestapsverificatie bij Gebruikers."},
+  "audit": {"title": "Auditlog", "sub_admin": "Wie wat heeft aangepast, en wanneer.", "sub_customer": "Je eigen acties en de wijzigingen aan je domeinen.", "export": "CSV exporteren", "search": "Zoek op gebruiker, doel, IP of details", "action": "Actie", "all_actions": "Alle acties", "user": "Gebruiker", "all_users": "Alle gebruikers", "domain": "Domein", "all_domains": "Alle domeinen", "period": "Periode", "period_1": "Laatste 24 uur", "period_7": "Laatste 7 dagen", "period_30": "Laatste 30 dagen", "period_90": "Laatste 90 dagen", "period_all": "Alles", "empty": "Geen regels voor deze filters.", "time": "Tijd", "who": "Wie", "what": "Wat", "details": "Details", "system": "Mailfilter (automatisch)", "count": "{{total}} regels · pagina {{page}} van {{pages}}", "prev": "Vorige pagina", "next": "Volgende pagina", "groups": {"login": "Inloggen", "2fa": "Tweestapsverificatie", "user": "Gebruikers", "quarantine": "Quarantaine", "sender": "Gepauzeerde afzenders", "domain": "Domeinen en routering", "relay": "Relaytoegang", "throttling": "Throttling", "dns": "DNS", "backup": "Backups", "system": "Systeem en updates", "pmg_import": "PMG-import", "other": "Overig"}, "actions": {"login": "Ingelogd", "login_failed": "Inloggen mislukt", "login_2fa_failed": "Verkeerde 2FA-code", "password_changed": "Wachtwoord gewijzigd", "2fa_enabled": "2FA aangezet", "2fa_disabled": "2FA uitgezet", "2fa_reset": "2FA gereset", "2fa_recovery_codes_renewed": "Nieuwe herstelcodes", "security_require_2fa": "2FA-verplichting gewijzigd", "user_created": "Gebruiker aangemaakt", "user_updated": "Gebruiker gewijzigd", "user_deleted": "Gebruiker verwijderd", "quarantine_released": "Vrijgegeven uit quarantaine", "quarantine_deleted": "Verwijderd uit quarantaine", "sender_paused": "Afzender gepauzeerd", "sender_released": "Afzender vrijgegeven", "abuse_settings_updated": "Instellingen gehackte afzenders gewijzigd", "domain_created": "Domein toegevoegd", "domain_updated": "Domein gewijzigd", "domain_deleted": "Domein verwijderd", "address_route_added": "Adresroute toegevoegd", "address_route_updated": "Adresroute gewijzigd", "address_route_deleted": "Adresroute verwijderd", "tls_policy_added": "TLS-beleid toegevoegd", "tls_policy_updated": "TLS-beleid gewijzigd", "tls_policy_deleted": "TLS-beleid verwijderd", "gateway_applied": "Configuratie toegepast", "relay_network_added": "Relay-IP toegestaan", "relay_network_updated": "Relay-IP gewijzigd", "relay_network_deleted": "Relay-IP verwijderd", "relay_port_added": "Relaypoort toegevoegd", "relay_port_updated": "Relaypoort gewijzigd", "relay_port_deleted": "Relaypoort verwijderd", "throttling_updated": "Throttling gewijzigd", "dns_publish": "{{kind}}-record gepubliceerd", "dns_undo": "DNS-wijziging teruggedraaid", "dns_mta_sts_policy": "MTA-STS-beleid gewijzigd", "dns_golive": "Live gegaan", "dns_golive_rollback": "Livegang teruggedraaid", "dns_blacklist_check": "Blacklists gecontroleerd", "cloudflare_token_set": "Cloudflare-token ingesteld", "cloudflare_token_removed": "Cloudflare-token verwijderd", "backup_create": "Backup gestart", "backup_config": "Backupinstellingen gewijzigd", "backup_restore": "Backup teruggezet", "backup_delete": "Backup verwijderd", "system_update": "Update gestart", "settings_smtp": "E-mail verzenden gewijzigd", "pmg_import_upload": "PMG-backup geüpload", "pmg_import_apply": "PMG-import toegepast"}, "fields": {"method": "methode", "role": "rol", "domains": "domeinen", "active": "actief", "sender": "afzender", "learned": "geleerd", "reason": "reden", "kind": "soort", "previous": "was", "job": "taak", "via": "via"}}
 }

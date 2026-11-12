@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import twofactor
 from .db import get_db
 from .models import AuthSession, User
 from .security import token_hash
@@ -36,7 +37,19 @@ def current_user(request: Request, db: DB) -> User:
     sess = db.execute(select(AuthSession).where(AuthSession.token_hash == token_hash(token))).scalar_one_or_none()
     if sess is None or sess.expires_at < datetime.now(timezone.utc) or not sess.user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not_logged_in")
-    return sess.user
+    user = sess.user
+    # When 2FA is required but not set up yet, only the setup itself works.
+    if not user.two_factor_enabled and not _setup_allowed(request) and twofactor.required_for(db, user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "two_factor_setup_required")
+    return user
+
+
+_SETUP_PATHS = ("/api/auth/me", "/api/auth/2fa", "/api/system/info")
+
+
+def _setup_allowed(request: Request) -> bool:
+    path = request.url.path.rstrip("/")
+    return any(path == p or path.startswith(p + "/") for p in _SETUP_PATHS)
 
 
 CurrentUser = Annotated[User, Depends(current_user)]

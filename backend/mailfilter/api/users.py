@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
+from .. import twofactor
 from ..audit import audit
 from ..deps import DB, AdminUser
 from ..models import AuthSession, Domain, User
@@ -26,6 +27,7 @@ class UserOut(BaseModel):
     is_active: bool
     domains: list[str]
     last_login_at: datetime | None
+    two_factor_enabled: bool = False
 
 
 class UserIn(BaseModel):
@@ -46,6 +48,7 @@ def out(u: User) -> UserOut:
     return UserOut(
         id=u.id, email=u.email, name=u.name, role=u.role, language=u.language,
         is_active=u.is_active, domains=u.domain_names, last_login_at=u.last_login_at,
+        two_factor_enabled=u.two_factor_enabled,
     )
 
 
@@ -119,3 +122,17 @@ def delete_user(user_id: int, request: Request, admin: AdminUser, db: DB) -> Non
     audit(db, request, admin, "user_deleted", u.email)
     db.delete(u)
     db.commit()
+
+
+@router.post("/{user_id}/2fa/reset", response_model=UserOut)
+def reset_two_factor(user_id: int, request: Request, admin: AdminUser, db: DB) -> UserOut:
+    """For a user who lost their phone and recovery codes: turns 2FA off and logs
+    them out. If 2FA is required they set it up again at the next login."""
+    u = db.get(User, user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    twofactor.disable(u)
+    db.execute(delete(AuthSession).where(AuthSession.user_id == u.id))
+    audit(db, request, admin, "2fa_reset", u.email)
+    db.commit()
+    return out(u)

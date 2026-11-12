@@ -18,6 +18,8 @@ dependencies = [
   "httpx>=0.27",
   # DNS toolbox (mailfilter_dns)
   "dnspython>=2.6",
+  # QR code for setting up two-factor login (pure Python)
+  "segno>=1.6",
 ]
 
 [project.optional-dependencies]

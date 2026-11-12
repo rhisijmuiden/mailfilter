@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import type { Me } from "./lib/auth";
 import Account from "./pages/Account";
+import AuditLog from "./pages/AuditLog";
 import Backups from "./pages/Backups";
 import Dashboard from "./pages/Dashboard";
 import Domains from "./pages/Domains";
@@ -10,6 +11,7 @@ import MailSending from "./pages/MailSending";
 import ImportPmg from "./pages/ImportPmg";
 import Quarantine from "./pages/Quarantine";
 import RelayAccess from "./pages/RelayAccess";
+import Security from "./pages/Security";
 import Throttling from "./pages/Throttling";
 import Trace from "./pages/Trace";
 import Users from "./pages/Users";
@@ -28,5 +30,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/dns", element: () => <Dns />, adminOnly: true },
   { path: "/system/mail", element: () => <MailSending />, adminOnly: true },
   { path: "/system/backups", element: () => <Backups />, adminOnly: true },
+  { path: "/audit", element: (me) => <AuditLog me={me} /> },
+  { path: "/system/security", element: (me) => <Security me={me} />, adminOnly: true },
   { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true },
 ];

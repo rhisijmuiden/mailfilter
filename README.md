@@ -51,7 +51,7 @@ What it sets up:
 
 Configuration that the web app will manage lives in `/etc/mailfilter/`.
 
-At the end the installer prints the web interface login: the admin e-mail address and a generated password (also stored in `/etc/mailfilter/initial-admin-password`). Change it under My account after logging in. Lost the password? `/var/lib/mailfilter/venv/bin/mailfilter-admin set-password you@example.nl` prints a new one.
+At the end the installer prints the web interface login: the admin e-mail address and a generated password (also stored in `/etc/mailfilter/initial-admin-password`). Change it under My account after logging in. Lost the password? `/var/lib/mailfilter/venv/bin/mailfilter-admin set-password you@example.nl` prints a new one. Lost the phone with the authenticator app and the recovery codes? `mailfilter-admin reset-2fa you@example.nl` turns two-factor login off for that account.
 
 ## Develop the web app
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, UserRound } from "lucide-react";
+import { Plus, ShieldCheck, ShieldOff, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, Drawer, ErrorText, Field, Loading, PageHead, formatDate, useToast } from "../components/ui";
@@ -7,9 +7,9 @@ import { api } from "../lib/api";
 
 type User = {
   id: number; email: string; name: string; role: "admin" | "customer"; language: "en" | "nl";
-  is_active: boolean; domains: string[]; last_login_at: string | null;
+  is_active: boolean; domains: string[]; last_login_at: string | null; two_factor_enabled: boolean;
 };
-type Form = Omit<User, "id" | "last_login_at"> & { password: string };
+type Form = Omit<User, "id" | "last_login_at" | "two_factor_enabled"> & { password: string };
 
 const EMPTY: Form = { email: "", name: "", role: "customer", language: "nl", is_active: true, domains: [], password: "" };
 
@@ -41,6 +41,7 @@ export default function Users() {
                   <th>{t("users.email")}</th>
                   <th>{t("users.role")}</th>
                   <th>{t("users.domains")}</th>
+                  <th>{t("users.twofa")}</th>
                   <th>{t("users.last_login")}</th>
                 </tr>
               </thead>
@@ -56,6 +57,13 @@ export default function Users() {
                       {!u.is_active && <span className="status s-bad" style={{ marginLeft: 6 }}>{t("users.inactive")}</span>}
                     </td>
                     <td>{u.role === "admin" ? <span className="muted">{t("users.all_domains")}</span> : u.domains.map((d) => <span key={d} className="tag" style={{ marginRight: 4 }}>{d}</span>)}</td>
+                    <td className="nowrap">
+                      {u.two_factor_enabled ? (
+                        <span className="status s-ok"><ShieldCheck /> {t("twofa.on")}</span>
+                      ) : (
+                        <span className="status s-mute">{t("twofa.off")}</span>
+                      )}
+                    </td>
                     <td className="nowrap muted">{u.last_login_at ? formatDate(u.last_login_at, i18n.language) : t("common.never")}</td>
                   </tr>
                 ))}
@@ -73,7 +81,20 @@ function UserDrawer({ user, onClose }: { user: User | null; onClose: () => void 
   const { t } = useTranslation();
   const qc = useQueryClient();
   const toast = useToast();
-  const [f, setF] = useState<Form>(user ? { ...user, password: "" } : EMPTY);
+  const [f, setF] = useState<Form>(() => {
+    if (!user) return EMPTY;
+    const { id: _id, last_login_at: _l, two_factor_enabled: _t, ...rest } = user;
+    return { ...rest, password: "" };
+  });
+  const [twofa, setTwofa] = useState(user?.two_factor_enabled ?? false);
+  const reset2fa = useMutation({
+    mutationFn: () => api.post<User>(`/users/${user!.id}/2fa/reset`),
+    onSuccess: () => {
+      setTwofa(false);
+      qc.invalidateQueries({ queryKey: ["users"] });
+      toast(t("users.twofa_reset_done"));
+    },
+  });
   const [created, setCreated] = useState<string | null>(null);
   const options = useQuery({ queryKey: ["domain-options"], queryFn: () => api.get<string[]>("/users/domain-options") });
   const body = { ...f, password: f.password || null };
@@ -119,7 +140,7 @@ function UserDrawer({ user, onClose }: { user: User | null; onClose: () => void 
           save.mutate();
         }}
       >
-        <div className="full"><ErrorText error={save.error || del.error} /></div>
+        <div className="full"><ErrorText error={save.error || del.error || reset2fa.error} /></div>
         <Field label={t("users.email")}>
           <input className="input" type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
         </Field>
@@ -159,6 +180,25 @@ function UserDrawer({ user, onClose }: { user: User | null; onClose: () => void 
         <Field label={t("users.password")} hint={user ? t("users.password_keep") : t("users.password_hint")} full>
           <input className="input" type="password" autoComplete="new-password" minLength={10} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
         </Field>
+        {user && (
+          <div className="field full">
+            <span style={{ fontSize: 12.5, fontWeight: 650 }}>{t("users.twofa")}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              {twofa ? <span className="status s-ok"><ShieldCheck /> {t("twofa.on")}</span> : <span className="status s-mute">{t("twofa.off")}</span>}
+              {twofa && (
+                <button
+                  type="button"
+                  className="btn small danger"
+                  disabled={reset2fa.isPending}
+                  onClick={() => window.confirm(t("users.twofa_reset_confirm", { email: user.email })) && reset2fa.mutate()}
+                >
+                  <ShieldOff /> {t("users.twofa_reset")}
+                </button>
+              )}
+            </div>
+            <span className="hint">{t("users.twofa_hint")}</span>
+          </div>
+        )}
         <label className="check full">
           <input type="checkbox" checked={f.is_active} onChange={(e) => setF({ ...f, is_active: e.target.checked })} />
           <span>{t("users.active")}</span>
