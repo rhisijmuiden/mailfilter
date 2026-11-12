@@ -51,6 +51,10 @@ https://{{HOSTNAME}} {
 		root * {{MF_SRC}}/frontend/dist
 		@assets path /assets/* /fonts/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
+		# index.html and theme.js are not fingerprinted: always ask, so an update
+		# shows up right away (unchanged files still come back as 304).
+		@pages not path /assets/* /fonts/*
+		header @pages Cache-Control "no-cache"
 		try_files {path} /index.html
 		file_server
 	}

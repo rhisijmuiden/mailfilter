@@ -309,3 +309,27 @@ def test_scp_with_key_and_pinned_host_key(env, sshd):
         remote.test(**QUIET)
     remote.forget_host_key()
     assert remote.test(**QUIET)["ok"]
+
+
+def test_remote_manifest_cannot_choose_file_names(env, file_remote):
+    """A remote server must not be able to make root write files elsewhere."""
+    remote.set_config({"encrypt": False})
+    b = cli._job_backup(_FakeJob({"type": "full"}))["backup"]
+    mp = file_remote / b["chain"] / "000" / "manifest.json"
+    m = json.loads(mp.read_text())
+    name, meta = next(iter(m["remote_files"].items()))
+    m["remote_files"] = {"../../../../evil": {**meta, "source": "../../../../evil"}}
+    mp.write_text(json.dumps(m))
+    shutil.rmtree(backup.location())
+    with pytest.raises(CtlError, match="unexpected manifest"):
+        remote.fetch(b["id"], **QUIET)
+    assert not list(env.parent.rglob("evil"))
+
+
+def test_unencrypted_remote_refused_when_encryption_is_on(env, file_remote):
+    remote.set_config({"encrypt": False})
+    b = cli._job_backup(_FakeJob({"type": "full"}))["backup"]
+    remote.set_config({"encrypt": True})
+    shutil.rmtree(backup.location())
+    with pytest.raises(CtlError, match="not encrypted"):
+        remote.fetch(b["id"], **QUIET)
