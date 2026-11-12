@@ -78,8 +78,12 @@ smtpd_tls_mandatory_ciphers = high
 tls_preempt_cipherlist = no
 smtpd_tls_session_cache_database = lmdb:${data_directory}/smtpd_scache
 
-# TLS for outgoing connections
-smtp_tls_security_level = may
+# TLS for outgoing connections. "dane": where the receiving domain publishes
+# TLSA records in DNSSEC-signed zones, encryption with that certificate is
+# required; everywhere else this is the same as "may". Needs the validating
+# local resolver (unbound).
+smtp_tls_security_level = dane
+smtp_dns_support_level = dnssec
 smtp_tls_loglevel = 1
 smtp_tls_protocols = >=TLSv1.2
 smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt

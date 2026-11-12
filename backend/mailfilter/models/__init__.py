@@ -2,8 +2,8 @@
 so Alembic sees every table."""
 
 from .core import AppSetting, AuditLog, AuthSession, Domain, User, user_domain
-from .gateway import AddressRoute, DestinationPolicy, DomainDestination, DomainRoute, RelayNetwork, RelayPort, TlsPolicy
+from .gateway import AddressRoute, DestinationPolicy, OutboundHold, DomainDestination, DomainRoute, RelayNetwork, RelayPort, TlsPolicy
 from .trace import QuarantineAction, TraceMessage, TraceRecipient
 
 __all__ = ["AppSetting", "AuditLog", "AuthSession", "Domain", "User", "user_domain", "QuarantineAction", "TraceMessage", "TraceRecipient",
-           "AddressRoute", "DestinationPolicy", "DomainDestination", "DomainRoute", "RelayNetwork", "RelayPort", "TlsPolicy"]
+           "AddressRoute", "DestinationPolicy", "OutboundHold", "DomainDestination", "DomainRoute", "RelayNetwork", "RelayPort", "TlsPolicy"]
