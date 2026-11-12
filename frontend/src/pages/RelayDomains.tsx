@@ -1,7 +1,7 @@
 // Relay domains: outbound only. Mailfilter accepts no mail for them and has no
 // mail server to deliver to; it signs their outgoing mail with DKIM and shows
 // the SPF, DKIM and DMARC records they need (published through the DNS toolbox).
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsFetching, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Check, Cloud, Copy, Inbox, KeyRound, Plus, RefreshCw, Send, Server, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -58,6 +58,8 @@ function useCheck(domain: string, enabled = true) {
     queryKey: ["dns-check", domain],
     queryFn: () => api.get<CheckResult>(`/dns/check/${enc(domain)}`),
     enabled, staleTime: 5 * 60_000, retry: false,
+    // Just published: look again every 20 seconds until DNS shows it.
+    refetchInterval: (q) => (q.state.data?.items.some((i) => i.status === "pending") ? 20_000 : false),
   });
 }
 
@@ -77,8 +79,19 @@ function DnsCells({ domain }: { domain: string }) {
 
 export function RelayTable({ domains, admin, onOpen }: { domains: DomainRow[]; admin: boolean; onOpen: (d: DomainRow) => void }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
+  const checking = useIsFetching({ queryKey: ["dns-check"] }) > 0;
   if (!domains.length) return <div className="empty">{t("relaydom.empty")}</div>;
   return (
+    <>
+    {admin && (
+      <div className="filters" style={{ justifyContent: "flex-end" }}>
+        <span className="muted" style={{ fontSize: 12.5, marginRight: "auto" }}>{t("relaydom.auto_check")}</span>
+        <button type="button" className="btn small" disabled={checking} onClick={() => qc.invalidateQueries({ queryKey: ["dns-check"] })}>
+          <RefreshCw /> {checking ? t("relaydom.checking") : t("relaydom.check_now")}
+        </button>
+      </div>
+    )}
     <div className="tbl-wrap">
       <table>
         <thead>
@@ -114,6 +127,7 @@ export function RelayTable({ domains, admin, onOpen }: { domains: DomainRow[]; a
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

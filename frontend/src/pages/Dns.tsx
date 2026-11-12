@@ -136,7 +136,11 @@ function CheckTab() {
   const [params, setParams] = useSearchParams();
   const server = useServer();
   const domain = params.get("domain") ?? server.data?.domains[0] ?? "";
-  const q = useQuery({ queryKey: ["dns-check", domain], queryFn: () => api.get<CheckResult>(`/dns/check/${encodeURIComponent(domain)}`), enabled: !!domain });
+  const q = useQuery({
+    queryKey: ["dns-check", domain], queryFn: () => api.get<CheckResult>(`/dns/check/${encodeURIComponent(domain)}`), enabled: !!domain,
+    // Just published: look again every 20 seconds until DNS shows it.
+    refetchInterval: (qq) => (qq.state.data?.items.some((i) => i.status === "pending") ? 20_000 : false),
+  });
   const [publish, setPublish] = useState<{ kind: PublishKind; value?: string } | null>(null);
   const kindFor: Record<string, PublishKind> = { spf: "spf", dkim: "dkim", dmarc: "dmarc", dane: "tlsa" };
   const tlsItems = ["mta_sts", "tls_rpt", "dane"];

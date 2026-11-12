@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from mailfilter_dns import blacklist, dkim, dmarc, domaincheck, golive, lookup, publish, spf, tlssec
 from mailfilter_dns.cloudflare import Cloudflare, CloudflareError
 from mailfilter_dns.config import ServerConfig, relay_domains
-from mailfilter_dns.resolver import DnsError, DnsResolver, Resolver, norm
+from mailfilter_dns.resolver import DnsError, DnsResolver, FreshTxt, Resolver, norm
 
 from ..audit import audit
 from ..deps import DB, AdminUser, CurrentUser
@@ -214,7 +214,9 @@ def _cloudflare_view(cf: Cloudflare, d: str, items: list[dict]) -> None:
 def check(domain: str, _: AdminUser, db: DB) -> dict:
     d = _domain(domain)
     server = get_server()
-    out = domaincheck.check_domain(d, server, get_resolver(), fetch_policy=fetch_sts_policy,
+    # The domain's own records come from its authoritative name servers, so a record
+    # published a minute ago is not hidden by a cached "does not exist".
+    out = domaincheck.check_domain(d, server, FreshTxt(get_resolver(), d), fetch_policy=fetch_sts_policy,
                                    tlsa_expected=local_tlsa(server.hostname)).to_dict()
     out["managed"] = d in relay_domains()
     out["golive"] = golive.state(d)
