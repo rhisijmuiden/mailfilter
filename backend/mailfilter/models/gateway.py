@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
@@ -101,3 +102,21 @@ class TlsPolicy(Base):
     destination: Mapped[str] = mapped_column(String(260), unique=True)
     level: Mapped[str] = mapped_column(String(10), default="encrypt")
     note: Mapped[str] = mapped_column(Text, default="")
+
+
+class OutboundHold(Base):
+    """A paused sender (one IP address or SMTP account). While active, its mail is
+    accepted but kept in Postfix's hold queue until an admin releases it."""
+
+    __tablename__ = "outbound_hold"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10))  # ip or account
+    value: Mapped[str] = mapped_column(String(320))
+    reason: Mapped[str] = mapped_column(String(40))  # spam, volume, manual
+    detail: Mapped[dict] = mapped_column(JSONB, default=dict)
+    automatic: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    released_by: Mapped[int | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True)
+    # After a release the detector leaves this sender alone until then.
+    quiet_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

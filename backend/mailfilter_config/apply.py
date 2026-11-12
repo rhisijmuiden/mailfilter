@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Callable, Sequence
 
 from .model import GatewayConfig
-from .render import MANAGED_PARAM_PREFIXES, render, splice_master_cf
+from .render import MANAGED_PARAM_PREFIXES, MANAGED_PARAMS, render, splice_master_cf
 from .validate import check
 
 STATE_FILE = "/etc/mailfilter/gateway.json"
@@ -124,7 +124,7 @@ class Applier:
         params = {}
         for line in out.splitlines():
             name, _, value = line.partition(" = ")
-            if name.startswith(MANAGED_PARAM_PREFIXES):
+            if name.startswith(MANAGED_PARAM_PREFIXES) or name in MANAGED_PARAMS:
                 params[name] = value
         return params
 

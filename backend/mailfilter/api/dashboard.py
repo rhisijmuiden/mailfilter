@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_, case, exists, func, literal, or_, select
 
 from ..deps import DB, CurrentUser
-from ..models import TraceMessage, TraceRecipient
+from ..models import OutboundHold, TraceMessage, TraceRecipient
 from ..queuectl import QueueError, summary
 from ..settings import get_settings
 from .trace import scope
@@ -199,6 +199,13 @@ def alerts(db, user, now: datetime, queue: dict[str, int] | None) -> list[Alert]
         down = services_down()
         if down:
             out.append(Alert(level="critical", code="services_down", params={"services": ", ".join(down)}))
+
+    if user.is_admin:
+        paused = list(db.execute(select(OutboundHold.value).where(OutboundHold.released_at.is_(None))
+                                 .order_by(OutboundHold.created_at.desc())).scalars())
+        if paused:
+            out.append(Alert(level="critical", code="paused_senders",
+                             params={"count": len(paused), "senders": ", ".join(paused[:3])}, link="/relay"))
 
     held = db.execute(scope(select(func.count()).select_from(TraceMessage).where(
         TraceMessage.status == "quarantined", TraceMessage.done.is_(False)), user)).scalar_one()

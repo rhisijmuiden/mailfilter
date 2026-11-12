@@ -43,3 +43,20 @@ export function describeDestination(d: Destination): string {
   const host = d.host.includes(":") ? `[${d.host}]` : d.host;
   return `${d.protocol === "lmtp" ? "LMTP " : ""}${host}:${d.port}${d.mx ? " (MX)" : ""}`;
 }
+
+export type Hold = {
+  id: number;
+  kind: "ip" | "account";
+  value: string;
+  reason: "spam" | "volume" | "manual";
+  detail: { total?: number; spam?: number; minutes?: number; usual?: number };
+  automatic: boolean;
+  created_at: string;
+  released_at: string | null;
+  released_by: string | null;
+  held_messages: number;
+};
+export type AbuseSettings = {
+  enabled: boolean; window_minutes: number; spam_min: number; spam_percent: number; volume_min: number;
+  volume_factor: number; quiet_hours: number; exempt: string[]; notify: string[];
+};

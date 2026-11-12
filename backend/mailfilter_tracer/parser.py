@@ -31,6 +31,10 @@ _POSTFIX = [
     ("hold", re.compile(
         QID + r": milter-hold: END-OF-MESSAGE from [^:]+: (?P<reply>.*?);"
         r" from=<(?P<sender>[^>]*)> to=<(?P<to>[^>]*)>")),
+    # Postfix access-map HOLD (no milter- prefix): Mailfilter pausing a relay IP or SMTP account
+    ("access_hold", re.compile(
+        QID + r": hold: END-OF-MESSAGE from " + HOSTIP + r": (?P<reply>.*?);"
+        r" from=<(?P<sender>[^>]*)> to=<(?P<to>[^>]*)>")),
     ("milter_reject", re.compile(
         QID + r": milter-reject: (?:END-OF-MESSAGE|RCPT|MAIL|DATA) from " + HOSTIP + r": "
         r"(?P<code>\d{3}) (?P<dsn>\d\.\d{1,3}\.\d{1,3}) (?P<reply>.*?);"

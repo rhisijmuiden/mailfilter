@@ -228,6 +228,32 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
         pol_seen.add(name)
         _check_queue(add, f"{f}.queue", p.queue)
 
+    # ---- paused senders ------------------------------------------------------
+    holds_seen = set()
+    for i, h in enumerate(cfg.holds):
+        f = f"holds[{i}]"
+        h.value = (h.value or "").strip().lower()
+        h.reason = re.sub(r"[^\w .,:;()/@+-]", "", h.reason or "")[:200]
+        if h.kind == "ip":
+            ip = _ip(h.value)
+            if ip is None:
+                add(f"{f}.value", "hold_invalid", f"'{h.value}' is not an IP address.", f"'{h.value}' is geen IP-adres.")
+                continue
+            if ip.is_loopback or ip.is_unspecified:
+                add(f"{f}.value", "hold_local",
+                    "The Mailfilter's own address cannot be paused (its alerts would stop too).",
+                    "Het eigen adres van de Mailfilter kan niet gepauzeerd worden (de meldingen zouden ook stoppen).")
+            h.value = str(ip)
+        elif h.kind == "account":
+            if not re.fullmatch(r"[^\s:#]{1,320}", h.value):
+                add(f"{f}.value", "hold_invalid", f"'{h.value}' is not an SMTP account name.",
+                    f"'{h.value}' is geen SMTP-accountnaam.")
+        else:
+            add(f"{f}.kind", "hold_invalid", "Unknown kind of sender.", "Onbekend soort afzender.")
+        if (h.kind, h.value) in holds_seen:
+            add(f"{f}.value", "hold_duplicate", f"{h.value} is already paused.", f"{h.value} is al gepauzeerd.")
+        holds_seen.add((h.kind, h.value))
+
     dft = cfg.defaults
     for attr in ("relay_ip_per_minute", "relay_ip_per_hour", "domain_per_hour", "domain_per_day",
                  "user_per_hour", "concurrency"):

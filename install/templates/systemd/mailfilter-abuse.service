@@ -1,0 +1,18 @@
+[Unit]
+Description=Mailfilter: pause senders that suddenly send spam or a flood of mail
+Documentation=https://github.com/rhisijmuiden/mailfilter
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=mailfilter
+Group=mailfilter
+WorkingDirectory=/var/lib/mailfilter
+ExecStart=/var/lib/mailfilter/venv/bin/mailfilter-admin abuse-scan
+# No NoNewPrivileges: pausing a sender applies the change through the same
+# "sudo systemd-run ... mailfilter-config apply" command as the web app.
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/mailfilter
+Nice=5

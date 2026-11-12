@@ -20,8 +20,16 @@ class FakeCloudflare:
         for r in records or []:
             self.add(r)
 
+    @staticmethod
+    def _content(r: dict) -> dict:
+        # Like the real API: TLSA is sent as data and also returned as content
+        if r.get("type") == "TLSA" and isinstance(r.get("data"), dict) and "content" not in r:
+            x = r["data"]
+            r = {**r, "content": f"{x['usage']} {x['selector']} {x['matching_type']} {x['certificate']}"}
+        return r
+
     def add(self, r: dict) -> dict:
-        rec = {"id": uuid.uuid4().hex, "ttl": 1, **r}
+        rec = {"id": uuid.uuid4().hex, "ttl": 1, **self._content(r)}
         zone = next(zid for zid, name in self.zones.items() if rec["name"] == name or rec["name"].endswith("." + name))
         rec["zone_id"] = zone
         self.records[rec["id"]] = rec
@@ -63,14 +71,14 @@ class FakeCloudflare:
                       and (not q.get("name.exact") or r["name"] == q["name.exact"]) and (not q.get("type") or r["type"] == q["type"])]
                 return self._ok(rs, {"page": 1, "total_pages": 1})
             if req.method == "POST":
-                new = json.loads(req.content)
+                new = self._content(json.loads(req.content))
                 for r in self.records.values():
                     if r["zone_id"] == zid and r["type"] == new["type"] and r["name"] == new["name"] and r["content"] == new["content"]:
                         return httpx.Response(400, json={"success": False, "errors": [{"code": 81058, "message": "An identical record already exists."}]})
                 return self._ok(self.add(new))
             rid = parts[3]
             if req.method == "PUT":
-                rec = {**json.loads(req.content), "id": rid, "zone_id": zid}
+                rec = {**self._content(json.loads(req.content)), "id": rid, "zone_id": zid}
                 self.records[rid] = rec
                 return self._ok(rec)
             if req.method == "DELETE":

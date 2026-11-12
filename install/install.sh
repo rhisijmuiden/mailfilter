@@ -233,8 +233,14 @@ else
   render "$TPL/caddy/Caddyfile.acme" /etc/caddy/Caddyfile
   run systemctl restart caddy
   run certbot certonly --webroot -w /var/www/acme -d "$HOSTNAME_FQDN" \
-      --email "$ADMIN_EMAIL" --agree-tos --no-eff-email --non-interactive --key-type ecdsa
+      --email "$ADMIN_EMAIL" --agree-tos --no-eff-email --non-interactive --key-type ecdsa --reuse-key
   ok "Certificate issued for $HOSTNAME_FQDN"
+fi
+# DANE: the TLSA record holds the hash of the key, so renewals must keep the same key
+RENEWAL=/etc/letsencrypt/renewal/$HOSTNAME_FQDN.conf
+if [[ -f $RENEWAL ]] && ! grep -q '^reuse_key *= *True' "$RENEWAL"; then
+  sed -i '/^reuse_key/d; /^\[renewalparams\]/a reuse_key = True' "$RENEWAL"
+  ok "Certificate renewals keep the same key (needed for DANE)"
 fi
 install -D -m 0755 "$TPL/certbot/deploy-hook.sh" /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh
 if [[ -d /etc/letsencrypt/live ]]; then /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh 2>/dev/null || true; fi
@@ -435,7 +441,7 @@ ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minu
 # ---------------------------------------------------------------------------
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer; do
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
