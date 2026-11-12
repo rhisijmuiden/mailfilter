@@ -223,7 +223,10 @@
     "a_services_down_sub": "Mail may not be filtered or delivered. Restart the service or run the installer again.",
     "a_quarantine": "{{count}} message(s) waiting in quarantine",
     "a_quarantine_sub": "Release what is good mail, block the rest.",
-    "chart_note": "\"Refused\" means the address does not exist or the sender may not relay. Spam stopped includes quarantine and blocklisted senders."
+    "chart_note": "\"Refused\" means the address does not exist or the sender may not relay. Spam stopped includes quarantine and blocklisted senders.",
+    "a_paused_senders_one": "{{senders}} has been paused",
+    "a_paused_senders_other": "{{count}} senders have been paused",
+    "a_paused_senders_sub": "Sent spam or far more mail than usual. Their mail is on hold. Check them and release them under Relay access."
   },
   "account": {
     "title": "My account",
@@ -1012,5 +1015,50 @@
     "done_toast": "Imported",
     "failed": "Import not done, nothing was changed",
     "nothing_new": "Nothing new to import."
+  },
+  "holds": {
+    "paused_title": "{{value}} is paused",
+    "why_spam": "{{spam}} of {{total}} messages in {{minutes}} minutes were spam",
+    "why_volume": "{{total}} messages in {{minutes}} minutes, usually about {{usual}}",
+    "why_manual": "Paused by an administrator",
+    "held_count_one": "{{count}} message is on hold, nothing has been lost or sent.",
+    "held_count_other": "{{count}} messages are on hold, nothing has been lost or sent.",
+    "since": "Since {{when}}.",
+    "release": "Release",
+    "ask_admin": "Ask your administrator to release it",
+    "recent": "Released in the last 7 days",
+    "released_by": "Released by {{who}} on {{when}}",
+    "release_title": "Release {{value}}",
+    "release_text": "Only do this once the website, server or mailbox is safe again (password changed, hole fixed). New mail goes out normally again. What should happen to the mail that was held?",
+    "release_deliver": "Release and send held mail",
+    "release_delete": "Release and delete held mail",
+    "released_delivered": "{{value}} released, {{count}} held messages sent",
+    "released_deleted": "{{value}} released, {{count}} held messages deleted",
+    "pause": "Pause this sender",
+    "pause_confirm": "Pause {{value}}? Its mail is kept on hold until you release it.",
+    "paused_toast": "{{value}} paused"
+  },
+  "protection": {
+    "title": "Automatic protection",
+    "sub": "Every minute Mailfilter checks the outgoing mail of each sending server and SMTP account. A sender that suddenly sends spam or far more mail than usual (a hacked website or mailbox) is paused: its mail is kept on hold, administrators get an e-mail, and you release it under Relay access.",
+    "saved": "Protection settings saved",
+    "enabled": "Pause senders automatically",
+    "enabled_hint": "Off: nothing is paused automatically (you can still pause by hand).",
+    "window_minutes": "Look back (minutes)",
+    "window_minutes_hint": "How many minutes of mail are checked each time.",
+    "spam_min": "Spam: at least this many messages",
+    "spam_min_hint": "A few spam messages are normal; a hacked sender sends many.",
+    "spam_percent": "Spam: at least this share (%)",
+    "spam_percent_hint": "And at least this share of all its mail must be spam.",
+    "volume_min": "Volume: at least this many messages",
+    "volume_min_hint": "Small senders are never paused for volume.",
+    "volume_factor": "Volume: times the usual amount",
+    "volume_factor_hint": "Compared with the average of the last 7 days.",
+    "quiet_hours": "Leave alone after a release (hours)",
+    "quiet_hours_hint": "So a sender you just released is not paused again straight away.",
+    "exempt": "Never pause",
+    "exempt_hint": "IP addresses or SMTP accounts, one per line.",
+    "notify": "Also alert",
+    "notify_hint": "Extra e-mail addresses, one per line. Administrators always get the alert."
   }
 }

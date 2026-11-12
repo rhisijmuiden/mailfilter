@@ -223,7 +223,10 @@
     "a_services_down_sub": "Mail wordt mogelijk niet gefilterd of afgeleverd. Herstart de dienst of draai de installer opnieuw.",
     "a_quarantine": "{{count}} bericht(en) wachten in quarantaine",
     "a_quarantine_sub": "Geef goede mail vrij, blokkeer de rest.",
-    "chart_note": "\"Geweigerd\" betekent dat het adres niet bestaat of de afzender niet mag relayen. Spam tegengehouden telt ook quarantaine en afzenders op een blokkeerlijst mee."
+    "chart_note": "\"Geweigerd\" betekent dat het adres niet bestaat of de afzender niet mag relayen. Spam tegengehouden telt ook quarantaine en afzenders op een blokkeerlijst mee.",
+    "a_paused_senders_one": "{{senders}} is gepauzeerd",
+    "a_paused_senders_other": "{{count}} afzenders zijn gepauzeerd",
+    "a_paused_senders_sub": "Verstuurden spam of veel meer mail dan normaal. Hun mail wordt vastgehouden. Controleer ze en geef ze vrij onder Relaytoegang."
   },
   "account": {
     "title": "Mijn account",
@@ -1012,5 +1015,50 @@
     "done_toast": "Geïmporteerd",
     "failed": "Import niet uitgevoerd, er is niets veranderd",
     "nothing_new": "Niets nieuws om te importeren."
+  },
+  "holds": {
+    "paused_title": "{{value}} is gepauzeerd",
+    "why_spam": "{{spam}} van {{total}} berichten in {{minutes}} minuten waren spam",
+    "why_volume": "{{total}} berichten in {{minutes}} minuten, normaal ongeveer {{usual}}",
+    "why_manual": "Gepauzeerd door een beheerder",
+    "held_count_one": "{{count}} bericht wordt vastgehouden, er is niets verloren of verstuurd.",
+    "held_count_other": "{{count}} berichten worden vastgehouden, er is niets verloren of verstuurd.",
+    "since": "Sinds {{when}}.",
+    "release": "Vrijgeven",
+    "ask_admin": "Vraag je beheerder om hem vrij te geven",
+    "recent": "Vrijgegeven in de afgelopen 7 dagen",
+    "released_by": "Vrijgegeven door {{who}} op {{when}}",
+    "release_title": "{{value}} vrijgeven",
+    "release_text": "Doe dit pas als de website, server of mailbox weer veilig is (wachtwoord gewijzigd, lek gedicht). Nieuwe mail gaat daarna weer normaal de deur uit. Wat moet er gebeuren met de mail die is vastgehouden?",
+    "release_deliver": "Vrijgeven en vastgehouden mail versturen",
+    "release_delete": "Vrijgeven en vastgehouden mail verwijderen",
+    "released_delivered": "{{value}} vrijgegeven, {{count}} vastgehouden berichten verstuurd",
+    "released_deleted": "{{value}} vrijgegeven, {{count}} vastgehouden berichten verwijderd",
+    "pause": "Deze afzender pauzeren",
+    "pause_confirm": "{{value}} pauzeren? De mail wordt vastgehouden tot je hem vrijgeeft.",
+    "paused_toast": "{{value}} gepauzeerd"
+  },
+  "protection": {
+    "title": "Automatische bescherming",
+    "sub": "Elke minuut controleert Mailfilter de uitgaande mail van elke verzendende server en elk SMTP-account. Een afzender die ineens spam of veel meer mail dan normaal verstuurt (een gehackte website of mailbox) wordt gepauzeerd: de mail wordt vastgehouden, beheerders krijgen een e-mail en je geeft hem vrij onder Relaytoegang.",
+    "saved": "Beschermingsinstellingen opgeslagen",
+    "enabled": "Afzenders automatisch pauzeren",
+    "enabled_hint": "Uit: er wordt niets automatisch gepauzeerd (handmatig pauzeren kan nog wel).",
+    "window_minutes": "Terugkijken (minuten)",
+    "window_minutes_hint": "Hoeveel minuten mail er elke keer wordt bekeken.",
+    "spam_min": "Spam: minstens zoveel berichten",
+    "spam_min_hint": "Een paar spamberichten is normaal; een gehackte afzender stuurt er veel.",
+    "spam_percent": "Spam: minstens dit deel (%)",
+    "spam_percent_hint": "En minstens dit deel van al zijn mail moet spam zijn.",
+    "volume_min": "Volume: minstens zoveel berichten",
+    "volume_min_hint": "Kleine afzenders worden nooit om volume gepauzeerd.",
+    "volume_factor": "Volume: keer de normale hoeveelheid",
+    "volume_factor_hint": "Vergeleken met het gemiddelde van de afgelopen 7 dagen.",
+    "quiet_hours": "Met rust laten na vrijgeven (uren)",
+    "quiet_hours_hint": "Zodat een afzender die je net vrijgaf niet meteen weer wordt gepauzeerd.",
+    "exempt": "Nooit pauzeren",
+    "exempt_hint": "IP-adressen of SMTP-accounts, één per regel.",
+    "notify": "Ook waarschuwen",
+    "notify_hint": "Extra e-mailadressen, één per regel. Beheerders krijgen de melding altijd."
   }
 }

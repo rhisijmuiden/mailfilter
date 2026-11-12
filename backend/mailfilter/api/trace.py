@@ -18,7 +18,7 @@ from ..settings import get_settings
 router = APIRouter(prefix="/trace", tags=["trace"])
 
 PROBLEM = ("bounced", "partly_delivered", "rejected", "deferred")
-StatusFilter = Literal["all", "delivered", "problem", "quarantined", "deferred", "bounced", "rejected", "queued"]
+StatusFilter = Literal["all", "delivered", "problem", "quarantined", "deferred", "bounced", "rejected", "queued", "held"]
 
 
 class Explanation(BaseModel):
