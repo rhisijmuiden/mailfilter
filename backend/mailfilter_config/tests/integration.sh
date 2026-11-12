@@ -295,10 +295,10 @@ check "mail is stored in the Mailtrap mailbox" bash -c 'for _ in $(seq 1 30); do
   [ "$(stat -c %U "$f")" = mailfilter ]'
 check "nothing left in the queue (never sent on)" bash -c 'for _ in $(seq 1 10); do postqueue -j | grep -q . || exit 0; sleep 1; done; postqueue -p; exit 1'
 # Dovecot for real: log in over IMAPS with the mailbox login and read the caught mail
-pkill -x dovecot 2>/dev/null || true
+doveadm stop >/dev/null 2>&1 || pkill -x dovecot 2>/dev/null || true
 sleep 1
 dovecot -F -o log_path=/dev/stderr >/tmp/dovecot-trap.log 2>&1 &
-imap_read() { python3 - <<'PY' || { cat /tmp/dovecot-trap.log; exit 1; }
+imap_read() { python3 - <<'PY' || { cat /tmp/dovecot-trap.log; return 1; }
 import imaplib, ssl, sys, time
 ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
 for _ in range(20):
