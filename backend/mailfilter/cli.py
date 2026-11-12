@@ -9,6 +9,7 @@
   mailfilter-admin notify-check                send alerts by e-mail, Telegram and webhook (run by a timer)
   mailfilter-admin write-lists                 rewrite the allow/block list maps for Rspamd
   mailfilter-admin quarantine-report [--now]   send the daily quarantine reports when due
+  mailfilter-admin monthly-report [--now]      store last month's numbers and send the monthly reports when due
   mailfilter-admin cluster-sync                exchange configuration with the other cluster nodes (timer)
   mailfilter-admin cluster-leave               take this server out of its cluster (keeps its configuration)
 """
@@ -59,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("gateway-apply", help="write the gateway configuration again from the database")
     qr = sub.add_parser("quarantine-report")
     qr.add_argument("--now", action="store_true", help="send now, even when not due")
+    mr = sub.add_parser("monthly-report")
+    mr.add_argument("--now", action="store_true", help="send last month's reports now, even when not due")
     sub.add_parser("cluster-sync")
     sub.add_parser("cluster-leave")
     args = p.parse_args(argv)
@@ -125,6 +128,19 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"not sent: {res.reason}")
                 return 0 if res.reason in ("disabled", "not_due") else 1
             print(f"sent {res.sent}, skipped {res.skipped} (nothing new), failed {len(res.failed)}")
+            for f in res.failed:
+                print(f"  {f}", file=sys.stderr)
+            return 1 if res.failed else 0
+        if args.cmd == "monthly-report":
+            from .monthly import run as monthly_run
+
+            res = monthly_run(db, force=args.now)
+            for m in res.stored:
+                print(f"stored the numbers of {m}")
+            if not res.ran:
+                print(f"not sent: {res.reason}")
+                return 0
+            print(f"report {res.month}: sent {res.sent}, skipped {res.skipped} (switched off or no domains), failed {len(res.failed)}")
             for f in res.failed:
                 print(f"  {f}", file=sys.stderr)
             return 1 if res.failed else 0
