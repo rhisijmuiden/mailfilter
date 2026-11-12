@@ -9,7 +9,9 @@ RULES and code in the Lua file.
 """
 from __future__ import annotations
 
+import copy
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,10 @@ from typing import Any
 LUA_PATH = "/etc/rspamd/lua.local.d/mailfilter_rules.lua"
 SETTINGS_PATH = "/etc/rspamd/mailfilter_rules.json"
 LUA_SOURCE = Path(__file__).with_name("rspamd") / "mailfilter_rules.lua"
+PROTECTION_LUA_PATH = "/etc/rspamd/lua.local.d/mailfilter_protection.lua"
+PROTECTION_LUA_SOURCE = Path(__file__).with_name("rspamd") / "mailfilter_protection.lua"
+ARC_CONF_PATH = "/etc/rspamd/local.d/arc.conf"
+ARC_TRUSTED_MAP = "/etc/mailfilter/rspamd/arc_trusted.map"
 
 
 @dataclass
@@ -32,7 +38,9 @@ def _t(en: str, nl: str) -> dict[str, str]:
     return {"en": en, "nl": nl}
 
 
-# Option types: "score" (number 0-20), "bool", "text".
+# Option types: "score" (number 0-20), "bool", "text", "choice" (one of
+# "choices"), "list" (strings of kind "item": extension, domain or name).
+# A rule with "per_domain": False only has the global switch.
 RULES: list[dict[str, Any]] = [
     {
         "id": "newsletter_header",
@@ -158,12 +166,51 @@ RULES: list[dict[str, Any]] = [
     },
 ]
 
+from .rules_protection import PROTECTION_RULES  # noqa: E402
+
+RULES += PROTECTION_RULES
+for _r in RULES:
+    _r.setdefault("per_domain", True)
 BY_ID = {r["id"]: r for r in RULES}
+
+_DOMAIN_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$")
+_EXT_RE = re.compile(r"^[a-z0-9_-]{1,12}$")
+
+
+def _list_problem(spec: dict, value: Any) -> tuple[list[str], tuple[str, str, str] | None]:
+    """Normalised list + (code, en, nl) of the first problem."""
+    if isinstance(value, str):
+        value = re.split(r"[,;\n]+", value)
+    if not isinstance(value, (list, tuple)):
+        return [], ("rule_list", "Expected a list.", "Verwacht een lijst.")
+    out: list[str] = []
+    kind = spec.get("item", "name")
+    for raw in value:
+        item = " ".join(str(raw or "").split())
+        if kind == "extension":
+            item = item.lower().lstrip("*").lstrip(".")
+        elif kind == "domain":
+            item = item.lower().rstrip(".").removeprefix("@")
+        if not item or item in out:
+            continue
+        if kind == "extension" and not _EXT_RE.match(item):
+            return out, ("rule_list_item", f"'{item}' is not a file type (for example exe).",
+                         f"'{item}' is geen bestandstype (bijvoorbeeld exe).")
+        if kind == "domain" and not _DOMAIN_RE.match(item):
+            return out, ("rule_list_item", f"'{item}' is not a domain name.", f"'{item}' is geen domeinnaam.")
+        if kind == "name" and not 2 <= len(item) <= 80:
+            return out, ("rule_list_item", f"'{item}': a name has 2 to 80 characters.",
+                         f"'{item}': een naam heeft 2 tot 80 tekens.")
+        out.append(item)
+    if len(out) > spec.get("max_items", 100):
+        return out, ("rule_list_long", f"At most {spec.get('max_items', 100)} entries.",
+                     f"Maximaal {spec.get('max_items', 100)} regels.")
+    return out, None
 
 
 def default_rule(rule_id: str) -> CustomRule:
     r = BY_ID[rule_id]
-    return CustomRule(enabled=r["default"], options={o["id"]: o["default"] for o in r["options"]})
+    return CustomRule(enabled=r["default"], options={o["id"]: copy.deepcopy(o["default"]) for o in r["options"]})
 
 
 def effective(chosen: dict[str, CustomRule]) -> dict[str, CustomRule]:
@@ -217,20 +264,69 @@ def problems(chosen: dict[str, CustomRule], known_domains: set[str]) -> list[tup
                     out.append((fld, "rule_text_long", f"At most {spec.get('max_length', 80)} characters.",
                                 f"Maximaal {spec.get('max_length', 80)} tekens."))
                 rule.options[key] = text
+            elif spec["type"] == "choice":
+                if value not in {c["id"] for c in spec["choices"]}:
+                    out.append((fld, "rule_choice", "Choose one of the options.", "Kies een van de mogelijkheden."))
+            elif spec["type"] == "list":
+                items, problem = _list_problem(spec, value)
+                if problem:
+                    out.append((fld, *problem))
+                rule.options[key] = items
         # Choices for a domain that was removed are dropped, so removing a domain never fails here.
         rule.domains = {d: bool(v) for d, v in ((k.strip().lower().rstrip("."), v) for k, v in rule.domains.items())
-                        if d in known_domains}
+                        if d in known_domains and BY_ID[rid]["per_domain"]}
     return out
 
 
+def render_arc(rules: dict[str, CustomRule]) -> dict[str, str]:
+    """Rspamd's own ARC module: always checks seals; sealing and trust follow the rules."""
+    trusted, out_seal, in_seal = (rules["arc_trusted_forwarders"], rules["arc_seal_outbound"],
+                                  rules["arc_seal_inbound"])
+    yes = lambda v: "true" if v else "false"  # noqa: E731
+    lines = [
+        "# Managed by Mailfilter (Configuration > Custom rules > ARC). Changes here are overwritten.",
+        "# Seals use the DKIM keys: the sending domain for outgoing mail, the recipient's domain for",
+        "# incoming mail. Seals of other servers are always checked.",
+        "enabled = true;",
+        'path = "/var/lib/rspamd/dkim/$domain.$selector.key";',
+        'selector_map = "/etc/mailfilter/rspamd/dkim_selectors.map";',
+        f"sign_local = {yes(out_seal.enabled)};",
+        f"sign_authenticated = {yes(out_seal.enabled)};",
+        f"sign_inbound = {yes(in_seal.enabled)};",
+        'use_domain = "header";',
+        # A forwarding server keeps the original From, so seal with its own (envelope) domain.
+        'use_domain_sign_local = "envelope";',
+        'use_domain_sign_inbound = "recipient";',
+        "use_esld = true;",
+        "allow_username_mismatch = true;",
+        # Forwarded mail has someone else's From address by nature.
+        "allow_hdrfrom_mismatch = true;",
+        "allow_envfrom_empty = true;",
+        "try_fallback = false;",
+    ]
+    if trusted.enabled and trusted.options.get("sealers"):
+        lines += [f'whitelisted_signers_map = "{ARC_TRUSTED_MAP}";', "adjust_dmarc = true;"]
+    else:
+        lines += ["adjust_dmarc = false;"]
+    sealers = trusted.options.get("sealers") or []
+    return {
+        ARC_CONF_PATH: "\n".join(lines) + "\n",
+        ARC_TRUSTED_MAP: "# Managed by Mailfilter (Custom rules > ARC): trusted ARC sealers.\n"
+                         + "".join(f"{d}\n" for d in sealers),
+    }
+
+
 def render_files(chosen: dict[str, CustomRule], active_domains: set[str]) -> dict[str, str]:
+    eff = effective(chosen)
     rules = {}
-    for rid, rule in effective(chosen).items():
+    for rid, rule in eff.items():
         rules[rid] = {"enabled": rule.enabled, "options": rule.options,
                       "domains": {d: v for d, v in sorted(rule.domains.items()) if d in active_domains}}
     settings = {"_comment": "Managed by Mailfilter (Configuration > Custom rules). Changes here are overwritten.",
-                "version": 1, "rules": rules}
+                "version": 1, "protected_domains": sorted(active_domains), "rules": rules}
     return {
         SETTINGS_PATH: json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
         LUA_PATH: LUA_SOURCE.read_text(encoding="utf-8"),
+        PROTECTION_LUA_PATH: PROTECTION_LUA_SOURCE.read_text(encoding="utf-8"),
+        **render_arc(eff),
     }

@@ -31,7 +31,7 @@ touch /etc/mailfilter/relay_networks.list /etc/mailfilter/nftables/relay_ports.n
 for f in relay_domains transport sender_block tls_policy recipient_verify; do touch /etc/mailfilter/postfix/$f; done
 touch /etc/mailfilter/postfix/relay_networks.cidr /etc/mailfilter/postfix/client_block.cidr /etc/mailfilter/postfix/postscreen_access.cidr
 cp "$TPL/postfix/dnsbl_reply" "$TPL/postfix/bounce.cf" /etc/mailfilter/postfix/
-for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors; do touch /etc/mailfilter/rspamd/$f.map; done
+for f in allow_from allow_domain allow_ip allow_from_re block_from block_domain block_ip block_from_re antivirus_skip dkim_selectors arc_trusted; do touch /etc/mailfilter/rspamd/$f.map; done
 touch /etc/mailfilter/rspamd/ratelimit_overrides.conf /etc/mailfilter/smtp-users
 
 render "$TPL/postfix/main.cf" /etc/postfix/main.cf
