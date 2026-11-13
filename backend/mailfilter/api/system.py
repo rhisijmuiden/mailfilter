@@ -28,6 +28,7 @@ class InfoOut(BaseModel):
     channel: str = ""
     commit: str = ""
     commit_date: str = ""
+    web_mode: str = "public"  # System > Web access; pages warn when features need public HTTPS
 
 
 def _read(name: str, default: str) -> str:
@@ -49,6 +50,7 @@ def info(_: CurrentUser) -> InfoOut:
         hostname=get_settings().hostname,
         label=version,
         channel={"main": "production", "test": "test"}.get(branch, "custom"),
+        web_mode=get_settings().web_mode,
     )
 
 

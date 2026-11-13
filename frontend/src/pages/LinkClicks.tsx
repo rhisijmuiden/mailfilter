@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { DataTable, type Column } from "../components/DataTable";
+import { PublicHttpsNotice } from "../components/PublicHttpsNotice";
 import { Card, ErrorText, PageHead, formatDate, useToast } from "../components/ui";
 import { api, qs } from "../lib/api";
 import type { Me } from "../lib/auth";
@@ -189,6 +190,7 @@ export default function LinkClicks({ me }: { me: Me }) {
           </button>
         }
       />
+      <PublicHttpsNotice feature="links" />
       {data && !data.enabled && (
         <div className="callout warn" style={{ marginBottom: 16 }}>
           <MousePointerClick aria-hidden />

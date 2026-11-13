@@ -92,6 +92,9 @@ web_defaults() {
       http) warn "The web interface uses plain HTTP: passwords travel unencrypted. Only use this on a closed management network." ;;
       internal) info "The web interface uses a self-made certificate: browsers warn once until you trust it." ;;
     esac
+    case $WEB_MODE in
+      internal|http) warn "Not reachable over HTTPS from the internet: MTA-STS policies, BIMI logos, link protection and the buttons in quarantine report mails will not work from outside." ;;
+    esac
   fi
 }
 
