@@ -18,7 +18,7 @@ from . import events, paths
 from .util import CtlError, iso, now, read_json, write_json
 
 JOB_ID = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-z0-9]{6}$")
-KINDS = {"update", "backup", "restore", "remote_sync"}
+KINDS = {"update", "backup", "restore", "remote_sync", "web"}
 EVENT_NAMES = {"remote_sync": "remote"}  # job kind -> event name prefix
 KEEP_JOBS = 100
 

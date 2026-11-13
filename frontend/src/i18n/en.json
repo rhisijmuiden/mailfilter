@@ -4,7 +4,7 @@
     "skip": "Skip to content"
   },
   "branding": {"title": "Branding", "sub": "Give this Mailfilter your own name, colours and logo. Users see it in the web app, on the login page and in the mails Mailfilter sends.", "identity": "Name and colours", "name": "Product name", "name_hint": "Shown in the menu, on the login page, in the browser tab and in reports.", "accent": "Accent colour", "accent_hint": "Main buttons, the active menu item and highlights.", "primary": "Dark colour", "primary_hint": "Dark surfaces such as the header of report mails and notifications.", "house_colors": "Use the default colours", "preview": "Preview", "sample_button": "Main button", "sample_dark": "Dark surface", "images": "Logos and icon", "logo": "Logo", "logo_hint": "For the light theme. SVG or PNG, at most 256 KB; wide logos work best.", "logo_dark": "Logo for dark mode", "logo_dark_hint": "Optional. A light version of your logo for the dark theme.", "favicon": "Browser icon", "favicon_hint": "Optional. Square SVG, PNG or ICO for the browser tab.", "default_used": "Default is used", "upload": "Upload", "replace": "Replace", "remove": "Remove", "reset": "Back to default", "reset_confirm": "Remove your own name, colours and logos and go back to the default house style?", "powered_note": "The small \"Powered by RHIS\" mark at the bottom right always stays visible. Mailfilter is open source (AGPLv3) and this attribution is a condition of the licence, so it cannot be switched off here."},
-  "nav": {"modules": "Modules", "branding": "Branding", "links": "Link clicks", 
+  "nav": {"web_access": "Web access", "modules": "Modules", "branding": "Branding", "links": "Link clicks", 
     "archive": "Archive",
     "cloud": "Cloud mail",
     "usage": "Usage",
@@ -68,7 +68,7 @@
     "choose": "choose",
     "open": "open",
     "searching": "Searching…",
-    "kw": {"modules": "modules features switch on off enable disable", "branding": "branding brand logo colours colors name white label theme favicon", "links": "link protection click safe links url phishing warning blocked", "archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
+    "kw": {"web_access": "web access https http certificate lets encrypt reverse proxy firewall dmz port ssl", "modules": "modules features switch on off enable disable", "branding": "branding brand logo colours colors name white label theme favicon", "links": "link protection click safe links url phishing warning blocked", "archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
       "usage": "usage billing invoice mailboxes csv export accounting",
       "billing": "billing customers resellers prices tariffs customer number",
       "dashboard": "overview charts live now statistics",
@@ -1336,7 +1336,7 @@
     "failed_restore": "Restore failed.",
     "done_remote_sync": "Remote copy is up to date.",
     "failed_remote_sync": "Remote copy failed.",
-    "steps": {
+    "steps": {"web_access": "Switching the web interface", 
       "backup_start": "{{type}} {{id}}",
       "backup_files": "Saving files (settings, DKIM keys, certificates, quarantine)",
       "backup_database": "Saving the database",
@@ -2372,5 +2372,57 @@
         "off": "The import page disappears. What was imported stays."
       }
     }
+  },
+  "web": {
+    "title": "Web access",
+    "sub": "How the web interface is reached: directly on the internet, behind a firewall, behind a reverse proxy or over plain HTTP. Mail filtering does not change.",
+    "now": "Now: {{mode}}",
+    "current": "Current",
+    "recommended": "Recommended",
+    "choose": "How is the web interface reached?",
+    "no_le_yet": "no Let's Encrypt certificate yet",
+    "own_cert": "own certificate",
+    "caddy_cert": "self-made certificate",
+    "proxy_on": "HTTP on port {{port}} for {{proxies}}",
+    "mode": {
+      "public": {
+        "title": "Directly on the internet",
+        "desc": "HTTPS with a free Let's Encrypt certificate, renewed automatically. Ports 80 and 443 are open."
+      },
+      "internal": {
+        "title": "Behind a firewall or in a DMZ",
+        "desc": "HTTPS with a certificate the server makes itself, no Let's Encrypt request. Optionally only reachable from your networks."
+      },
+      "proxy": {
+        "title": "Behind a reverse proxy",
+        "desc": "Your proxy (nginx, HAProxy, Traefik...) does HTTPS and talks to Mailfilter over HTTP. Only the proxy may connect."
+      },
+      "http": {
+        "title": "Plain HTTP",
+        "desc": "No encryption at all. Only for a closed management network."
+      }
+    },
+    "proxies": "IP addresses of the reverse proxy",
+    "proxies_hint": "One per line; networks such as 10.0.0.0/24 are fine. Only these may connect, and their X-Forwarded-For and X-Forwarded-Proto headers are trusted.",
+    "port": "Port",
+    "port_hint_proxy": "Where the proxy sends its requests.",
+    "url": "Address on the proxy",
+    "url_hint": "What users type in the browser. Used in links in mails (quarantine report, alerts).",
+    "from": "Only reachable from (optional)",
+    "from_hint": "IP addresses or networks, one per line. Empty: everyone who can reach the server.",
+    "http_warn_title": "Passwords travel unencrypted",
+    "http_warn": "With plain HTTP anyone on the network path can read passwords and mail. Only use it on a closed management network, and preferably limit who can connect.",
+    "internal_note": "Browsers warn about the self-made certificate until you trust it. You can also use your own certificate: run the installer with --web-cert and --web-key.",
+    "limits": "Not directly on the internet: features that other mail servers or recipients open over HTTPS stop working from outside: MTA-STS policies, BIMI logos, link protection and the buttons in quarantine report mails. A cluster also needs HTTPS between the servers. Behind a reverse proxy they keep working when the proxy publishes this host name.",
+    "notice": {"dns": "The web interface is set to “{{mode}}”. MTA-STS policies and BIMI logos are fetched by other mail servers over HTTPS from the internet, so they only work when mta-sts.<domain> and this host name are reachable from the internet.", "links": "The web interface is set to “{{mode}}”. Protected links in mail point to this server, so recipients outside your network cannot open them.", "report": "The web interface is set to “{{mode}}”. The release and block buttons in the report mail point to this server, so they only work for users who can reach it."},
+    "apply": "Switch",
+    "new_address": "New address:",
+    "rescue_title": "Locked out?",
+    "rescue": "If the web interface can no longer be reached, log in to the server with SSH and switch back:",
+    "confirm_title": "Switch web access?",
+    "confirm": "The web interface switches to: {{mode}}. The web server restarts, which takes a few seconds.",
+    "confirm_url": "Afterwards, open it at",
+    "running": "Switching… If this page stops answering, open {{url}}.",
+    "open_new": "Open the new address"
   }
 }

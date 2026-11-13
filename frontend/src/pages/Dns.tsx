@@ -6,6 +6,7 @@ import { Ban, Check, Clock, Cloud, Copy, ExternalLink, Info, Lock, Pencil, Plus,
 import { Suspense, lazy, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
+import { PublicHttpsNotice } from "../components/PublicHttpsNotice";
 import { Card, ErrorText, Field, Loading, Modal, PageHead, formatDate, useToast } from "../components/ui";
 import { ApiError, api } from "../lib/api";
 
@@ -111,6 +112,7 @@ export default function Dns() {
   return (
     <>
       <PageHead title={t("dns.title")} sub={t("dns.sub")} />
+      <PublicHttpsNotice feature="dns" />
       <Card flush>
         <div className="tabs" role="tablist">
           {TABS.map((x) => (

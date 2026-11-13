@@ -13,7 +13,7 @@ import { ProductName } from "./Logo";
 
 export type SystemInfo = {
   version: string; app_version: string; branch: string; hostname: string;
-  label?: string; channel?: string; commit?: string; commit_date?: string;
+  label?: string; channel?: string; commit?: string; commit_date?: string; web_mode?: "public" | "internal" | "proxy" | "http";
 };
 
 type Details = {

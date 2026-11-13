@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Web access
+- The installer asks how the web interface is reached (`--web-mode`): directly on the internet (HTTPS with Let's Encrypt, default), behind a firewall or in a DMZ (HTTPS with a self-made or own certificate, no Let's Encrypt request), behind a reverse proxy (plain HTTP only from the proxy, X-Forwarded-* trusted) or plain HTTP (with a clear warning). Optional `--web-from` limits who may open it.
+- New page System › Web access to switch mode from the web interface; `install/web-access.sh` does the same on the server (also to get back in when locked out).
+- Links in mails (quarantine report, alerts) use the address of the web interface.
+
 ### Modules
 - New page System › Modules: switch optional modules on or off (usage & billing, monthly report, quarantine report, spam reports, DMARC reports, link protection, mail archive, Mailtrap, cloud mail, REST API, cluster, PMG import). A module that is off leaves the menu, its API answers 403 and its background work stops; modules that change the mail flow re-apply the gateway. Synced in a cluster (Mailtrap stays per server).
 

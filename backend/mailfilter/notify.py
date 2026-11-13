@@ -223,7 +223,7 @@ class Alert:
         title, body = title.format_map(vals), body.format_map(vals)
         if self.event == "resolved":
             title = f"{RESOLVED.get(lang, 'Resolved')}: {title}"
-        return title, body, f"https://{host}{LINKS.get(self.code, '/')}"
+        return title, body, f"{get_settings().web_url}{LINKS.get(self.code, '/')}"
 
 
 # ---- channels ---------------------------------------------------------------------------
