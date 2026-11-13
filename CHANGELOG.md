@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+- Installer on servers without a UTF-8 locale (minimal Debian, Proxmox LXC): `mailfilter-admin migrate` stopped with "cannot use a string pattern on a bytes-like object" because PostgreSQL made the database SQL_ASCII. The database is now always created as UTF-8 (an empty SQL_ASCII database from a failed run is recreated) and the app asks PostgreSQL for UTF-8.
+- Installer: Debian 13 ships `unbound-anchor` as its own package; it is now installed.
+
 ### Web access
 - The installer asks how the web interface is reached (`--web-mode`): directly on the internet (HTTPS with Let's Encrypt, default), behind a firewall or in a DMZ (HTTPS with a self-made or own certificate, no Let's Encrypt request), behind a reverse proxy (plain HTTP only from the proxy, X-Forwarded-* trusted) or plain HTTP (with a clear warning). Optional `--web-from` limits who may open it.
 - New page System › Web access to switch mode from the web interface; `install/web-access.sh` does the same on the server (also to get back in when locked out).

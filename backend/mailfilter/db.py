@@ -26,7 +26,11 @@ class Base(DeclarativeBase):
 
 @lru_cache
 def get_engine() -> Engine:
-    return create_engine(get_settings().database_url, pool_pre_ping=True, future=True)
+    url = get_settings().database_url
+    # A database created on a server without a UTF-8 locale has encoding SQL_ASCII; psycopg then
+    # returns bytes and SQLAlchemy fails on the first connect. Asking for UTF-8 works on both.
+    args = {"client_encoding": "utf8"} if url.startswith("postgresql") else {}
+    return create_engine(url, pool_pre_ping=True, future=True, connect_args=args)
 
 
 @lru_cache

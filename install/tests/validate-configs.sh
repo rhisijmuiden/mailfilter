@@ -16,7 +16,7 @@ echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-se
 apt-get update -qq
 # FTP/FTPS tests need pyftpdlib as a test server; they run in the mailfilterctl CI job with the PyPI release,
 # because the Debian package hangs on repeated TLS logins. SFTP and encryption are tested here on Debian 13.
-apt-get install -y -qq --no-install-recommends postfix postfix-lmdb postfix-ldap rspamd dovecot-core dovecot-imapd unbound dns-root-data caddy nftables ssl-cert ca-certificates python3 \
+apt-get install -y -qq --no-install-recommends postfix postfix-lmdb postfix-ldap rspamd dovecot-core dovecot-imapd unbound unbound-anchor dns-root-data caddy nftables ssl-cert ca-certificates python3 \
   sudo systemd python3-pytest zstd git gnupg openssh-client openssh-server >/dev/null
 echo "Versions: $(dpkg-query -W -f='${Package} ${Version}, ' postfix rspamd dovecot-core caddy unbound nftables)"
 
