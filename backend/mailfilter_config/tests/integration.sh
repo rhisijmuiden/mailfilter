@@ -256,7 +256,9 @@ check "links rewritten into signed click links" bash -c "$(declare -f links_ok);
 check "link protection header and symbol" bash -c "$(declare -f has); has /tmp/scan-lp.json X-Mailfilter-Links && has /tmp/scan-lp.json MF_LINK_PROTECT"
 check "no ARC seal on mail with rewritten links" bash -c '! grep -qi "^ARC-Seal:" /tmp/scan-lp.eml || { cat /tmp/scan-lp.eml; exit 1; }'
 rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from factuur@supplier.example --rcpt info@voorbeeld.nl /tmp/lp.eml >/tmp/scan-lp2.eml 2>&1 || true
-check "links untouched for a domain without link protection" bash -c 'grep -q "https://pay.supplier.example/f?id=1&x=2" /tmp/scan-lp2.eml && ! grep -q "mailfilter.test/l/" /tmp/scan-lp2.eml || { cat /tmp/scan-lp2.eml; exit 1; }'
+# (the external banner is on for every domain, so the body is quoted-printable: decode it first)
+untouched() { python3 -c 'import quopri,sys; b=quopri.decodestring(open(sys.argv[1],"rb").read()).decode("utf-8","replace"); sys.exit(not ("https://pay.supplier.example/f?id=1&x=2" in b and "mailfilter.test/l/" not in b))' "$1" || { grep -v "^	" "$1" | head -60; exit 1; }; }
+check "links untouched for a domain without link protection" bash -c "$(declare -f untouched); untouched /tmp/scan-lp2.eml"
 echo "== cloud mail: Microsoft 365 tenant relaying through the Mailfilter"
 check "Microsoft server may relay only for the tenant's domain" bash -c '[[ $(postmap -q 40.107.1.10 cidr:/etc/mailfilter/postfix/cloud_relay.cidr) == mfc_m365 ]] && postconf -h mfc_m365 | grep -q "rhis.nl=OK" && postconf -h smtpd_restriction_classes | grep -q mfc_m365'
 check "postfix check with cloud mail" postfix check
