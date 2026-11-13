@@ -8,6 +8,8 @@ set -Eeuo pipefail
 SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 apt-get install -y -qq --no-install-recommends python3 iproute2 >/dev/null
 fail=0
+# Test mails carry the current date: Rspamd scores an old Date header (DATE_IN_PAST).
+NOW=$(LC_ALL=C date -R)
 check() { local name=$1; shift; if "$@" >/tmp/check.out 2>&1; then echo "PASS $name"; else echo "FAIL $name"; sed 's/^/     /' /tmp/check.out | head -40; fail=1; fi; }
 
 echo "== unit tests"
@@ -124,26 +126,26 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 check "rspamd scanner started" bash -c "[ $up = 1 ] || { cat /tmp/rspamd.out; tail -60 /run/rspamd/test.log; exit 1; }"
-cat >/tmp/nl-bad.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/nl-bad.eml <<'EML'
 From: Winkel <news@shop.example>
 To: info@rhis.nl
 Subject: Grote uitverkoop
 Precedence: bulk
 X-Mailer: MailerLite
 Message-ID: <1@shop.example>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Alles moet weg! Bestel nu op https://shop.example/sale
 EML
-cat >/tmp/nl-good.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/nl-good.eml <<'EML'
 From: Winkel <news@shop.example>
 To: info@rhis.nl
 Subject: Nieuws
 List-Unsubscribe: <https://shop.example/u/1>
 List-Unsubscribe-Post: List-Unsubscribe=One-Click
 Message-ID: <2@shop.example>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Ons nieuws van deze maand.
@@ -155,28 +157,28 @@ check "newsletter without unsubscribe scored" bash -c 'grep -q MF_NEWSLETTER_NO_
 check "newsletter header and subject tag added" bash -c 'grep -q "X-Mailfilter-Newsletter" /tmp/scan-bad.json && grep -q "Nieuwsbrief" /tmp/scan-bad.json || { cat /tmp/scan-bad.json; exit 1; }'
 check "newsletter with unsubscribe not scored" bash -c 'grep -q "\"MF_NEWSLETTER\"" /tmp/scan-good.json && ! grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-good.json || { cat /tmp/scan-good.json; exit 1; }'
 echo "== phishing protection and attachment policy in a real Rspamd scan"
-cat >/tmp/ph-lookalike.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/ph-lookalike.eml <<'EML'
 From: Reinder <reinder@rhls.nl>
 To: info@rhis.nl
 Subject: Factuur betalen
 Message-ID: <3@rhls.nl>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Wil je deze factuur vandaag nog betalen? Zie http://185.12.3.4/factuur
 EML
-cat >/tmp/ph-name.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/ph-name.eml <<'EML'
 From: "Reinder de Directeur" <directeur.rhis@freemail.example>
 To: info@rhis.nl
 Subject: Even snel
 Message-ID: <4@freemail.example>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Ben je even beschikbaar voor een betaling?
 EML
 attach() { # file name, content type, base64 content
-  printf 'From: Leverancier <factuur@supplier.example>\nTo: info@rhis.nl\nSubject: Factuur\nMessage-ID: <%s@supplier.example>\nDate: Wed, 12 Nov 2026 10:00:00 +0100\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary="b1"\n\n--b1\nContent-Type: text/plain; charset=utf-8\n\nZie bijlage.\n--b1\nContent-Type: %s; name="%s"\nContent-Disposition: attachment; filename="%s"\nContent-Transfer-Encoding: base64\n\n%s\n--b1--\n' "$RANDOM" "$2" "$1" "$1" "$3"
+  printf 'From: Leverancier <factuur@supplier.example>\nTo: info@rhis.nl\nSubject: Factuur\nMessage-ID: <%s@supplier.example>\nDate: '"$NOW"'\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary="b1"\n\n--b1\nContent-Type: text/plain; charset=utf-8\n\nZie bijlage.\n--b1\nContent-Type: %s; name="%s"\nContent-Disposition: attachment; filename="%s"\nContent-Transfer-Encoding: base64\n\n%s\n--b1--\n' "$RANDOM" "$2" "$1" "$1" "$3"
 }
 attach factuur.pdf.exe application/octet-stream "$(printf 'MZ\220\0\3\0\0\0 this is not a real program' | base64 -w0)" >/tmp/att-exe.eml
 attach offerte.docm application/vnd.ms-word.document.macroEnabled.12 "$(printf 'PK\3\4 word/vbaProject.bin' | base64 -w0)" >/tmp/att-macro.eml
@@ -210,12 +212,12 @@ check "external banner added above the original text" bash -c "$(declare -f bann
 check "external banner header added" bash -c "$(declare -f has); has /tmp/scan-banner.json X-Mailfilter-External"
 check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
 echo "== link protection: links in incoming mail point to the click check"
-cat >/tmp/lp.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/lp.eml <<'EML'
 From: Leverancier <factuur@supplier.example>
 To: info@rhis.nl
 Subject: Uw factuur
 Message-ID: <lp@supplier.example>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="b1"
 
@@ -263,7 +265,7 @@ echo "== cloud mail: Microsoft 365 tenant relaying through the Mailfilter"
 check "Microsoft server may relay only for the tenant's domain" bash -c '[[ $(postmap -q 40.107.1.10 cidr:/etc/mailfilter/postfix/cloud_relay.cidr) == mfc_m365 ]] && postconf -h mfc_m365 | grep -q "rhis.nl=OK" && postconf -h smtpd_restriction_classes | grep -q mfc_m365'
 check "postfix check with cloud mail" postfix check
 m365() { # tenant id header, sender, recipient
-  printf 'From: Reinder <reinder@rhis.nl>\nTo: klant@example.org\nSubject: Offerte\nMessage-ID: <%s@rhis.nl>\nDate: Wed, 12 Nov 2026 10:00:00 +0100\nX-MS-Exchange-CrossTenant-Id: %s\nContent-Type: text/plain; charset=utf-8\n\nHierbij de offerte.\n' "$RANDOM" "$1" >/tmp/m365.eml
+  printf 'From: Reinder <reinder@rhis.nl>\nTo: klant@example.org\nSubject: Offerte\nMessage-ID: <%s@rhis.nl>\nDate: '"$NOW"'\nX-MS-Exchange-CrossTenant-Id: %s\nContent-Type: text/plain; charset=utf-8\n\nHierbij de offerte.\n' "$RANDOM" "$1" >/tmp/m365.eml
   rspamc -h 127.0.0.1:11333 -j --ip 40.107.1.10 --from "$2" --rcpt "$3" /tmp/m365.eml
 }
 m365 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a reinder@rhis.nl klant@example.org >/tmp/scan-m365-ok.json 2>&1 || true

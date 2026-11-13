@@ -116,6 +116,7 @@ Uitgebreide naslagpagina's: [updates en backups](docs/nl/updates-en-backups.md),
 - **REST API** met API-sleutels per onderdeel, IP-beperking, vervaldatum en ingebouwde OpenAPI-documentatie.
 - **Meldingen** per e-mail, Telegram of webhook (JSON, Slack, Mattermost, Discord): service gestopt, wachtrij loopt vol, blocklist, certificaat, gepauzeerde afzender, backup- of updateprobleem.
 - **Eigen SMTP-instellingen** voor mail die Mailfilter zelf verstuurt.
+- **Eigen huisstijl**: productnaam, accent- en donkere kleur, logo (ook een versie voor donkere modus) en browsericoon, in de webapp, op de inlogpagina en in rapportmails. De RHIS-huisstijl is de standaard.
 - **Cluster**: houd meerdere Mailfilter-servers op dezelfde configuratie; elke server blijft zelfstandig filteren als een andere uitvalt.
 - **Importeren uit Proxmox Mail Gateway**: domeinen, relaynetwerken, adresroutes, TLS-regels, toestaan- en blokkeerlijsten en DKIM-sleutels uit een PMG-backupbestand.
 
@@ -224,4 +225,8 @@ Tests: `cd backend && pytest` (zet `MAILFILTER_TEST_DB_URL` op een lege testdata
 
 ## Licentie
 
-[GNU General Public License v3.0](LICENSE).
+Mailfilter is open source onder de [GNU General Public License v3.0](LICENSE), met [aanvullende voorwaarden](NOTICE) volgens artikel 7 van die licentie:
+
+- **"Powered by RHIS" blijft staan.** Het kleine "Powered by RHIS" met het RHIS-icoon rechtsonder op elke pagina moet in elke kopie en elke aangepaste versie zichtbaar blijven. Het is geen instelling en mag niet verwijderd of verborgen worden.
+- **Je eigen huisstijl mag.** Naam, kleuren, logo en browsericoon pas je aan onder **Systeem › Huisstijl**; de RHIS-huisstijl is alleen de standaard.
+- Een aangepaste versie moet vermelden dat hij is aangepast, en de naam en logo's van RHIS mag je verder niet gebruiken.

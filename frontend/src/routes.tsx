@@ -8,6 +8,7 @@ const ApiAccess = lazy(() => import("./pages/ApiAccess"));
 const Archive = lazy(() => import("./pages/Archive"));
 const AuditLog = lazy(() => import("./pages/AuditLog"));
 const Backups = lazy(() => import("./pages/Backups"));
+const Branding = lazy(() => import("./pages/Branding"));
 const CloudMail = lazy(() => import("./pages/CloudMail"));
 const Cluster = lazy(() => import("./pages/Cluster"));
 const CustomRules = lazy(() => import("./pages/CustomRules"));
@@ -63,6 +64,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/system/backups", element: () => <Backups />, adminOnly: true },
   { path: "/audit", element: (me) => <AuditLog me={me} /> },
   { path: "/system/api", element: (me) => <ApiAccess me={me} /> },
+  { path: "/system/branding", element: () => <Branding />, adminOnly: true },
   { path: "/system/security", element: (me) => <Security me={me} />, adminOnly: true },
   { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true },
 ];

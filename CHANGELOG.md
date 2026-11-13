@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Open source and branding
+- Mailfilter is open source under GPLv3 with additional terms (`NOTICE`): the "Powered by RHIS" mark at the bottom right of every page must stay.
+- New page System › Branding: own product name, accent and dark colour, logo, dark-mode logo and browser icon. Used in the web app, login page, quarantine report, monthly report and link protection pages; synced in a cluster. The RHIS house style stays the default.
+- Info window shows the licence with a link to the source code.
+
 ### Documentation
 - New README in English and Dutch with every feature.
 - Installation guide, user manual and administrator manual in English and Dutch (`docs/`, `docs/nl/`).

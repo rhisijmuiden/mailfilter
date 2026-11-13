@@ -254,6 +254,12 @@ Geef een gepauzeerde afzender vrij onder **Relay-toegang** zodra de oorzaak is o
 
 **Systeem › Beveiliging › Tweestapsverificatie verplichten**: *Optioneel*, *Verplicht voor beheerders* of *Verplicht voor iedereen*. Zet het eerst voor jezelf aan. Gebruikers zonder worden bij de volgende keer inloggen gevraagd het in te stellen; de pagina toont wie dat nog moet doen. In noodgevallen op de server: `mailfilter-admin reset-2fa EMAIL`.
 
+### Huisstijl
+
+**Systeem › Huisstijl** geeft deze Mailfilter je eigen uiterlijk: productnaam, accentkleur (hoofdknoppen, actief menu-item), donkere kleur (kop van rapportmails), een logo, optioneel een licht logo voor donkere modus en een browsericoon (SVG, PNG, WebP, JPEG of ICO, maximaal 256 KB per bestand). Het voorbeeld laat het resultaat zien voordat je opslaat. Naam en kleuren worden ook gebruikt in het quarantaine-overzicht, het maandrapport en de pagina's van linkbescherming. **Terug naar standaard** zet de RHIS-huisstijl terug. In een cluster gaat de huisstijl mee naar de andere servers.
+
+Het kleine "Powered by RHIS" rechtsonder op elke pagina is geen instelling: het is een voorwaarde van de open-source licentie (zie `NOTICE`).
+
 ### Auditlog
 
 Elke wijziging in de webinterface en de API wordt vastgelegd met gebruiker, tijd, domein, IP-adres en details. Filter op gebruiker, soort actie, domein en periode; exporteer als CSV. Acties met een API-sleutel zijn gemarkeerd met *via API-sleutel*.

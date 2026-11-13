@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from .. import digest, mailer
+from .. import branding, digest, mailer
 from ..audit import audit
 from ..deps import DB, CurrentUser, visible_domains
 from ..models import DigestDomain, Domain, QuarantineAction, TraceMessage
@@ -114,7 +114,7 @@ def send_example(user: CurrentUser, db: DB) -> ExampleOut:
     if not combined.items:
         raise HTTPException(status.HTTP_409_CONFLICT, "nothing_held")
     combined.items.sort(key=lambda i: i.received, reverse=True)
-    subject, text, html = digest.render(combined, user.language)
+    subject, text, html = digest.render(combined, user.language, brand=branding.get(db))
     try:
         mailer.send(db, user.email, subject, text, html)
     except mailer.MailError as e:

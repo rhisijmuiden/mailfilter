@@ -254,6 +254,12 @@ Release a paused sender under **Relay access** once the cause is fixed: **Releas
 
 **System › Security › Require two-factor login**: *Optional*, *Required for admins* or *Required for everyone*. Turn it on for yourself first. Users without it are asked to set it up at their next sign-in; the page lists who still has to. Emergency on the server: `mailfilter-admin reset-2fa EMAIL`.
 
+### Branding
+
+**System › Branding** gives this Mailfilter your own look: product name, accent colour (main buttons, active menu item), dark colour (header of report mails), a logo, an optional light logo for dark mode and a browser icon (SVG, PNG, WebP, JPEG or ICO, at most 256 KB each). The preview shows the result before you save. The name and colours are also used in the quarantine report, the monthly report and the link protection pages. **Back to default** returns to the RHIS house style. In a cluster the branding is copied to the other servers.
+
+The small "Powered by RHIS" mark at the bottom right of every page is not a setting: it is a condition of the open-source licence (see `NOTICE`).
+
 ### Audit log
 
 Every change in the web interface and API is logged with user, time, domain, IP address and details. Filter by user, action group, domain and period; export as CSV. Actions done with an API key are marked *via API key*.

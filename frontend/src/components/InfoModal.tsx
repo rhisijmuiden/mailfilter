@@ -9,6 +9,7 @@ import { useMe } from "../lib/auth";
 import { isActive, useJobs, type Job } from "../lib/jobs";
 import { JobProgress } from "./JobProgress";
 import { ErrorText, Modal, formatDate } from "./ui";
+import { ProductName } from "./Logo";
 
 export type SystemInfo = {
   version: string; app_version: string; branch: string; hostname: string;
@@ -49,8 +50,9 @@ export function InfoModal({ onClose }: { onClose: () => void }) {
       <div className="version-hero">
         <img className="ic" src="/favicon.svg" alt="" />
         <div>
-          <div className="muted">{t("app.product")}</div>
+          <div className="muted"><ProductName /></div>
           <div className="vn">{data?.version ?? "…"}</div>
+          <a className="muted" style={{ fontSize: 12 }} href="https://github.com/rhisijmuiden/mailfilter" target="_blank" rel="noopener">{t("info.license")}</a>
         </div>
       </div>
       <dl className="kv">

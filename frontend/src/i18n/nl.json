@@ -3,7 +3,8 @@
     "product": "Mailfilter",
     "skip": "Naar inhoud"
   },
-  "nav": {"links": "Linkklikken", 
+  "branding": {"title": "Huisstijl", "sub": "Geef deze Mailfilter je eigen naam, kleuren en logo. Gebruikers zien dit in de webapp, op de inlogpagina en in de mails die Mailfilter verstuurt.", "identity": "Naam en kleuren", "name": "Productnaam", "name_hint": "Staat in het menu, op de inlogpagina, in het browsertabblad en in rapporten.", "accent": "Accentkleur", "accent_hint": "Hoofdknoppen, het actieve menu-item en accenten.", "primary": "Donkere kleur", "primary_hint": "Donkere vlakken, zoals de kop van rapportmails en meldingen.", "house_colors": "Standaardkleuren gebruiken", "preview": "Voorbeeld", "sample_button": "Hoofdknop", "sample_dark": "Donker vlak", "images": "Logo's en icoon", "logo": "Logo", "logo_hint": "Voor het lichte thema. SVG of PNG, maximaal 256 KB; brede logo's werken het best.", "logo_dark": "Logo voor donkere modus", "logo_dark_hint": "Optioneel. Een lichte versie van je logo voor het donkere thema.", "favicon": "Browsericoon", "favicon_hint": "Optioneel. Vierkante SVG, PNG of ICO voor het browsertabblad.", "default_used": "Standaard wordt gebruikt", "upload": "Uploaden", "replace": "Vervangen", "remove": "Verwijderen", "reset": "Terug naar standaard", "reset_confirm": "Je eigen naam, kleuren en logo's verwijderen en teruggaan naar de standaard huisstijl?", "powered_note": "Het kleine \"Powered by RHIS\" rechtsonder blijft altijd zichtbaar. Mailfilter is open source (GPLv3) en deze naamsvermelding is een voorwaarde van de licentie, daarom kun je hem hier niet uitzetten."},
+  "nav": {"branding": "Huisstijl", "links": "Linkklikken", 
     "archive": "Archief",
     "cloud": "Cloud-mail",
     "usage": "Verbruik",
@@ -67,7 +68,7 @@
     "choose": "kiezen",
     "open": "openen",
     "searching": "Zoeken…",
-    "kw": {"links": "linkbescherming klik link url phishing waarschuwing geblokkeerd", "archive": "archief archivering bewaarplicht bewaartermijn zoeken oude mail juridisch export compliance", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
+    "kw": {"branding": "huisstijl branding logo kleuren naam white label thema favicon", "links": "linkbescherming klik link url phishing waarschuwing geblokkeerd", "archive": "archief archivering bewaarplicht bewaartermijn zoeken oude mail juridisch export compliance", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
       "usage": "verbruik facturatie factuur mailboxen csv export boekhouding",
       "billing": "facturatie klanten resellers tarieven prijzen debiteurnummer",
       "dashboard": "overzicht grafieken live nu statistieken",
@@ -132,6 +133,7 @@
     "refresh": "Vernieuwen"
   },
   "errors": {
+    "bad_image": "Dit is geen afbeelding. Gebruik SVG, PNG, WebP, JPEG of ICO.",
     "already_linked": "Dit domein is al aan een cloud-mailomgeving gekoppeld.",
     "test_address_not_in_domain": "Stuur de test naar een adres in dit domein.",
     "unknown_customer": "Die klant bestaat niet.",
@@ -290,6 +292,7 @@
     "forgot": "Wachtwoord vergeten? Vraag je beheerder om een nieuw wachtwoord."
   },
   "info": {
+    "license": "Open source (GPL-3.0) · gemaakt door RHIS",
     "title": "Over Mailfilter",
     "version": "Versie",
     "branch": "Kanaal",
