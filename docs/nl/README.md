@@ -2,6 +2,8 @@
 
 [English](../README.md) · [Terug naar het project](../../README.nl.md)
 
+De documentatie is in het Engels geschreven; dit zijn de Nederlandse vertalingen. Bovenaan elke pagina staat een link naar de Engelse versie.
+
 ## Handleidingen
 
 | Handleiding | Voor wie |

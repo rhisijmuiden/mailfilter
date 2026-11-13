@@ -66,6 +66,8 @@ The **theme** switch at the top right chooses light, dark or the same as your co
 
 ## 3. Dashboard
 
+![Dashboard](screenshots/dashboard.png)
+
 The dashboard shows mail for the last 24 hours or the last 30 days:
 
 - **Messages** in and out, **Delivered**, **Spam stopped**, **Problems** (delayed or not delivered) and **In quarantine**, each compared with the period before.
@@ -76,6 +78,8 @@ The dashboard shows mail for the last 24 hours or the last 30 days:
 Administrators also see the mail queue, services that are not running and blocklist listings of the server.
 
 ## 4. Mail trace
+
+![Mail trace](screenshots/trace-detail.png)
 
 **Mail flow › Mail trace** answers *did this message arrive, and if not, why?*
 
@@ -94,6 +98,8 @@ The message panel shows:
 The mail trace keeps 90 days.
 
 ## 5. Quarantine
+
+![Quarantine](screenshots/quarantine.png)
 
 **Mail flow › Quarantine** holds mail that looks like spam or is dangerous. The number next to the menu item shows how many messages are waiting.
 
@@ -117,6 +123,8 @@ Opening the link changes nothing; only pressing a button does. A link works for 
 
 ## 7. Allow and block lists
 
+![Allow and block lists](screenshots/lists.png)
+
 **Mail flow › Allow and block lists**: senders that always get through, or never.
 
 1. Choose **Always allow** or **Always block**.
@@ -127,6 +135,8 @@ Opening the link changes nothing; only pressing a button does. A link works for 
 Allowed senders skip the spam check, but viruses and dangerous attachments are still stopped. Blocked senders are refused and get an error message. Changes take effect within a minute.
 
 ## 8. Reporting spam and good mail
+
+![Reporting spam and good mail](screenshots/spam-reports.png)
 
 Did spam get through, or was good mail marked as spam? Report it, and Mailfilter learns from it. The addresses are shown under **Mail flow › Spam reports**:
 
@@ -145,6 +155,8 @@ For safety Mailfilter only learns from mail that it delivered to your domain, re
 
 ## 9. DMARC reports
 
+![DMARC reports](screenshots/dmarc.png)
+
 **Mail flow › DMARC reports** shows who sends mail as your domains and whether that mail passes DMARC. Big mail providers send daily reports to Mailfilter once your DMARC record asks for them.
 
 - Per domain you see the current policy and the **road to p=reject**: *monitor only*, then *failing mail goes to spam* (`quarantine`), then *failing mail is refused* (`reject`, full protection).
@@ -161,6 +173,8 @@ For safety Mailfilter only learns from mail that it delivered to your domain, re
 In the **Recipients** section of a transport domain you see how Mailfilter checks that an address exists before accepting mail for it (by asking your mail server, through LDAP / Active Directory, or a fixed list). **Test** lets you try an address. Mail for addresses that do not exist is refused straight away, so it never reaches quarantine and nobody gets fake bounces.
 
 ## 11. Relay access: servers that send mail
+
+![Relay access: servers that send mail](screenshots/relay.png)
 
 **Configuration › Relay access** lists your servers (web servers, applications, printers) that may send mail out through Mailfilter.
 
@@ -186,6 +200,8 @@ With **Check links when they are clicked** on, links in incoming mail are checke
 
 ## 13. Mailtrap
 
+![Mailtrap](screenshots/mailtrap.png)
+
 **Mail flow › Mailtrap** (when your administrator has switched it on) catches all mail from your **test and staging environments**, so it is **never sent** to real people. The mail lands in a Mailtrap mailbox where you can read and check it.
 
 - Each message has chips for problems found. Open it to see:
@@ -200,6 +216,8 @@ See [Mailtrap](mailtrap.md) for all details.
 
 ## 14. Archive
 
+![Archive](screenshots/archive.png)
+
 **Mail flow › Archive** (when switched on for your domain) keeps an **unchangeable copy of all mail** your domain sent and received, for up to 10 years.
 
 - **Search** by words, addresses or attachment names; use `"exact phrase"` and `-word` to leave something out. Filter by domain, direction and date.
@@ -211,10 +229,14 @@ Every search, view, download and export is written to the audit log. See [archiv
 
 ## 15. Monthly report and usage
 
+![Monthly report and usage](screenshots/monthly-report.png)
+
 - **Overview › Monthly report**: how much mail came in for your domains last month, and how much spam and how many viruses Mailfilter stopped. When your administrator switches it on you also get it by e-mail at the start of each month; you can turn your own copy off there.
 - **Overview › Usage**: what you used this month: domains, active mailboxes, mail traffic and archive storage. Resellers see this for their own customers, with prices; customers see the quantities.
 
 ## 16. API keys
+
+![API keys](screenshots/api.png)
 
 **System › API** lets you connect a hosting panel or script to Mailfilter.
 
