@@ -1,5 +1,7 @@
 # Mail archive
 
+[Nederlands](nl/archief.md) · [All documentation](README.md)
+
 The archive keeps an **unchangeable copy of all mail per domain**, incoming and
 outgoing, for up to 10 years. It is searchable, every day is sealed, and you can
 prove that nothing was changed or removed. Find it under **Mail flow › Archive**.

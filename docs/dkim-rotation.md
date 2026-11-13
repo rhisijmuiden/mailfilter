@@ -1,5 +1,7 @@
 # DKIM key rotation
 
+[Nederlands](nl/dkim-rotatie.md) · [All documentation](README.md)
+
 Every domain (transport and relay) signs its outgoing mail with a DKIM key.
 Mailfilter replaces each key on a fixed schedule, without a moment where mail
 fails DKIM. Settings and status: **DNS toolbox → DKIM keys**.

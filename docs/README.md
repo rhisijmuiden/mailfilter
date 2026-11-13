@@ -2,6 +2,8 @@
 
 [Nederlands](nl/README.md) · [Back to the project](../README.md)
 
+All documentation is written in English. Every page has a Dutch translation in [`nl/`](nl/README.md); the link at the top of each page switches language.
+
 ## Manuals
 
 | Manual | For whom |

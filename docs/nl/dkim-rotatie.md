@@ -1,5 +1,7 @@
 # DKIM-sleutelrotatie
 
+[English](../dkim-rotation.md) · [Alle documentatie](README.md)
+
 Elk domein (transport en relay) ondertekent uitgaande mail met een
 DKIM-sleutel. Mailfilter vervangt elke sleutel volgens een vast schema, zonder
 moment waarop mail niet door DKIM komt. Instellingen en status:

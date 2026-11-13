@@ -1,5 +1,7 @@
 # REST API
 
+[English](../api.md) · [Alle documentatie](README.md)
+
 Mailfilter heeft een REST API voor hostingpanels en scripts: domeinen
 toevoegen, een webserver laten relayen, SMTP-accounts maken, mail uit
 quarantaine vrijgeven, zoeken in de mail trace en meer.

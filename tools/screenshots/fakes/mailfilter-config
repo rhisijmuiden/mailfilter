@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""Stand-in for backend/bin/mailfilter-config in the screenshot demo: every apply
+succeeds, and `dkim` reports one key per domain."""
+import json, sys
+from datetime import datetime, timedelta, timezone
+
+req = json.loads(sys.stdin.read() or "{}") if "--stdin" in sys.argv else {}
+if "dkim" in sys.argv and req.get("action") == "status":
+    now = datetime.now(timezone.utc)
+    names = ["rhis.example", "bakkerij-jansen.example", "devries-auto.example", "studio-noord.example",
+             "tandarts-zuid.example", "webshop-zon.example", "nieuwsbrief.rhis.example"]
+    out = []
+    for i, d in enumerate(names):
+        created = now - timedelta(days=20 + i * 23)
+        sel = "mf" + created.strftime("%Y%m")
+        out.append({"domain": d, "active": sel, "keys": [{"selector": sel, "created": created.isoformat(),
+                    "txt": "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu" + "x7Qd" * 20}]})
+    print(json.dumps({"ok": True, "domains": out}))
+else:
+    print(json.dumps({"ok": True, "changed": [], "messages": []}))

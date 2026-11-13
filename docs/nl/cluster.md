@@ -1,5 +1,7 @@
 # Cluster
 
+[English](../cluster.md) · [Alle documentatie](README.md)
+
 Meerdere Mailfilter-servers kunnen dezelfde configuratie houden. Elke server blijft een complete gateway: valt er één uit, dan blijven de andere mail filteren met de configuratie die ze hebben, en de server die weg was loopt bij zodra hij terug is. Een enkele server heeft hier niets mee te maken en werkt precies zoals voorheen.
 
 ## Instellen

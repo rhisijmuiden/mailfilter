@@ -16,6 +16,7 @@
   <a href="CHANGELOG.md"><img alt="Versie" src="https://img.shields.io/badge/versie-1.0.0-E8553D"></a>
   <img alt="Debian 13" src="https://img.shields.io/badge/Debian-13%20trixie-A81D33">
   <img alt="IPv4 en IPv6" src="https://img.shields.io/badge/IPv4%20%2B%20IPv6-ja-1F2937">
+  <a href="LICENSE"><img alt="Licentie AGPL-3.0" src="https://img.shields.io/badge/licentie-AGPL--3.0-1F2937"></a>
   <img alt="Talen" src="https://img.shields.io/badge/talen-English%20%7C%20Nederlands-1F2937">
 </p>
 
@@ -29,102 +30,252 @@ Mailfilter staat tussen het internet en je mailservers. Binnenkomende mail wordt
 
 De interface is standaard Engels en volledig in het Nederlands vertaald; iedere gebruiker kiest zijn eigen taal.
 
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard van Mailfilter: berichten, afgeleverd, spam tegengehouden en problemen van de afgelopen 24 uur, met een live grafiek van de laatste 60 minuten" width="100%">
+</p>
+
 ## Inhoud
 
+- [In het kort](#in-het-kort)
 - [Handleidingen](#handleidingen)
-- [Functies](#functies)
+- [Rondleiding](#rondleiding)
+  - [Dashboard](#dashboard) · [Mailtrace](#mailtrace) · [Quarantaine](#quarantaine) · [Filteren en bescherming](#filteren-en-bescherming) · [Lijsten en spammeldingen](#toestaan-en-blokkeren-en-spammeldingen) · [DMARC-rapporten](#dmarc-rapporten) · [Linkbescherming](#linkbescherming)
+  - [Domeinen](#domeinen) · [Relay-toegang](#relay-toegang) · [Throttling en gehackte afzenders](#throttling-en-gehackte-afzenders) · [Microsoft 365 en Google Workspace](#microsoft-365-en-google-workspace) · [DNS-toolbox](#dns-toolbox)
+  - [Mailtrap](#mailtrap) · [Archief](#archief) · [Maandrapport en verbruik](#maandrapport-en-verbruik) · [Klanten, gebruikers en beveiliging](#klanten-gebruikers-en-beveiliging) · [API](#api)
+  - [Meldingen en e-mail verzenden](#meldingen-en-e-mail-verzenden) · [Backups](#backups) · [Updates en kanalen](#updates-en-kanalen) · [Cluster](#cluster) · [Huisstijl](#huisstijl) · [Import uit Proxmox Mail Gateway](#import-uit-proxmox-mail-gateway) · [Elk scherm, overal](#elk-scherm-overal)
 - [Snel aan de slag](#snel-aan-de-slag)
 - [Hoe het werkt](#hoe-het-werkt)
 - [Updates, branches en backups](#updates-branches-en-backups)
 - [Opdrachtregel](#opdrachtregel)
 - [Ontwikkelen](#ontwikkelen)
 - [Indeling van de repository](#indeling-van-de-repository)
+- [Licentie](#licentie)
+
+## In het kort
+
+- **Filtert in beide richtingen**: spam, virussen, phishing en gevaarlijke bijlagen in binnenkomende mail; spamcontrole, DKIM-ondertekening en limieten op uitgaande mail van je webservers en mailservers.
+- **Beantwoordt "waar is mijn mail?"** in gewone taal: elk bericht, elke ontvanger, de reden en wie het kan oplossen.
+- **Gemaakt voor hostingbedrijven**: logins voor klanten en resellers die alleen hun eigen domeinen zien, maandrapporten, verbruik voor de facturatie, een REST API voor je panel.
+- **DNS wordt voor je geregeld**: SPF, DKIM (met rotatie), DMARC, MTA-STS, DANE en BIMI, met één knop gepubliceerd in Cloudflare en terug te draaien.
+- **Draait zichzelf**: installer met één opdracht voor Debian 13, updates vanuit de webinterface met automatisch terugdraaien, versleutelde backups naar SCP, FTPS of FTP, meldingen via e-mail, Telegram of webhook.
+- **Engels en Nederlands**, licht en donker, werkt op een telefoon.
 
 ## Handleidingen
 
-| | Nederlands | English |
+De handleidingen zijn in het Engels geschreven. Van elke handleiding is er een Nederlandse vertaling.
+
+| Handleiding | Voor wie | Nederlands |
 | --- | --- | --- |
-| **Installatie**: van kale server tot eerste mail | [Installatiehandleiding](docs/nl/installatie.md) | [Installation guide](docs/installation.md) |
-| **Gebruikershandleiding**: voor klanten en dagelijks gebruik | [Gebruikershandleiding](docs/nl/gebruikershandleiding.md) | [User manual](docs/user-guide.md) |
-| **Beheerdershandleiding**: elke instelling uitgelegd | [Beheerdershandleiding](docs/nl/beheerdershandleiding.md) | [Administrator manual](docs/admin-guide.md) |
-| Alle documentatie | [docs/nl/](docs/nl/README.md) | [docs/](docs/README.md) |
+| [Installation guide](docs/installation.md) | De server inrichten: vereisten, opties van de installer, eerste keer inloggen, een domein overzetten | [Installatiehandleiding](docs/nl/installatie.md) |
+| [User manual](docs/user-guide.md) | Klanten en dagelijks gebruik: mailtrace, quarantaine, lijsten, spammeldingen, Mailtrap, archief, rapporten | [Gebruikershandleiding](docs/nl/gebruikershandleiding.md) |
+| [Administrator manual](docs/admin-guide.md) | Elk scherm en elke instelling, hoe een bericht gefilterd wordt, naslag voor de server | [Beheerdershandleiding](docs/nl/beheerdershandleiding.md) |
+| [All documentation](docs/README.md) | Overzicht van handleidingen en naslagpagina's | [Alle documentatie](docs/nl/README.md) |
 
-Uitgebreide naslagpagina's: [updates en backups](docs/nl/updates-en-backups.md), [relaydomeinen](docs/nl/relay-domeinen.md), [DKIM-sleutelrotatie](docs/nl/dkim-rotatie.md), [Mailtrap](docs/nl/mailtrap.md), [archief](docs/nl/archief.md), [cluster](docs/nl/cluster.md), [REST API](docs/nl/api.md).
+Naslagpagina's in het Nederlands: [updates en backups](docs/nl/updates-en-backups.md), [relaydomeinen](docs/nl/relay-domeinen.md), [DKIM-sleutelrotatie](docs/nl/dkim-rotatie.md), [Mailtrap](docs/nl/mailtrap.md), [linkbescherming](docs/nl/linkbescherming.md), [archief](docs/nl/archief.md), [cluster](docs/nl/cluster.md), [REST API](docs/nl/api.md).
 
-## Functies
+## Rondleiding
 
-### Filteren in beide richtingen
+De schermafbeeldingen komen van een demoserver met verzonnen klanten en domeinen, en tonen de Engelse interface; alles is ook in het Nederlands beschikbaar (zie [Elk scherm, overal](#elk-scherm-overal)). Ze worden gemaakt met de scripts in [`tools/screenshots`](tools/screenshots/README.md), zodat ze na elke release ververst kunnen worden.
 
-- **Spamfilter** met Rspamd: reputatie, Bayes-leren, fuzzy hashes, DNS-blocklists (Spamhaus en andere, via een eigen resolver), greylisting en postscreen aan de deur.
+### Dashboard
+
+Alles wat de afgelopen 24 uur of 30 dagen door de gateway ging: berichten in en uit, afgeleverd, spam tegengehouden en problemen, steeds vergeleken met de periode ervoor. Een live grafiek toont de laatste 60 minuten en een live feed toont elk bericht dat voorbijkomt. **Om naar te kijken** zet op een rij wat aandacht nodig heeft: mail die al meer dan een uur vastzit, een piek in bounces, een server die ineens veel meer verstuurt dan normaal, een gepauzeerde afzender, gestopte diensten, of een eigen IP-adres van Mailfilter op een blocklist. Topafzenders, top-ontvangende domeinen en de mailwachtrij maken het beeld compleet.
+
+### Mailtrace
+
+Zoek elk bericht op afzender, ontvanger, message-ID, queue-ID of server, en filter op status, richting en periode. Een groen vinkje betekent afgeleverd; bij alle andere berichten staat de reden er direct bij.
+
+![Mailtrace: een lijst berichten met hun status](docs/screenshots/trace.png)
+
+Open een bericht en je ziet de **route** (verzendende server → Mailfilter → bestemming), wat er per ontvanger gebeurde met het antwoord van de ontvangende server, een uitleg **in gewone taal** en **wie het kan oplossen**.
+
+| Afgeleverd, met de spamcontrole | Deels afgeleverd: één mailbox is vol |
+| --- | --- |
+| ![Een afgeleverd bericht met de route en spamcontrole](docs/screenshots/trace-detail.png) | ![Een bericht waarbij de mailbox van één ontvanger vol was](docs/screenshots/trace-problem.png) |
+
+De **spamcontrole** legt elke beslissing uit als checklist: is de afzender echt (SPF, DKIM, DMARC, lookalike-domeinen), reputatie en blocklists, links, bijlagen en virussen, inhoud en opmaak, met de punten die elke bevinding opleverde en waar de grenzen voor greylisting, spamlabel, quarantaine en weigeren liggen.
+
+![Spamcontrole van een phishingbericht dat in quarantaine staat](docs/screenshots/spam-check.png)
+
+### Quarantaine
+
+Spam, virussen en riskante bijlagen wachten hier op een beslissing. **Vrijgeven** levert het bericht af en leert het spamfilter *dit is goede mail*; **Blokkeren en verwijderen** leert *dit is spam*. **Altijd toestaan** en **Altijd blokkeren** zetten de afzender met één klik op de lijst van die ontvanger. De inhoud wordt als platte tekst getoond, dus bekijken is veilig. Alleen beheerders kunnen een virus vrijgeven.
+
+| Wachtende berichten en waarom ze zijn vastgehouden | Een geopend bericht |
+| --- | --- |
+| ![Quarantainelijst](docs/screenshots/quarantine.png) | ![Een bericht in quarantaine met knoppen om vrij te geven of te blokkeren](docs/screenshots/quarantine-detail.png) |
+
+Het **dagelijkse quarantaine-overzicht** mailt elke ontvanger de berichten die voor hem zijn vastgehouden, met per bericht een knop om het vrij te geven, vrij te geven en de afzender toe te staan, of de afzender te blokkeren. Inloggen is niet nodig; de links werken 14 dagen en alleen voor dat bericht.
+
+![Instellingen van het quarantaine-overzicht per domein](docs/screenshots/quarantine-report.png)
+
+### Filteren en bescherming
+
+- **Spamfilter** met Rspamd: reputatie, Bayes-leren, fuzzy hashes, DNS-blocklists (Spamhaus en andere via een lokale resolver), greylisting en postscreen aan de deur.
 - **Virusscan** met ClamAV op binnenkomende *en* uitgaande mail.
-- **Authenticatie**: SPF-, DKIM- en DMARC-controle op binnenkomende mail, ARC voor doorgestuurde mail, DKIM-ondertekening van alle uitgaande mail per domein.
-- **Phishingbescherming**: lookalike-domeinen (`rh1s.nl`), afzendernamen die zich voordoen als je eigen mensen (CEO-fraude), verdachte links en een optionele banner *externe afzender*.
-- **Linkbescherming** (volgende release): links in binnenkomende mail worden opnieuw gecontroleerd op het moment dat erop wordt geklikt.
-- **Bijlagebeleid**: gevaarlijke bestandstypen, Office-macro's en versleutelde archieven blokkeren of in quarantaine zetten.
-- **Nieuwsbrieffilter**: herkent bulkmail en bestraft nieuwsbrieven zonder werkende afmeldlink.
-- **Eigen regels** die je aan- of uitzet voor alle domeinen of per domein, elk met een gewone uitleg van wat hij doet.
-- **Toestaan- en blokkeerlijsten** per mailbox, per domein of voor iedereen.
-- **Ontvangercontrole**: mail voor adressen die niet bestaan wordt aan de deur geweigerd (vraag het aan de mailserver, LDAP / Active Directory of een vaste lijst), dus geen backscatter.
-- **Bescherming tegen backscatter en mailloops**, en bouncemails met uitleg in het Engels en Nederlands.
+- **Authenticatie**: controle van SPF, DKIM en DMARC op binnenkomende mail, ARC voor doorgestuurde mail, DKIM-ondertekening van alle uitgaande mail per domein.
+- **Ontvangercontrole**: mail voor adressen die niet bestaan wordt aan de deur geweigerd (navragen bij de mailserver, LDAP / Active Directory of een vaste lijst), dus geen backscatter.
+- **Bescherming tegen backscatter en lussen**, en foutmeldingen met uitleg in het Engels en Nederlands.
 
-### Zien wat er gebeurde
+**Eigen regels** voegen bescherming toe die je voor alle domeinen of per domein aan- of uitzet, elk met een duidelijke uitleg: nieuwsbrieven (en nieuwsbrieven zonder afmeldlink), phishing en CEO-fraude (lookalike-domeinen, afzendernamen die zich voordoen als je eigen mensen, verdachte links, een banner *externe afzender*, linkbescherming), gevaarlijke bijlagen (bestandstypen, Office-macro's, versleutelde archieven) en ARC voor doorgestuurde mail.
 
-- **Mailtrace**: zoek elk bericht op afzender, ontvanger, message-ID, queue-ID of server. Een groen vinkje betekent afgeleverd; anders staat de reden er direct bij, in gewone taal, met *wie het kan oplossen*.
-- **Routeplaatje**: bronserver → Mailfilter → bestemming, met spamscore en status per stap.
-- **Spamcheckrapport** per bericht: een checklist van elke regel die raakte, gegroepeerd en uitgelegd.
-- **Live dashboard**: mail per uur of dag, gestopte spam, problemen, wachtrij, topafzenders en een lijst *waar je naar moet kijken* (vastzittende mail, veel bounces, ongewoon verzendgedrag, gestopte services, blocklistvermeldingen).
+![Eigen regels met een uitleg per regel](docs/screenshots/rules.png)
 
-### Quarantaine en terugkoppeling
+### Toestaan en blokkeren en spammeldingen
 
-- **Quarantaine** voor spam, virussen en riskante bijlagen. Vrijgeven of blokkeren met één klik; het spamfilter leert van elke keuze.
-- **Dagelijks quarantainerapport** per e-mail, met een vrijgeefknop per bericht (geen login nodig).
-- **Spammeldingen** vanuit Outlook, een telefoon of elke mailapp: doorsturen naar `spam@` of `notspam@` en Mailfilter leert ervan als het de melding kan vertrouwen.
+Afzenders die altijd doorkomen, of nooit, per mailbox, per domein of voor iedereen. Klanten beheren de lijsten van hun eigen mailboxen.
 
-### Domeinen en uitgaande mail
+![Lijsten om toe te staan en te blokkeren](docs/screenshots/lists.png)
 
-- **Transportdomeinen** (in- en uitgaand, afgeleverd bij je mailserver, met reserveservers) en **relaydomeinen** (alleen uitgaand, voor webservers en applicaties).
-- **Relaytoegang**: één eenvoudig scherm om te zeggen *dit IP mag via Mailfilter versturen*. Servers van een klant mogen alleen versturen namens de eigen domeinen van die klant.
-- **SMTP-accounts** voor afzenders zonder vast IP, op poort 587 en 465 plus extra poorten naar keuze.
-- **Throttling** per server, per account en per afzenderdomein; vertraagregels voor grote ontvangende providers; **een eigen afleverwachtrij per domein**.
-- **Gehackte afzenders automatisch pauzeren**: een server of account die plotseling spam of een vloed aan mail verstuurt wordt vastgehouden, er gaat niets verloren, en je geeft hem met één klik weer vrij.
-- **TLS-beleid** per bestemming, uitgaand DANE.
-- **Microsoft 365 en Google Workspace** achter Mailfilter, met een stap-voor-stapwizard die de PowerShell-opdrachten en DNS-records voor je schrijft.
+Gebruikers melden gemiste spam of onterecht tegengehouden mail vanuit **Outlook** (de ingebouwde knop Melden in Microsoft 365), een **telefoon** of **elke mailapp** door hem door te sturen naar `spam@` of `notspam@` de Mailfilter-host. Mailfilter leert alleen van meldingen die het kan vertrouwen: mail die het zelf afleverde, gemeld vanuit dat domein.
 
-### DNS makkelijk gemaakt
+![Spammeldingen met hun status](docs/screenshots/spam-reports.png)
 
-- **DNS-toolbox** met Cloudflare-koppeling: domein controleren, SPF en DMARC genereren, MX opzoeken, blocklists controleren, records met één knop publiceren en ongedaan maken vanuit het wijzigingslog.
-- **Go live**-knop die de MX van een domein naar Mailfilter omzet.
-- **DKIM-sleutels** met **automatische rotatie**.
-- **MTA-STS, TLS-RPT en DANE**, gehost en gepubliceerd door Mailfilter.
-- **BIMI**: upload je logo, Mailfilter zet het om naar SVG Tiny PS, controleert je VMC/CMC-certificaat en publiceert het record.
-- **DMARC-rapporten**: Mailfilter ontvangt de rapporten en toont per domein de weg naar `p=reject`, met de afzenders die nog falen.
-- **Blocklistbewaking** van Mailfilters eigen IP-adressen met een grote melding op het dashboard.
+### DMARC-rapporten
 
-### Voor klanten en resellers
+Mailfilter ontvangt de DMARC-rapporten van je domeinen en laat zien wie er namens ze mailt, hoeveel er slaagt, en de volgende veilige stap op de **weg naar p=reject**. Met Cloudflare is elke stap één knop.
 
-- **Logins voor beheerders, klanten en resellers**. Klanten zien alleen mail en instellingen van hun eigen domeinen.
-- **Maandrapport** per klant per e-mail: ontvangen mail, gestopte spam en virussen.
-- **Verbruik per klant** (domeinen, actieve mailboxen, verkeer, archiefopslag), prijzen, resellerkorting en CSV-export voor de facturatie.
-- **Mailtrap**: vang alle mail van test- en acceptatieomgevingen op in virtuele mailboxen zodat hij nooit wordt verstuurd, met een ingebouwde controle van elk bericht (links naar testhosts, niet-ingevulde templatevelden, grootte, DKIM en meer). Ook via IMAP te lezen.
-- **Mailarchief**: een onveranderbare, doorzoekbare kopie van alle mail per domein tot 10 jaar, met hashketen en elke nacht verzegeld, met juridische bewaarplicht (legal hold) en export.
+![DMARC-rapporten per domein](docs/screenshots/dmarc.png)
 
-### Beheer en beveiliging
+### Linkbescherming
 
-- **Moderne interface** in het Engels en Nederlands, menu aan de linkerkant, licht en donker thema, werkt op een telefoon, **Ctrl+K** om overal te zoeken.
-- **Tweestapsverificatie** (TOTP, herstelcodes), optioneel verplicht voor beheerders of voor iedereen.
-- **Auditlog** van elke wijziging, te filteren en als CSV te exporteren.
-- **REST API** met API-sleutels per onderdeel, IP-beperking, vervaldatum en ingebouwde OpenAPI-documentatie.
-- **Meldingen** per e-mail, Telegram of webhook (JSON, Slack, Mattermost, Discord): service gestopt, wachtrij loopt vol, blocklist, certificaat, gepauzeerde afzender, backup- of updateprobleem.
-- **Eigen SMTP-instellingen** voor mail die Mailfilter zelf verstuurt.
-- **Eigen huisstijl**: productnaam, accent- en donkere kleur, logo (ook een versie voor donkere modus) en browsericoon, in de webapp, op de inlogpagina en in rapportmails. De RHIS-huisstijl is de standaard.
-- **Cluster**: houd meerdere Mailfilter-servers op dezelfde configuratie; elke server blijft zelfstandig filteren als een andere uitvalt.
-- **Importeren uit Proxmox Mail Gateway**: domeinen, relaynetwerken, adresroutes, TLS-regels, toestaan- en blokkeerlijsten en DKIM-sleutels uit een PMG-backupbestand.
+Links in binnenkomende mail worden herschreven zodat ze opnieuw worden gecontroleerd **op het moment dat iemand klikt**: blocklists, lookalike-domeinen, links naar een IP-adres, verkorte URL's uitgepakt. Gevaarlijke links tonen een waarschuwingspagina. Elke klik staat in een lijst met wat Mailfilter besliste. Zie [linkbescherming](docs/nl/linkbescherming.md).
 
-### Beheer van de server
+![Linkklikken: geblokkeerd, gewaarschuwd, toch doorgegaan en veilig](docs/screenshots/link-clicks.png)
 
-- **Installer met één opdracht** voor een kale Debian 13-server, direct aan het internet: HTTPS met Let's Encrypt, firewall (nftables), CrowdSec, IPv4 en IPv6, 's nachts beveiligingsupdates.
-- **Info-knop** met de draaiende versie, *Controleren op updates*, *Nu updaten* en een schakelaar tussen het **productie**- (`main`) en **test**kanaal (`test`). Elke update maakt eerst een backup en draait zichzelf terug als er iets misgaat.
-- **Backups**: volledig en incrementeel, 's nachts volgens schema, terugzetten vanuit de webinterface, en versleutelde kopieën naar **SCP/SFTP, FTPS of FTP** met terugzetten vanaf die externe locatie.
+### Domeinen
+
+**Transport-domeinen** ontvangen mail via Mailfilter en leveren die af bij je mailserver (met reserveservers, TLS-beleid, een eigen afleverwachtrij en verzendlimieten). **Relay-domeinen** versturen alleen, voor webwinkels en applicaties, met DKIM, SPF en SMTP-accounts.
+
+![Transport-domeinen met hun mailserver, ontvangercontrole en wachtrij](docs/screenshots/domains.png)
+
+| Een geopend transport-domein | Relay-domeinen |
+| --- | --- |
+| ![Instellingen van één transport-domein](docs/screenshots/domain-detail.png) | ![Relay-domeinen met SMTP-accounts en DNS-status](docs/screenshots/relay-domains.png) |
+
+### Relay-toegang
+
+Eén eenvoudig scherm om te zeggen *deze server mag mail via Mailfilter versturen*. Een server die aan een klant gekoppeld is, kan alleen namens de eigen domeinen van die klant versturen, en zijn mail wordt nog steeds op spam en virussen gecontroleerd, met DKIM ondertekend en begrensd. Extra relay-poorten naast 587 en 465 voor oude software.
+
+![Relay-toegang: toegestane servers en relay-poorten](docs/screenshots/relay.png)
+
+### Throttling en gehackte afzenders
+
+Limieten per server, per SMTP-account en per afzenderdomein, een eigen afleverwachtrij per domein, en vertragingsregels voor grote ontvangende providers. **Automatische bescherming** pauzeert een server of account die ineens spam of een stortvloed aan mail verstuurt: er gaat niets verloren, er wordt niets verstuurd, en je geeft hem met één klik weer vrij als het veilig is.
+
+![Throttling: standaardlimieten en vertragingsregels](docs/screenshots/throttling.png)
+
+### Microsoft 365 en Google Workspace
+
+Een wizard van 8 stappen zet een Microsoft 365- of Google Workspace-domein achter Mailfilter: hij schrijft de PowerShell-opdrachten, controleert de connectors, past de DNS aan en sluit tot slot de tenant af zodat alleen Mailfilter nog kan afleveren. IP-reeksen van clouddiensten worden nooit blind vertrouwd: doorgestuurde mail moet de tenant-ID of een geldige DKIM-handtekening hebben.
+
+![Cloud-mail: voortgang per omgeving](docs/screenshots/cloud.png)
+
+### DNS-toolbox
+
+Controleer een domein bij zijn eigen nameservers, maak SPF en DMARC, zoek MX op, controleer blocklists, en publiceer records met één knop in **Cloudflare**, altijd eerst getoond en terug te draaien vanuit het wijzigingslog. **Live zetten** zet de MX van een domein over naar Mailfilter. **DKIM-sleutels** worden automatisch vervangen, **MTA-STS, TLS-RPT en DANE** worden door Mailfilter gehost en gepubliceerd, en **BIMI** zet je logo om naar SVG Tiny PS en controleert je VMC/CMC-certificaat.
+
+| SPF-generator: Mailfilter toevoegen aan een bestaand record | DKIM-sleutels met automatische rotatie |
+| --- | --- |
+| ![SPF-generator](docs/screenshots/dns-spf.png) | ![DKIM-sleutels en hun volgende rotatie](docs/screenshots/dns-dkim.png) |
+
+![BIMI: wat er nog nodig is voordat je logo in Gmail en Apple Mail verschijnt](docs/screenshots/dns-bimi.png)
+
+### Mailtrap
+
+Vang alle mail van test- en stagingomgevingen op in virtuele mailboxen, zodat hij **nooit** naar echte mensen gaat. Elk bericht wordt gecontroleerd: links naar testhosts of zonder HTTPS, sjabloonvelden die niet zijn ingevuld, DKIM, grootte, alt-teksten, afmeldheaders en meer. Bekijk het op desktop- of telefoonbreedte, lees de bron, stuur het naar jezelf door, of lees de mailbox via IMAP. Zie [Mailtrap](docs/nl/mailtrap.md).
+
+![Mailtrap: een opgevangen orderbevestiging met de controles](docs/screenshots/mailtrap.png)
+
+### Archief
+
+Een onveranderbare, doorzoekbare kopie van alle mail per domein, tot 10 jaar lang. Elk bericht zit in een hashketen, elke dag wordt verzegeld met de Ed25519-sleutel van de server en op schijf vergrendeld, en een juridische bewaarplicht (legal hold) voorkomt dat er iets wordt verwijderd. Zoek op woorden, adressen en namen van bijlagen, en exporteer met bewijs dat er niets is veranderd. Zie [archief](docs/nl/archief.md).
+
+![Archief: zoeken in gearchiveerde mail](docs/screenshots/archive.png)
+
+### Maandrapport en verbruik
+
+Elke klant krijgt een **maandrapport** per e-mail: ontvangen mail, tegengehouden spam en virussen. **Verbruik** telt per klant de domeinen, actieve mailboxen, het verkeer en de archiefopslag, rekent met jouw prijzen en resellerkortingen, en exporteert CSV voor je boekhoudpakket.
+
+| Maandrapport | Verbruik per klant |
+| --- | --- |
+| ![Maandrapport met 12 maanden mail](docs/screenshots/monthly-report.png) | ![Verbruik en bedragen per klant](docs/screenshots/usage.png) |
+
+### Klanten, gebruikers en beveiliging
+
+Beheerders zien alles; **klanten** zien alleen mail en instellingen van hun eigen domeinen; **resellers** zien alleen het verbruik van hun eigen klanten. Inloggen in twee stappen (TOTP met herstelcodes) kan verplicht worden voor beheerders of voor iedereen, en het **auditlog** legt elke wijziging vast, te filteren en te exporteren.
+
+| Gebruikers en rollen | Auditlog |
+| --- | --- |
+| ![Gebruikers met hun rol, domeinen en status van inloggen in twee stappen](docs/screenshots/users.png) | ![Auditlog van elke wijziging](docs/screenshots/audit.png) |
+
+| Beveiliging: inloggen in twee stappen verplichten | Mijn account |
+| --- | --- |
+| ![Beleid voor inloggen in twee stappen](docs/screenshots/security.png) | ![Mijn account met taal en inloggen in twee stappen](docs/screenshots/account.png) |
+
+### API
+
+Een REST API voor hostingpanels en scripts: domeinen toevoegen, een webserver laten relayen, SMTP-accounts maken, mail uit quarantaine vrijgeven, in de mailtrace zoeken. Sleutels hebben rechten per onderdeel, optionele IP-beperkingen en een vervaldatum; een sleutel van een klant werkt alleen op de domeinen van die klant. De documentatie met voorbeelden is ingebouwd. Zie [REST API](docs/nl/api.md).
+
+| API-sleutels | Ingebouwde documentatie |
+| --- | --- |
+| ![API-sleutels met hun rechten](docs/screenshots/api.png) | ![API-documentatie met een voorbeeldaanroep](docs/screenshots/api-docs.png) |
+
+### Meldingen en e-mail verzenden
+
+Meldingen via **e-mail**, **Telegram** of **webhook** (JSON, Slack, Mattermost, Discord) als een dienst stopt, de wachtrij volloopt, een IP op een blocklist komt, het certificaat niet wordt verlengd, een afzender wordt gepauzeerd, of een backup of update mislukt. Mailfilters eigen mail gaat via zichzelf (met DKIM ondertekend) of via elke SMTP-server, met een testknop die fouten in gewone taal uitlegt.
+
+| Meldingen | E-mail verzenden |
+| --- | --- |
+| ![Meldingskanalen en waarover een melding komt](docs/screenshots/notifications.png) | ![Hoe Mailfilter zijn eigen mail verstuurt](docs/screenshots/mail-sending.png) |
+
+### Backups
+
+Elke nacht volledige en incrementele backups, terugzetten vanuit de webinterface, en versleutelde kopieën (AES-256) naar **SCP/SFTP, FTPS of FTP**, met terugzetten direct vanaf die externe locatie, ook op een vers geïnstalleerde server.
+
+![Backups: lijst, planning en externe kopie](docs/screenshots/backups.png)
+
+### Updates en kanalen
+
+**Info** toont de draaiende versie, het kanaal, de commit en de versies van alle onderdelen. **Controleren op updates** laat zien wat er veranderde; **Nu updaten** maakt een backup, installeert de nieuwe versie en draait zichzelf terug als er iets misgaat. Wissel met één klik tussen het kanaal **productie** (`main`) en **test** (`test`).
+
+![Info: versie, beschikbare update, updatekanaal](docs/screenshots/info.png)
+
+### Cluster
+
+Houd meerdere Mailfilter-servers op dezelfde configuratie. Elke server blijft een complete gateway: valt er één uit, dan blijven de andere filteren, en hij loopt bij zodra hij terug is. Zie [cluster](docs/nl/cluster.md).
+
+![Cluster met twee servers](docs/screenshots/cluster.png)
+
+### Huisstijl
+
+Je eigen productnaam, accent- en donkere kleur, logo (met een versie voor donkere modus) en browsericoon, gebruikt in de webapp, op de inlogpagina en in rapportmails. De RHIS-huisstijl is de standaard, en "Powered by RHIS" blijft zichtbaar (zie [Licentie](#licentie)).
+
+![Huisstijl met een live voorbeeld](docs/screenshots/branding.png)
+
+### Import uit Proxmox Mail Gateway
+
+Upload een PMG-backup en neem domeinen, relay-netwerken, adresroutes, TLS-regels, lijsten om toe te staan en te blokkeren, en DKIM-sleutels over. Je ziet eerst alles en kiest wat je importeert.
+
+![Import uit Proxmox Mail Gateway](docs/screenshots/import-pmg.png)
+
+### Elk scherm, overal
+
+Zoek alles met **Ctrl+K**, wissel tussen licht en donker, gebruik het op een telefoon, en geef klanten de interface in hun eigen taal: alles is er in het Engels en het Nederlands.
+
+| Zoeken met Ctrl+K | Donker thema |
+| --- | --- |
+| ![Opdrachtpalet dat een domein en zijn berichten zoekt](docs/screenshots/search.png) | ![Mailtrace in het donkere thema](docs/screenshots/trace-detail-dark.png) |
+
+| De weergave van een klant, in het Nederlands | Inloggen |
+| --- | --- |
+| ![Dashboard van een klantlogin in het Nederlands](docs/screenshots/dashboard-customer.png) | ![Inlogpagina](docs/screenshots/login.png) |
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-phone.png" alt="Dashboard op een telefoon" width="280">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/quarantine-phone.png" alt="Quarantaine op een telefoon" width="280">
+</p>
 
 ## Snel aan de slag
 
@@ -207,6 +358,8 @@ cd frontend && npm ci && npm run dev
 
 Tests: `cd backend && pytest` (zet `MAILFILTER_TEST_DB_URL` op een lege testdatabase). CI rendert en controleert ook de configuratie van Postfix, Rspamd en Dovecot in een Debian 13-container. De teksten van de interface staan in `frontend/src/i18n/en.json` en `nl.json`; CI controleert dat beide dezelfde sleutels hebben.
 
+De schermafbeeldingen in deze README komen uit een demodatabase met verzonnen `.example`-domeinen; [tools/screenshots/README.md](tools/screenshots/README.md) legt uit hoe je ze opnieuw maakt na een wijziging aan de interface.
+
 ## Indeling van de repository
 
 | Pad | Inhoud |
@@ -219,7 +372,8 @@ Tests: `cd backend && pytest` (zet `MAILFILTER_TEST_DB_URL` op een lege testdata
 | `frontend/` | Webinterface (React, TypeScript, Vite, Tailwind) |
 | `install/` | Installer voor Debian 13 en de configuratiesjablonen |
 | `ops/` | `mailfilterctl`: updates, backups, terugzetten |
-| `docs/` | Handleidingen en naslag (Engels, Nederlands in `docs/nl/`) |
+| `docs/` | Handleidingen en naslag (Engels, Nederlands in `docs/nl/`), schermafbeeldingen in `docs/screenshots/` |
+| `tools/screenshots/` | Demodata en scripts die de schermafbeeldingen van deze README maken |
 | `huisstijl/` | RHIS-huisstijl: tokens, Archivo-lettertype, logo's |
 | `prototype/` | Het oorspronkelijke klikbare prototype van de interface |
 

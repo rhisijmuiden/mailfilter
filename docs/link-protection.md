@@ -1,5 +1,7 @@
 # Link protection
 
+[Nederlands](nl/linkbescherming.md) · [All documentation](README.md)
+
 Phishing sites are often harmless when a message arrives and turn dangerous an
 hour later. With link protection Mailfilter checks a link **when someone
 clicks it**, not only when the mail comes in.

@@ -2,6 +2,8 @@
 
 [English](../admin-guide.md) · [Alle documentatie](README.md)
 
+*De schermafbeeldingen tonen meestal de Engelse interface; die is volledig in het Nederlands beschikbaar via Mijn account › Taal.*
+
 Deze handleiding legt elk scherm en elke instelling uit voor beheerders. Het dagelijkse werk (mailtrace, quarantaine, lijsten) staat in de [gebruikershandleiding](gebruikershandleiding.md); het installeren van de server in de [installatiehandleiding](installatie.md).
 
 **Inhoud**
@@ -19,6 +21,8 @@ Deze handleiding legt elk scherm en elke instelling uit voor beheerders. Het dag
 
 ### Dashboard
 
+![Dashboard](../screenshots/dashboard.png)
+
 Beheerders zien alle domeinen: totalen van de laatste 24 uur of 30 dagen, een grafiek per uur of dag, de mailwachtrij (wordt verstuurd, wacht op nieuwe poging, in quarantaine), topafzenders en top-ontvangende domeinen, en **Wat opvalt**:
 
 | Melding | Wat te doen |
@@ -33,6 +37,8 @@ Beheerders zien alle domeinen: totalen van de laatste 24 uur of 30 dagen, een gr
 
 ### Maandrapport
 
+![Maandrapport](../screenshots/monthly-report.png)
+
 **Overzicht › Maandrapport** toont per klant hoeveel mail er binnenkwam en hoeveel spam en virussen er werden tegengehouden, per maand. Bij de instellingen:
 
 - **Maandrapport versturen**: standaard uit. Kies de **dag van de maand** (1–28) en de **tijd**.
@@ -42,6 +48,8 @@ Beheerders zien alle domeinen: totalen van de laatste 24 uur of 30 dagen, een gr
 Afgelopen maanden worden bewaard, dus het rapport blijft beschikbaar na de 90 dagen van de mailtrace.
 
 ### Verbruik
+
+![Verbruik](../screenshots/usage.png)
 
 **Overzicht › Verbruik** is de basis voor de facturatie. Per klant en per domein: domeinen, **actieve mailboxen** (unieke adressen die in de maand echt mail ontvingen of verstuurden; alleen spam telt niet), berichten in en uit, en archiefopslag (de hoogste omvang in de maand).
 
@@ -57,19 +65,27 @@ Klantlogins zien de aantallen zonder prijzen; resellerlogins zien alleen hun eig
 
 ### Mailtrace
 
+![Mailtrace](../screenshots/trace-detail.png)
+
 Zie de [gebruikershandleiding](gebruikershandleiding.md#4-mailtrace). Beheerders zien elk domein en ook het IP-adres en de hostnaam van de verzendende server, het SMTP-account en het letterlijke antwoord van de ontvangende server. De mailtrace wordt door `mailfilter-tracer` opgebouwd uit de logs van Postfix en Rspamd en 90 dagen bewaard.
 
 ### Quarantaine
 
+![Quarantaine](../screenshots/quarantine-detail.png)
+
 De quarantaine is de *hold*-wachtrij van Postfix: er gaat niets van de server af tot iemand beslist. Spam met een score van **8 of hoger** gaat in quarantaine, **15 of hoger** wordt aan de deur geweigerd; virussen en geblokkeerde bijlagen gaan in quarantaine. Vrijgeven leert Rspamd *ham*, blokkeren leert *spam*. Alleen beheerders kunnen een bericht met een virus vrijgeven.
 
 ### Mailtrap
+
+![Mailtrap](../screenshots/mailtrap.png)
 
 Een module die mail uit testomgevingen opvangt zodat die nooit verstuurd wordt. Hij staat **uit** tot een beheerder hem bovenaan **Mailverkeer › Mailtrap** aanzet; zolang hij uit staat wordt mail van Mailtrap-adressen en -logins geweigerd, nooit doorgestuurd.
 
 Per mailbox: naam, klant, welke IP-adressen of netwerken worden opgevangen (een IP staat óf in Relay-toegang óf in een Mailtrap, nooit allebei), eventueel een login `trap-<naam>` voor omgevingen zonder vast IP, *alles opvangen* of *alles opvangen, behalve naar testers*, IMAP-toegang op poort 993, bewaartermijn (standaard 7 dagen) en maximaal aantal berichten (standaard 1000). Alleen beheerders kunnen **Toch versturen** (komt in het auditlog). Alle details: [Mailtrap](mailtrap.md).
 
 ### Archief
+
+![Archief](../screenshots/archive.png)
 
 Zet het archief per domein aan op het tabblad **Domeinen** van **Mailverkeer › Archief**:
 
@@ -81,9 +97,13 @@ Alleen mail die echt is afgeleverd of verstuurd wordt gearchiveerd (ook mail die
 
 ### Toestaan en blokkeren
 
+![Toestaan en blokkeren](../screenshots/lists.png)
+
 Regels gelden voor één mailbox, voor iedereen op een domein, of voor alle domeinen (alleen beheerders). Toegestane afzenders krijgen −20 op de spamscore (virussen en gevaarlijke bijlagen worden nog steeds tegengehouden); geblokkeerde afzenders worden geweigerd met *blokkeerlijst van de ontvanger*. Lijsten die uit PMG zijn geïmporteerd staan apart en werken gewoon.
 
 ### Spammeldingen
+
+![Spammeldingen](../screenshots/spam-reports.png)
 
 Gebruikers melden spam bij `spam@<hostnaam>` en goede mail bij `notspam@<hostnaam>` (zie de [gebruikershandleiding](gebruikershandleiding.md#8-spam-en-goede-mail-melden)). **Mailverkeer › Spammeldingen** toont elke melding met zijn status, en heeft deze instellingen:
 
@@ -95,6 +115,8 @@ Mailfilter leert alleen van mail die het zelf bij het domein van de melder heeft
 
 ### Quarantaine-overzicht
 
+![Quarantaine-overzicht](../screenshots/quarantine-report.png)
+
 **Mailverkeer › Quarantaine-overzicht** stuurt elke ontvanger met vastgehouden mail één e-mail per dag:
 
 - **Dagelijks overzicht versturen** (standaard uit), de **tijd**, de **taal van de e-mail** (één voor iedereen, ontvangers hebben geen account) en **Alleen als er nieuwe mail in quarantaine staat**.
@@ -105,6 +127,8 @@ De links in het overzicht werken 14 dagen en alleen voor dat bericht; een link o
 
 ### DMARC-rapporten
 
+![DMARC-rapporten](../screenshots/dmarc.png)
+
 Mailfilter ontvangt DMARC-rapporten op `dmarc-reports@<hostnaam>`. Voeg `rua=mailto:dmarc-reports@<hostnaam>` toe aan het DMARC-record van een domein (de DNS-toolbox doet dit voor je) en publiceer één keer het autorisatierecord `*._report._dmarc.<hostnaam>`. Rapporten worden 400 dagen bewaard.
 
 Per domein toont de pagina wie namens het domein verstuurt en de **weg naar p=reject**: minstens 7 dagen rapporten verzamelen met `p=none`, de echte afzenders die falen oplossen, naar `quarantine`, 14 dagen wachten, dan `reject`. Met Cloudflare is elke stap één knop.
@@ -114,6 +138,8 @@ Per domein toont de pagina wie namens het domein verstuurt en de **weg naar p=re
 ## Configuratie
 
 ### Domeinen
+
+![Domeinen](../screenshots/domain-detail.png)
 
 **Configuratie › Domeinen** kent twee soorten:
 
@@ -145,6 +171,8 @@ Bij het opslaan van een domein wordt de DKIM-sleutel gemaakt. Elke wijziging wor
 
 ### Relay-toegang
 
+![Relay-toegang](../screenshots/relay.png)
+
 **Configuratie › Relay-toegang** toont de servers die via Mailfilter mail naar buiten mogen sturen.
 
 - **Toestaan**: een IP-adres of netwerk (IPv4 of IPv6) met een omschrijving en, voor servers van een klant, het **klantdomein**. Een server die aan een klant gekoppeld is mag alleen versturen namens de domeinen van die klant. Grote netwerken vragen een extra bevestiging.
@@ -154,6 +182,8 @@ Bij het opslaan van een domein wordt de DKIM-sleutel gemaakt. Elke wijziging wor
 Mail via de relay wordt nog steeds op spam en virussen gecontroleerd, met DKIM ondertekend en begrensd.
 
 ### Cloud-mail (Microsoft 365 en Google Workspace)
+
+![Cloud-mail (Microsoft 365 en Google Workspace)](../screenshots/cloud.png)
 
 **Configuratie › Cloud-mail** zet een domein in Microsoft 365 of Google Workspace achter Mailfilter met een wizard van 8 stappen. Elke stap toont precies wat je moet aanklikken of welke PowerShell je moet plakken, en Mailfilter controleert het resultaat.
 
@@ -172,20 +202,24 @@ Beveiliging: de IP-reeksen van Microsoft en Google worden **niet** aan Relay-toe
 
 ### Eigen regels
 
+![Eigen regels](../screenshots/rules.png)
+
 **Configuratie › Eigen regels** bevat regels die je aan- en uitzet, in vier groepen. Elke regel legt uit wat hij doet, toont de naam waarmee hij in de mailtrace staat, en kan aan of uit voor alle domeinen, met een uitzondering per domein (klanten kunnen kiezen voor hun eigen domeinen). Regels met een score tellen op bij de spamscore.
 
 | Groep | Regels |
 | --- | --- |
 | **Nieuwsbrieven** | Nieuwsbrieven markeren, nieuwsbrief zonder afmeldlink (+4), zonder afmelden met één klik, zonder DKIM, header `X-Mailfilter-Newsletter`, optioneel label in het onderwerp |
-| **Phishing en CEO-fraude** | Lookalikes van je eigen domeinen, afzendernamen die zich voordoen als je eigen mensen (met een lijst beschermde namen), verdachte links, banner *externe afzender*, linkbescherming (volgende release) |
+| **Phishing en CEO-fraude** | Lookalikes van je eigen domeinen, afzendernamen die zich voordoen als je eigen mensen (met een lijst beschermde namen), verdachte links, banner *externe afzender*, linkbescherming |
 | **Bijlagen** | Gevaarlijke bestandstypen blokkeren of in quarantaine (lijst aan te passen), Office-macro's, versleutelde archieven |
 | **Doorgestuurde mail (ARC)** | ARC-zegels van bekende doorstuurders vertrouwen (standaard Google, Microsoft, Yahoo, iCloud) zodat doorgestuurde mail door DMARC blijft komen |
 
 De banner en het label in het onderwerp veranderen het bericht en breken daardoor de DKIM-handtekening van de afzender; ze staan standaard uit.
 
-**Linkbescherming** (volgende release, standaard uit): links in binnenkomende mail worden herschreven zodat ze via Mailfilter lopen. Als iemand klikt, wordt de link op dat moment opnieuw gecontroleerd (blocklists, lookalike-domeinen, verkorte URL's uitgepakt); bij een gevaarlijke link volgt een waarschuwingspagina. Je kiest of gebruikers toch door mogen, welke afzenders en links worden overgeslagen en welke altijd worden geblokkeerd. Kliks staan op een eigen pagina.
+**Linkbescherming** (standaard uit): links in binnenkomende mail worden herschreven zodat ze via Mailfilter lopen. Als iemand klikt, wordt de link op dat moment opnieuw gecontroleerd (blocklists, lookalike-domeinen, verkorte URL's uitgepakt); bij een gevaarlijke link volgt een waarschuwingspagina. Je kiest of gebruikers toch door mogen, welke afzenders en links worden overgeslagen en welke altijd worden geblokkeerd. Kliks staan op een eigen pagina.
 
 ### Throttling en automatische bescherming
+
+![Throttling en automatische bescherming](../screenshots/throttling.png)
 
 **Configuratie › Throttling** begrenst uitgaande mail zodat één gehackte server of account geen duizenden spamberichten kan versturen.
 
@@ -207,6 +241,8 @@ De banner en het label in het onderwerp veranderen het bericht en breken daardoo
 Geef een gepauzeerde afzender vrij onder **Relay-toegang** zodra de oorzaak is opgelost: **Vrijgeven en vastgehouden mail versturen** of **Vrijgeven en vastgehouden mail verwijderen**.
 
 ### DNS-toolbox
+
+![DNS-toolbox](../screenshots/dns-dkim.png)
 
 **Configuratie › DNS-toolbox** heeft deze tabbladen:
 
@@ -239,6 +275,8 @@ Geef een gepauzeerde afzender vrij onder **Relay-toegang** zodra de oorzaak is o
 
 ### Gebruikers
 
+![Gebruikers](../screenshots/users.png)
+
 **Systeem › Gebruikers**: logins toevoegen, wijzigen en uitschakelen.
 
 - **Rol**: *Beheerder* (alles), *Klant* (alleen de gekoppelde **domeinen**) of *Reseller* (alleen het verbruik van de eigen klanten).
@@ -252,9 +290,13 @@ Geef een gepauzeerde afzender vrij onder **Relay-toegang** zodra de oorzaak is o
 
 ### Beveiliging
 
+![Beveiliging](../screenshots/security.png)
+
 **Systeem › Beveiliging › Tweestapsverificatie verplichten**: *Optioneel*, *Verplicht voor beheerders* of *Verplicht voor iedereen*. Zet het eerst voor jezelf aan. Gebruikers zonder worden bij de volgende keer inloggen gevraagd het in te stellen; de pagina toont wie dat nog moet doen. In noodgevallen op de server: `mailfilter-admin reset-2fa EMAIL`.
 
 ### Huisstijl
+
+![Huisstijl](../screenshots/branding.png)
 
 **Systeem › Huisstijl** geeft deze Mailfilter je eigen uiterlijk: productnaam, accentkleur (hoofdknoppen, actief menu-item), donkere kleur (kop van rapportmails), een logo, optioneel een licht logo voor donkere modus en een browsericoon (SVG, PNG, WebP, JPEG of ICO, maximaal 256 KB per bestand). Het voorbeeld laat het resultaat zien voordat je opslaat. Naam en kleuren worden ook gebruikt in het quarantaine-overzicht, het maandrapport en de pagina's van linkbescherming. **Terug naar standaard** zet de RHIS-huisstijl terug. In een cluster gaat de huisstijl mee naar de andere servers.
 
@@ -262,9 +304,13 @@ Het kleine "Powered by RHIS" rechtsonder op elke pagina is geen instelling: het 
 
 ### Auditlog
 
+![Auditlog](../screenshots/audit.png)
+
 Elke wijziging in de webinterface en de API wordt vastgelegd met gebruiker, tijd, domein, IP-adres en details. Filter op gebruiker, soort actie, domein en periode; exporteer als CSV. Acties met een API-sleutel zijn gemarkeerd met *via API-sleutel*.
 
 ### API
+
+![API](../screenshots/api.png)
 
 **Systeem › API**: REST API op `https://<hostnaam>/api/v1/` voor hostingpanelen en scripts.
 
@@ -275,6 +321,8 @@ Zie [REST API](api.md).
 
 ### E-mail verzenden
 
+![E-mail verzenden](../screenshots/mail-sending.png)
+
 **Systeem › E-mail verzenden**: hoe Mailfilter zijn eigen mail verstuurt (meldingen, rapporten, quarantaine-overzichten):
 
 - **Via deze Mailfilter** (standaard, aanbevolen): met DKIM ondertekend zoals alle andere mail.
@@ -283,6 +331,8 @@ Zie [REST API](api.md).
 **Testbericht versturen** probeert de instellingen in het formulier, ook voor het opslaan, en legt in gewone taal uit wat er misging.
 
 ### Meldingen
+
+![Meldingen](../screenshots/notifications.png)
 
 **Systeem › Meldingen** stuurt waarschuwingen als er iets aandacht nodig heeft, ook als niemand kijkt:
 
@@ -305,6 +355,8 @@ Algemeen: taal van de meldingen, **herinneren elke** *n* uur zolang een probleem
 
 ### Cluster
 
+![Cluster](../screenshots/cluster.png)
+
 **Systeem › Cluster** houdt meerdere Mailfilter-servers op dezelfde configuratie. Elke server blijft een volledige gateway: valt er één uit, dan blijven de andere filteren, en hij haalt alles in zodra hij terug is.
 
 1. Op de eerste server: **Cluster aanmaken**.
@@ -315,6 +367,8 @@ Algemeen: taal van de meldingen, **herinneren elke** *n* uur zolang een probleem
 Publiceer daarna het gedeelde SPF-record opnieuw en geef elk domein een MX voor elke server. Domeinen, relay-toegang, throttling, gebruikers (met 2FA), lijsten, regels, API-sleutels, facturatie en DKIM-sleutels worden gesynchroniseerd; wachtrijen, quarantaine, mailtrace, backups, Mailtrap-mailboxen en gearchiveerde mail blijven per server. Zie [cluster](cluster.md).
 
 ### Backups
+
+![Backups](../screenshots/backups.png)
 
 **Systeem › Backups**:
 
@@ -327,6 +381,8 @@ Een backup bevat alle instellingen, DKIM-sleutels, certificaten, quarantaine, de
 
 ### Import uit PMG
 
+![Import uit PMG](../screenshots/import-pmg.png)
+
 **Systeem › Import uit PMG** neemt een Proxmox Mail Gateway over:
 
 1. Maak in PMG een backup (*Configuration › Backup/Restore*) en download de `.tgz`.
@@ -336,6 +392,8 @@ Een backup bevat alle instellingen, DKIM-sleutels, certificaten, quarantaine, de
 Eigen PMG-regels, quarantainelijsten per gebruiker, LDAP-instellingen, gebruikers en eigen SpamAssassin-regels worden niet omgezet; ze worden getoond om met de hand na te lopen. De MX van de domeinen zet je daarna om met **Go live** in de DNS-toolbox.
 
 ### Info en updates
+
+![Info en updates](../screenshots/info.png)
 
 **Info** (onderaan het linkermenu) toont de versie, het kanaal, de commit, de server, het besturingssysteem, de uptime, de laatste update en de versies van alle onderdelen.
 

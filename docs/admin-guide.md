@@ -19,6 +19,8 @@ This manual explains every screen and setting for administrators. Everyday work 
 
 ### Dashboard
 
+![Dashboard](screenshots/dashboard.png)
+
 Admins see all domains: totals for the last 24 hours or 30 days, a chart per hour or day, the mail queue (being sent, waiting to retry, in quarantine), top senders and top recipient domains, and **Things to look at**:
 
 | Alert | What to do |
@@ -33,6 +35,8 @@ Admins see all domains: totals for the last 24 hours or 30 days, a chart per hou
 
 ### Monthly report
 
+![Monthly report](screenshots/monthly-report.png)
+
 **Overview › Monthly report** shows per customer how much mail came in and how much spam and how many viruses were stopped, per month. Under settings:
 
 - **Send the monthly report**: off by default. Choose the **day of the month** (1–28) and the **time**.
@@ -42,6 +46,8 @@ Admins see all domains: totals for the last 24 hours or 30 days, a chart per hou
 Finished months are stored, so the report stays available after the 90 days of the mail trace.
 
 ### Usage
+
+![Usage](screenshots/usage.png)
 
 **Overview › Usage** is the basis for invoicing. Per customer and per domain: domains, **active mailboxes** (unique addresses that really received or sent mail in the month; spam alone does not count), messages in and out, and archive storage (the highest size in the month).
 
@@ -57,19 +63,27 @@ Customer logins see quantities without prices; reseller logins see only their ow
 
 ### Mail trace
 
+![Mail trace](screenshots/trace-detail.png)
+
 See the [user manual](user-guide.md#4-mail-trace). Admins see every domain and also the sending server's IP and host name, the SMTP account and the raw answer of the receiving server. The trace is built from the Postfix and Rspamd logs by `mailfilter-tracer` and kept for 90 days.
 
 ### Quarantine
 
+![Quarantine](screenshots/quarantine-detail.png)
+
 Quarantine is Postfix's *hold* queue: nothing leaves the server until someone decides. Spam with a score of **8 or more** goes to quarantine, **15 or more** is refused at the door; viruses and blocked attachments go to quarantine. Releasing teaches Rspamd *ham*, blocking teaches *spam*. Only admins can release a message with a virus.
 
 ### Mailtrap
+
+![Mailtrap](screenshots/mailtrap.png)
 
 A module that catches mail from test environments so it is never sent. It is **off** until an admin switches it on at the top of **Mail flow › Mailtrap**; while off, mail from Mailtrap addresses and logins is refused, never relayed.
 
 Per mailbox: name, customer, which IP addresses or networks are caught (an IP is either in Relay access or in a Mailtrap, never both), optionally a login `trap-<name>` for environments without a fixed IP, *catch everything* or *catch everything except mail to testers*, IMAP access on port 993, retention (default 7 days) and maximum number of messages (default 1000). Only admins can **Send anyway** (audited). Full details: [Mailtrap](mailtrap.md).
 
 ### Archive
+
+![Archive](screenshots/archive.png)
 
 Switch the archive on per domain on the **Domains** tab of **Mail flow › Archive**:
 
@@ -81,9 +95,13 @@ Only mail that was really delivered or sent is archived (including mail released
 
 ### Allow and block lists
 
+![Allow and block lists](screenshots/lists.png)
+
 Entries apply to one mailbox, to everyone at a domain, or to all domains (admins only). Allowed senders get −20 on the spam score (viruses and dangerous attachments are still stopped); blocked senders are refused with *recipient's block list*. Lists imported from PMG are kept separately and still work.
 
 ### Spam reports
+
+![Spam reports](screenshots/spam-reports.png)
 
 Users report spam to `spam@<host name>` and good mail to `notspam@<host name>` (see the [user manual](user-guide.md#8-reporting-spam-and-good-mail)). **Mail flow › Spam reports** lists every report with its status, and has these settings:
 
@@ -95,6 +113,8 @@ Mailfilter only learns from mail that it delivered itself to the reporter's doma
 
 ### Quarantine report
 
+![Quarantine report](screenshots/quarantine-report.png)
+
 **Mail flow › Quarantine report** sends every recipient with held mail one e-mail a day:
 
 - **Send the daily report** (off by default), the **time**, the **language** (one for everyone, recipients have no account) and **Only when there is new mail in quarantine**.
@@ -105,6 +125,8 @@ The links in the report work for 14 days and only for that message; opening a li
 
 ### DMARC reports
 
+![DMARC reports](screenshots/dmarc.png)
+
 Mailfilter receives DMARC aggregate reports at `dmarc-reports@<host name>`. Add `rua=mailto:dmarc-reports@<host name>` to a domain's DMARC record (the DNS toolbox does this for you) and publish the one-time authorisation record `*._report._dmarc.<host name>`. Reports are kept for 400 days.
 
 Per domain the page shows who sends as the domain and the **road to p=reject**: collect reports at `p=none` for at least 7 days, fix the real senders that fail, move to `quarantine`, wait 14 days, then `reject`. With Cloudflare, each step is one button.
@@ -114,6 +136,8 @@ Per domain the page shows who sends as the domain and the **road to p=reject**: 
 ## Configuration
 
 ### Domains
+
+![Domains](screenshots/domain-detail.png)
 
 **Configuration › Domains** has two kinds:
 
@@ -145,6 +169,8 @@ Saving a domain creates its DKIM key. Every change is validated (no open relay, 
 
 ### Relay access
 
+![Relay access](screenshots/relay.png)
+
 **Configuration › Relay access** lists the servers that may send mail out through Mailfilter.
 
 - **Allow** an IP address or network (IPv4 or IPv6) with a description and, for customer servers, the **customer domain**. A server linked to a customer may only send as that customer's domains. Large networks need an extra confirmation.
@@ -154,6 +180,8 @@ Saving a domain creates its DKIM key. Every change is validated (no open relay, 
 Relayed mail is still checked for spam and viruses, DKIM-signed and limited.
 
 ### Cloud mail (Microsoft 365 and Google Workspace)
+
+![Cloud mail (Microsoft 365 and Google Workspace)](screenshots/cloud.png)
 
 **Configuration › Cloud mail** puts a Microsoft 365 or Google Workspace domain behind Mailfilter with an 8-step wizard. Every step shows exactly what to click or the PowerShell to paste, and Mailfilter checks the result.
 
@@ -172,20 +200,24 @@ Security: Microsoft's and Google's IP ranges are **not** added to Relay access. 
 
 ### Custom rules
 
+![Custom rules](screenshots/rules.png)
+
 **Configuration › Custom rules** has switchable rules in four groups. Each rule explains what it does, shows the name it gets in the mail trace and can be on or off for all domains, with an exception per domain (customers can choose for their own domains). Rules with a score add to the spam score.
 
 | Group | Rules |
 | --- | --- |
 | **Newsletters** | Mark newsletters, newsletter without unsubscribe link (+4), without one-click unsubscribe, without DKIM, `X-Mailfilter-Newsletter` header, optional subject tag |
-| **Phishing and CEO fraud** | Look-alike domains of your own domains, display-name spoofing of your own people (with a list of protected names), suspicious links, *external sender* banner, link protection (next release) |
+| **Phishing and CEO fraud** | Look-alike domains of your own domains, display-name spoofing of your own people (with a list of protected names), suspicious links, *external sender* banner, link protection |
 | **Attachments** | Block or quarantine dangerous file types (editable list), Office macros, encrypted archives |
 | **Forwarded mail (ARC)** | Trust ARC seals of known forwarders (Google, Microsoft, Yahoo, iCloud by default) so forwarded mail keeps passing DMARC |
 
 The banner and the subject tag change the message and therefore break the sender's DKIM signature; they are off by default.
 
-**Link protection** (next release, off by default): links in incoming mail are rewritten to go through Mailfilter. When someone clicks, the link is checked again at that moment (blocklists, look-alike domains, URL shorteners expanded); a dangerous link shows a warning page. You choose whether users may continue anyway, which senders and links are skipped and which are always blocked. Clicks are listed on their own page.
+**Link protection** (off by default): links in incoming mail are rewritten to go through Mailfilter. When someone clicks, the link is checked again at that moment (blocklists, look-alike domains, URL shorteners expanded); a dangerous link shows a warning page. You choose whether users may continue anyway, which senders and links are skipped and which are always blocked. Clicks are listed on their own page.
 
 ### Throttling and automatic protection
+
+![Throttling and automatic protection](screenshots/throttling.png)
 
 **Configuration › Throttling** limits outgoing mail so one hacked server or account cannot send thousands of spam messages.
 
@@ -207,6 +239,8 @@ The banner and the subject tag change the message and therefore break the sender
 Release a paused sender under **Relay access** once the cause is fixed: **Release and send held mail** or **Release and delete held mail**.
 
 ### DNS toolbox
+
+![DNS toolbox](screenshots/dns-dkim.png)
 
 **Configuration › DNS toolbox** has these tabs:
 
@@ -239,6 +273,8 @@ Release a paused sender under **Relay access** once the cause is fixed: **Releas
 
 ### Users
 
+![Users](screenshots/users.png)
+
 **System › Users**: add, edit and disable logins.
 
 - **Role**: *Admin* (everything), *Customer* (only the linked **domains**) or *Reseller* (only usage of its own customers).
@@ -252,9 +288,13 @@ Release a paused sender under **Relay access** once the cause is fixed: **Releas
 
 ### Security
 
+![Security](screenshots/security.png)
+
 **System › Security › Require two-factor login**: *Optional*, *Required for admins* or *Required for everyone*. Turn it on for yourself first. Users without it are asked to set it up at their next sign-in; the page lists who still has to. Emergency on the server: `mailfilter-admin reset-2fa EMAIL`.
 
 ### Branding
+
+![Branding](screenshots/branding.png)
 
 **System › Branding** gives this Mailfilter your own look: product name, accent colour (main buttons, active menu item), dark colour (header of report mails), a logo, an optional light logo for dark mode and a browser icon (SVG, PNG, WebP, JPEG or ICO, at most 256 KB each). The preview shows the result before you save. The name and colours are also used in the quarantine report, the monthly report and the link protection pages. **Back to default** returns to the RHIS house style. In a cluster the branding is copied to the other servers.
 
@@ -262,9 +302,13 @@ The small "Powered by RHIS" mark at the bottom right of every page is not a sett
 
 ### Audit log
 
+![Audit log](screenshots/audit.png)
+
 Every change in the web interface and API is logged with user, time, domain, IP address and details. Filter by user, action group, domain and period; export as CSV. Actions done with an API key are marked *via API key*.
 
 ### API
+
+![API](screenshots/api.png)
 
 **System › API**: REST API at `https://<host name>/api/v1/` for hosting panels and scripts.
 
@@ -275,6 +319,8 @@ See [REST API](api.md).
 
 ### E-mail sending
 
+![E-mail sending](screenshots/mail-sending.png)
+
 **System › E-mail sending**: how Mailfilter sends its own mail (alerts, reports, quarantine reports):
 
 - **Through this Mailfilter** (default): DKIM-signed like all other mail.
@@ -283,6 +329,8 @@ See [REST API](api.md).
 **Send a test message** tries the settings in the form, also before saving, and explains in plain words what went wrong.
 
 ### Notifications
+
+![Notifications](screenshots/notifications.png)
 
 **System › Notifications** sends alerts when something needs attention, also when nobody is looking:
 
@@ -305,6 +353,8 @@ General: language of the alerts, **remind every** *n* hours while a problem last
 
 ### Cluster
 
+![Cluster](screenshots/cluster.png)
+
 **System › Cluster** keeps several Mailfilter servers on the same configuration. Each server stays a complete gateway: if one fails, the others keep filtering, and it catches up when it is back.
 
 1. On the first server: **Create cluster**.
@@ -315,6 +365,8 @@ General: language of the alerts, **remind every** *n* hours while a problem last
 Then publish the shared SPF record again and give every domain an MX for every server. Domains, relay access, throttling, users (with 2FA), lists, rules, API keys, billing and DKIM keys are synced; queues, quarantine, mail trace, backups, Mailtrap mailboxes and archived mail stay per server. See [cluster](cluster.md).
 
 ### Backups
+
+![Backups](screenshots/backups.png)
 
 **System › Backups**:
 
@@ -327,6 +379,8 @@ A backup holds all settings, DKIM keys, certificates, quarantine, the database a
 
 ### Import from PMG
 
+![Import from PMG](screenshots/import-pmg.png)
+
 **System › Import from PMG** takes over a Proxmox Mail Gateway:
 
 1. In PMG make a backup (*Configuration › Backup/Restore*) and download the `.tgz`.
@@ -336,6 +390,8 @@ A backup holds all settings, DKIM keys, certificates, quarantine, the database a
 Custom PMG rules, per-user quarantine lists, LDAP settings, users and custom SpamAssassin rules are not converted; they are shown for a manual check. Moving the domains' MX is done afterwards with **Go live** in the DNS toolbox.
 
 ### Info and updates
+
+![Info and updates](screenshots/info.png)
 
 **Info** (bottom of the left menu) shows the version, channel, commit, server, operating system, uptime, last update and the versions of all components.
 

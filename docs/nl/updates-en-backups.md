@@ -1,5 +1,7 @@
 # Updates en backups
 
+[English](../updates-and-backups.md) · [Alle documentatie](README.md)
+
 ## Versies en branches
 
 Het versienummer staat in het bestand `VERSION` (bijvoorbeeld `0.1.0`). De server draait een git-checkout in `/opt/mailfilter` op een van twee branches:

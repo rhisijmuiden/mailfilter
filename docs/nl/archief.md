@@ -1,5 +1,7 @@
 # Mailarchief
 
+[English](../archive.md) · [Alle documentatie](README.md)
+
 Het archief bewaart een **onveranderbare kopie van alle mail per domein**, inkomend
 en uitgaand, tot 10 jaar lang. Het is doorzoekbaar, elke dag wordt verzegeld en je
 kunt aantonen dat er niets is aangepast of verwijderd. Te vinden onder
