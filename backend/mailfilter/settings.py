@@ -37,6 +37,8 @@ CONFIG_HELPER_PREFIX = ["sudo", "-n", "/usr/bin/systemd-run", "--quiet", "--pipe
 @dataclass(frozen=True)
 class Settings:
     hostname: str = "localhost"
+    # Address users open the web interface at (install/lib/web.sh): https://<host>, a reverse proxy's, or http://.
+    web_url: str = ""
     admin_email: str = ""
     public_v4: str = ""
     public_v6: str = ""
@@ -75,6 +77,7 @@ def get_settings() -> Settings:
     helper = env.get("MF_QUEUE_HELPER")
     return Settings(
         hostname=env.get("MF_HOSTNAME", "localhost"),
+        web_url=(env.get("MF_WEB_URL") or f"https://{env.get('MF_HOSTNAME', 'localhost')}").rstrip("/"),
         admin_email=env.get("MF_ADMIN_EMAIL", ""),
         public_v4=env.get("MF_PUBLIC_V4", ""),
         public_v6=env.get("MF_PUBLIC_V6", ""),

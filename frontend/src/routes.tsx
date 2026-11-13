@@ -34,6 +34,7 @@ const Throttling = lazy(() => import("./pages/Throttling"));
 const Trace = lazy(() => import("./pages/Trace"));
 const Usage = lazy(() => import("./pages/Usage"));
 const Users = lazy(() => import("./pages/Users"));
+const WebAccess = lazy(() => import("./pages/WebAccess"));
 
 // reseller: also open to reseller logins, which only get these routes.
 // module: shows "this module is switched off" instead while the module is off (System > Modules).
@@ -68,6 +69,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/audit", element: (me) => <AuditLog me={me} /> },
   { path: "/system/api", element: (me) => <ApiAccess me={me} />, module: "api" },
   { path: "/system/modules", element: () => <Modules />, adminOnly: true },
+  { path: "/system/web", element: () => <WebAccess />, adminOnly: true },
   { path: "/system/branding", element: () => <Branding />, adminOnly: true },
   { path: "/system/security", element: (me) => <Security me={me} />, adminOnly: true },
   { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true, module: "pmg_import" },

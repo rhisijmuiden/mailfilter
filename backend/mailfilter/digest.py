@@ -106,7 +106,7 @@ def read_token(token: str, now: float | None = None) -> tuple[str, str]:
 
 
 def action_url(token: str) -> str:
-    return f"https://{get_settings().hostname}/report/{token}"
+    return f"{get_settings().web_url}/report/{token}"
 
 
 # --- collecting -----------------------------------------------------------------

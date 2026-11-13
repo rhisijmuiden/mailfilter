@@ -96,6 +96,10 @@ install -d /var/lib/unbound
 [[ -s /var/lib/unbound/root.key ]] || cp /usr/share/dns/root.key /var/lib/unbound/root.key
 check "unbound-checkconf" unbound-checkconf
 
+# shellcheck source=install/lib/web.sh
+source "$SRC/install/lib/web.sh"
+HOSTNAME_FQDN=$HOSTNAME; PUBLIC_V4=203.0.113.25; PUBLIC_V6=2001:db8::25
+WEB_MODE=public; TRUSTED_PROXIES=(); WEB_FROM=(); web_defaults; web_firewall_rules
 MGMT_V4_ELEMENTS="elements = { 198.51.100.7 }"; MGMT_V6_ELEMENTS=""
 SSH_RULES=$'    ip saddr @mgmt_v4 tcp dport 22 accept\n    ip6 saddr @mgmt_v6 tcp dport 22 accept'
 render "$TPL/nftables/nftables.conf" /tmp/nftables.conf
@@ -106,8 +110,21 @@ check "nft -c (empty relay_ports, first install)" nft -c -f /tmp/nftables.conf
 install -d /etc/letsencrypt/live/$HOSTNAME
 cp /etc/ssl/certs/ssl-cert-snakeoil.pem /etc/letsencrypt/live/$HOSTNAME/fullchain.pem
 cp /etc/ssl/private/ssl-cert-snakeoil.key /etc/letsencrypt/live/$HOSTNAME/privkey.pem
-render "$TPL/caddy/Caddyfile" /tmp/Caddyfile
-check "caddy validate" caddy validate --config /tmp/Caddyfile --adapter caddyfile
+# Every web access mode (install/lib/web.sh): Caddy and the firewall rules.
+for WEB_MODE in public internal proxy http; do
+  WEB_PORT=""; WEB_URL=""; TRUSTED_PROXIES=(); WEB_FROM=()
+  [[ $WEB_MODE == proxy ]] && TRUSTED_PROXIES=(10.0.0.5 2001:db8:1::/64)
+  [[ $WEB_MODE == internal || $WEB_MODE == http ]] && WEB_FROM=(192.168.10.0/24 2001:db8:2::/48)
+  web_defaults
+  web_caddyfile_vars
+  render "$TPL/caddy/Caddyfile" "/tmp/Caddyfile.$WEB_MODE"
+  check "caddy validate ($WEB_MODE)" caddy validate --config "/tmp/Caddyfile.$WEB_MODE" --adapter caddyfile
+  web_firewall_rules
+  render "$TPL/nftables/nftables.conf" "/tmp/nftables.$WEB_MODE.conf"
+  check "nft -c ($WEB_MODE web access)" nft -c -f "/tmp/nftables.$WEB_MODE.conf"
+done
+check "proxy mode trusts only the proxy" grep -q "trusted_proxies static 10.0.0.5 2001:db8:1::/64" /tmp/Caddyfile.proxy
+check "internal mode does not use Let's Encrypt" bash -c '! grep -q letsencrypt /tmp/Caddyfile.internal && grep -q "issuer internal" /tmp/Caddyfile.internal'
 render "$TPL/caddy/Caddyfile.acme" /tmp/Caddyfile.acme
 check "caddy validate (acme)" caddy validate --config /tmp/Caddyfile.acme --adapter caddyfile
 

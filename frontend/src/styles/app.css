@@ -439,3 +439,19 @@ code.pw{font-size:14px;padding:6px 10px;border-radius:var(--r-sm);background:var
 @media (max-width:560px){.setting .st-on,.setting .st-off{display:none}}
 .setting .mod-tags .tag{font-size:11.5px;color:var(--ink-muted)}
 .setting .mod-tags .tag.lucht{color:var(--info)}
+
+/* System > Web access */
+.mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.mode-grid{grid-template-columns:1fr}}
+.mode-card{position:relative;display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-raised);cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.mode-card:hover{border-color:var(--ink-muted)}
+.mode-card input{position:absolute;opacity:0;pointer-events:none}
+.mode-card:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.mode-card.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.mode-card .mode-ico{display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-sm);background:var(--surface-sunk);color:var(--ink-muted);flex:none}
+.mode-card.on .mode-ico{color:var(--accent)}
+.mode-card.risky.on .mode-ico{color:var(--bad)}
+.mode-card .mode-ico svg{width:18px;height:18px;stroke:currentColor}
+.mode-txt{display:flex;flex-direction:column;gap:4px;min-width:0}
+.mode-txt b{font-weight:650}
+.mode-txt>span{font-size:12.5px;color:var(--ink-muted)}

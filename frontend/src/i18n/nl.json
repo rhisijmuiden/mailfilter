@@ -4,7 +4,7 @@
     "skip": "Naar inhoud"
   },
   "branding": {"title": "Huisstijl", "sub": "Geef deze Mailfilter je eigen naam, kleuren en logo. Gebruikers zien dit in de webapp, op de inlogpagina en in de mails die Mailfilter verstuurt.", "identity": "Naam en kleuren", "name": "Productnaam", "name_hint": "Staat in het menu, op de inlogpagina, in het browsertabblad en in rapporten.", "accent": "Accentkleur", "accent_hint": "Hoofdknoppen, het actieve menu-item en accenten.", "primary": "Donkere kleur", "primary_hint": "Donkere vlakken, zoals de kop van rapportmails en meldingen.", "house_colors": "Standaardkleuren gebruiken", "preview": "Voorbeeld", "sample_button": "Hoofdknop", "sample_dark": "Donker vlak", "images": "Logo's en icoon", "logo": "Logo", "logo_hint": "Voor het lichte thema. SVG of PNG, maximaal 256 KB; brede logo's werken het best.", "logo_dark": "Logo voor donkere modus", "logo_dark_hint": "Optioneel. Een lichte versie van je logo voor het donkere thema.", "favicon": "Browsericoon", "favicon_hint": "Optioneel. Vierkante SVG, PNG of ICO voor het browsertabblad.", "default_used": "Standaard wordt gebruikt", "upload": "Uploaden", "replace": "Vervangen", "remove": "Verwijderen", "reset": "Terug naar standaard", "reset_confirm": "Je eigen naam, kleuren en logo's verwijderen en teruggaan naar de standaard huisstijl?", "powered_note": "Het kleine \"Powered by RHIS\" rechtsonder blijft altijd zichtbaar. Mailfilter is open source (AGPLv3) en deze naamsvermelding is een voorwaarde van de licentie, daarom kun je hem hier niet uitzetten."},
-  "nav": {"modules": "Modules", "branding": "Huisstijl", "links": "Linkklikken", 
+  "nav": {"web_access": "Webtoegang", "modules": "Modules", "branding": "Huisstijl", "links": "Linkklikken", 
     "archive": "Archief",
     "cloud": "Cloud-mail",
     "usage": "Verbruik",
@@ -68,7 +68,7 @@
     "choose": "kiezen",
     "open": "openen",
     "searching": "Zoeken…",
-    "kw": {"modules": "modules functies onderdelen aan uit inschakelen uitschakelen", "branding": "huisstijl branding logo kleuren naam white label thema favicon", "links": "linkbescherming klik link url phishing waarschuwing geblokkeerd", "archive": "archief archivering bewaarplicht bewaartermijn zoeken oude mail juridisch export compliance", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
+    "kw": {"web_access": "webtoegang https http certificaat lets encrypt reverse proxy firewall dmz poort ssl", "modules": "modules functies onderdelen aan uit inschakelen uitschakelen", "branding": "huisstijl branding logo kleuren naam white label thema favicon", "links": "linkbescherming klik link url phishing waarschuwing geblokkeerd", "archive": "archief archivering bewaarplicht bewaartermijn zoeken oude mail juridisch export compliance", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
       "usage": "verbruik facturatie factuur mailboxen csv export boekhouding",
       "billing": "facturatie klanten resellers tarieven prijzen debiteurnummer",
       "dashboard": "overzicht grafieken live nu statistieken",
@@ -1336,7 +1336,7 @@
     "failed_restore": "Terugzetten mislukt.",
     "done_remote_sync": "Externe kopie is bijgewerkt.",
     "failed_remote_sync": "Externe kopie mislukt.",
-    "steps": {
+    "steps": {"web_access": "Webinterface omschakelen", 
       "backup_start": "{{type}} {{id}}",
       "backup_files": "Bestanden opslaan (instellingen, DKIM-sleutels, certificaten, quarantaine)",
       "backup_database": "Database opslaan",
@@ -2372,5 +2372,56 @@
         "off": "De importpagina verdwijnt. Wat al geïmporteerd is, blijft."
       }
     }
+  },
+  "web": {
+    "title": "Webtoegang",
+    "sub": "Hoe de webinterface bereikbaar is: direct op internet, achter een firewall, achter een reverse proxy of via gewone HTTP. Het filteren van mail verandert niet.",
+    "now": "Nu: {{mode}}",
+    "current": "Huidig",
+    "recommended": "Aanbevolen",
+    "choose": "Hoe is de webinterface bereikbaar?",
+    "no_le_yet": "nog geen Let's Encrypt-certificaat",
+    "own_cert": "eigen certificaat",
+    "caddy_cert": "zelfgemaakt certificaat",
+    "proxy_on": "HTTP op poort {{port}} voor {{proxies}}",
+    "mode": {
+      "public": {
+        "title": "Direct op internet",
+        "desc": "HTTPS met een gratis Let's Encrypt-certificaat dat automatisch wordt vernieuwd. Poort 80 en 443 staan open."
+      },
+      "internal": {
+        "title": "Achter een firewall of in een DMZ",
+        "desc": "HTTPS met een certificaat dat de server zelf maakt, zonder Let's Encrypt-aanvraag. Eventueel alleen bereikbaar vanaf jouw netwerken."
+      },
+      "proxy": {
+        "title": "Achter een reverse proxy",
+        "desc": "Je proxy (nginx, HAProxy, Traefik...) doet HTTPS en praat via HTTP met Mailfilter. Alleen de proxy mag verbinden."
+      },
+      "http": {
+        "title": "Gewone HTTP",
+        "desc": "Helemaal geen versleuteling. Alleen voor een afgesloten beheernetwerk."
+      }
+    },
+    "proxies": "IP-adressen van de reverse proxy",
+    "proxies_hint": "Eén per regel; netwerken zoals 10.0.0.0/24 mogen ook. Alleen deze mogen verbinden, en hun X-Forwarded-For- en X-Forwarded-Proto-headers worden vertrouwd.",
+    "port": "Poort",
+    "port_hint_proxy": "Waar de proxy zijn verzoeken heen stuurt.",
+    "url": "Adres op de proxy",
+    "url_hint": "Wat gebruikers in de browser typen. Wordt gebruikt in links in mails (quarantainerapport, meldingen).",
+    "from": "Alleen bereikbaar vanaf (optioneel)",
+    "from_hint": "IP-adressen of netwerken, één per regel. Leeg: iedereen die de server kan bereiken.",
+    "http_warn_title": "Wachtwoorden gaan onversleuteld over de lijn",
+    "http_warn": "Met gewone HTTP kan iedereen op het netwerkpad wachtwoorden en mail meelezen. Gebruik dit alleen op een afgesloten beheernetwerk en beperk liefst wie mag verbinden.",
+    "internal_note": "Browsers waarschuwen voor het zelfgemaakte certificaat tot je het vertrouwt. Je kunt ook een eigen certificaat gebruiken: start de installer met --web-cert en --web-key.",
+    "limits": "Niet direct op internet: MTA-STS-beleid en linkbescherming hebben een webinterface nodig die onder deze hostnaam via HTTPS vanaf internet bereikbaar is, en een cluster heeft HTTPS tussen de servers nodig.",
+    "apply": "Omschakelen",
+    "new_address": "Nieuw adres:",
+    "rescue_title": "Buitengesloten?",
+    "rescue": "Is de webinterface niet meer bereikbaar, log dan met SSH in op de server en schakel terug:",
+    "confirm_title": "Webtoegang omschakelen?",
+    "confirm": "De webinterface schakelt om naar: {{mode}}. De webserver start opnieuw, dat duurt een paar seconden.",
+    "confirm_url": "Open hem daarna op",
+    "running": "Bezig met omschakelen… Reageert deze pagina niet meer, open dan {{url}}.",
+    "open_new": "Nieuw adres openen"
   }
 }

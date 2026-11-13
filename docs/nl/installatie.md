@@ -9,7 +9,7 @@ Deze handleiding brengt je van een kale Debian 13-server naar een werkende Mailf
 | | |
 | --- | --- |
 | Server | Een verse installatie van **Debian 13 (trixie)**, 64-bit, verder niets erop. Minimaal 2 CPU-cores, 4 GB RAM (ClamAV gebruikt alleen al ongeveer 1,5 GB) en 40 GB schijf. Meer schijf als je het archief gebruikt. |
-| Netwerk | Een publiek IPv4-adres, liefst ook IPv6. Mailfilter draait direct aan het internet; geen proxy of NAT ervoor. |
+| Netwerk | Een publiek IPv4-adres, liefst ook IPv6, waarbij poort 25 de server bereikt. De webinterface kan direct op internet staan, achter een firewall of in een DMZ, of achter een reverse proxy (zie *Webinterface* hieronder). |
 | Poort 25 | Open **in en uit**. Veel cloudproviders blokkeren uitgaand poort 25 standaard; vraag ze die open te zetten. |
 | Hostnaam | Een naam zoals `mailfilter01.voorbeeld.nl` met een **A**-record (en **AAAA** voor IPv6) naar de server. |
 | Reverse DNS | Een **PTR**-record voor elk IP-adres dat terugwijst naar die hostnaam. Dit stel je in bij je hostingprovider. Zonder PTR weigeren veel ontvangers je mail. |
@@ -27,11 +27,12 @@ git clone -b main https://github.com/rhisijmuiden/mailfilter.git /opt/mailfilter
 
 Gebruik `-b test` in plaats van `-b main` voor een testserver: die volgt het testkanaal, waar elke wijziging als eerste komt. Je kunt later in de webinterface van kanaal wisselen.
 
-De installer vraagt drie dingen:
+De installer vraagt vier dingen:
 
 1. **Hostnaam** van deze server, bijvoorbeeld `mailfilter01.voorbeeld.nl`.
 2. **E-mailadres van de beheerder**: je login voor de webinterface; meldingen en berichten van Let's Encrypt gaan hierheen.
 3. **Eerste domein** om te filteren (optioneel, je kunt domeinen later in de webinterface toevoegen) en de mailserver die de schone mail ontvangt.
+4. **Hoe de webinterface bereikbaar is** (zie hieronder).
 
 Daarna installeert en configureert hij alles; dat duurt ongeveer 10 tot 15 minuten. Je kunt meekijken op het scherm; het volledige log staat in `/var/log/mailfilter-install.log`.
 
@@ -56,11 +57,35 @@ Alles kan ook op de opdrachtregel worden meegegeven, bijvoorbeeld om zonder vrag
 | `--relay-net CIDR` | Server of netwerk dat mail via Mailfilter naar buiten mag sturen (IPv4 of IPv6). Herhaalbaar |
 | `--relay-port POORT` | Extra relaypoort naast 587 en 465, bijvoorbeeld 2525. Herhaalbaar |
 | `--ssh-from CIDR` | SSH alleen toestaan vanaf dit adres of netwerk. Herhaalbaar. Zonder deze optie blijft SSH open (CrowdSec bewaakt het wel) |
+| `--web-mode MODUS` | Hoe de webinterface bereikbaar is: `public`, `internal`, `proxy` of `http` (zie hieronder) |
+| `--trusted-proxy CIDR` | Adres van de reverse proxy (`proxy`). Herhaalbaar |
+| `--web-url URL` | Adres dat gebruikers openen op de reverse proxy (`proxy`), standaard `https://<hostnaam>` |
+| `--web-port POORT` | HTTP-poort voor `proxy` (standaard 8080) of `http` (standaard 80) |
+| `--web-from CIDR` | Webinterface alleen bereikbaar vanaf hier (`internal`, `http`). Herhaalbaar |
+| `--web-cert BESTAND`, `--web-key BESTAND` | Eigen certificaat en sleutel (PEM) voor `internal` in plaats van het zelfgemaakte |
 | `--skip-certificate` | Nog geen Let's Encrypt-certificaat aanvragen (DNS nog niet klaar) |
 | `--non-interactive` | Nooit vragen; stoppen als een verplichte waarde ontbreekt |
 | `--reconfigure` | Alles opnieuw toepassen met de instellingen van de vorige installatie, zonder vragen |
 
 De installer opnieuw draaien is veilig: hij past de configuratie opnieuw toe en houdt sleutels, wachtwoorden, lijsten en de database.
+
+### Webinterface: op internet, in een DMZ of achter een proxy
+
+| Modus | Wanneer | Wat er gebeurt |
+| --- | --- | --- |
+| `public` (standaard) | De server staat direct op internet | HTTPS met een Let's Encrypt-certificaat op poort 80 en 443, automatisch vernieuwd. Nodig voor MTA-STS en linkbescherming. |
+| `internal` | Achter een firewall of in een DMZ | HTTPS met een certificaat dat Caddy zelf maakt (of je eigen met `--web-cert`/`--web-key`). **Geen Let's Encrypt-aanvraag.** Browsers waarschuwen tot je het vertrouwt. Eventueel alleen vanaf `--web-from`. |
+| `proxy` | Achter nginx, HAProxy, Traefik of een vergelijkbare reverse proxy | Gewone HTTP op `--web-port` (8080), alleen bereikbaar vanaf `--trusted-proxy`. De proxy doet HTTPS; zijn `X-Forwarded-For` en `X-Forwarded-Proto` worden vertrouwd, zodat het auditlog de echte bezoeker toont. |
+| `http` | Een afgesloten beheernetwerk | Gewone HTTP zonder versleuteling. De installer waarschuwt; beperk met `--web-from` wie mag verbinden. |
+
+```bash
+# In een DMZ, webinterface alleen vanaf het kantoornetwerk:
+install.sh --web-mode internal --web-from 192.168.10.0/24
+# Achter een reverse proxy op 10.0.0.5 die https://mail.voorbeeld.nl serveert:
+install.sh --web-mode proxy --trusted-proxy 10.0.0.5 --web-url https://mail.voorbeeld.nl
+```
+
+Het filteren van mail is in elke modus gelijk; poort 25 moet de server nog steeds bereiken. Je kunt later omschakelen onder **Systeem › Webtoegang**. Buitengesloten? Op de server: `sudo /opt/mailfilter/install/web-access.sh --mode public` (of een andere modus).
 
 ### Wat er geïnstalleerd wordt
 
@@ -71,7 +96,7 @@ De installer opnieuw draaien is veilig: hij past de configuratie opnieuw toe en 
 | ClamAV | Virusscan in beide richtingen |
 | Dovecot | Wachtwoordcontrole voor SMTP-accounts, IMAP voor de Mailtrap; geen mailboxen |
 | unbound | Eigen DNS-resolver voor blocklists en DNSSEC |
-| Caddy + Let's Encrypt | Webinterface alleen via HTTPS; het certificaat wordt ook voor SMTP-TLS gebruikt en wordt automatisch vernieuwd |
+| Caddy + Let's Encrypt | De webinterface (standaard via HTTPS); het Let's Encrypt-certificaat wordt ook voor SMTP-TLS gebruikt en wordt automatisch vernieuwd |
 | nftables + CrowdSec | Firewall en automatisch blokkeren van aanvallers |
 | PostgreSQL, Redis | Database van de webapp, opslag voor het spamfilter |
 | Mailfilter-webapp | De webinterface en API, de mailtrace-verzamelaar en de timers voor backups, rapporten, meldingen en meer |
@@ -79,7 +104,7 @@ De installer opnieuw draaien is veilig: hij past de configuratie opnieuw toe en 
 
 ### Firewall
 
-Open vanaf het internet: **25** (mail in), **80** (Let's Encrypt), **443** (webinterface), **465** en **587** (relay), je extra relaypoorten, **22** (SSH, of alleen vanaf `--ssh-from`) en **993** alleen zolang een Mailtrap-mailbox IMAP toestaat. Al het andere is dicht.
+Open vanaf het internet: **25** (mail in), de webinterface (**80** en **443** in modus `public` en `internal`, of de `--web-port` vanaf de proxy of de `--web-from`-netwerken), **465** en **587** (relay), je extra relaypoorten, **22** (SSH, of alleen vanaf `--ssh-from`) en **993** alleen zolang een Mailtrap-mailbox IMAP toestaat. Al het andere is dicht.
 
 ## 3. Eerste keer inloggen
 
