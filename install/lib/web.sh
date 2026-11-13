@@ -15,7 +15,11 @@ WEB_CERT_FILE=/etc/mailfilter/web-cert.pem
 WEB_KEY_FILE=/etc/mailfilter/web-key.pem
 
 # split_nets "a b,c" -> prints one network per line ("-" and empty mean none)
-split_nets() { tr ', ' '\n\n' <<<"${1:-}" | sed '/^$/d; /^-$/d'; }
+split_nets() {
+  local x
+  # shellcheck disable=SC2086  # splitting on spaces and commas is the point
+  for x in ${1//,/ }; do [[ $x == - ]] || printf '%s\n' "$x"; done
+}
 
 # ask_web_mode: choose the mode (interactive menu unless given or non-interactive) and its details.
 ask_web_mode() {
