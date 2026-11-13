@@ -157,6 +157,53 @@ PHISHING: list[dict[str, Any]] = [
              "label": _t("Only suspicious messages", "Alleen verdachte berichten")},
         ],
     },
+    {
+        "id": "link_protection",
+        "group": "phishing",
+        "default": False,
+        "direction": "inbound",
+        "symbol": "MF_LINK_PROTECT",
+        "title": _t("Check links when they are clicked", "Links controleren bij het klikken"),
+        "summary": _t(
+            "Replaces the links in incoming mail by a link via Mailfilter. When someone clicks, Mailfilter checks "
+            "the site at that moment and warns or blocks when it is dangerous.",
+            "Vervangt de links in binnenkomende mail door een link via Mailfilter. Als iemand klikt, controleert "
+            "Mailfilter de site op dat moment en waarschuwt of blokkeert als hij gevaarlijk is."),
+        "details": _t(
+            "Phishing sites are often harmless when the mail arrives and turned dangerous an hour later. At the "
+            "click Mailfilter looks up the site in Spamhaus DBL, SURBL and URIBL, repeats the phishing checks "
+            "above, follows link shorteners and checks your own block list; blocking a domain here also stops the "
+            "links in mail that was already delivered. Safe links open straight away. Every click is listed under "
+            "Link clicks. Changing the message breaks the sender's DKIM signature: Mailfilter checks SPF, DKIM "
+            "and DMARC before it changes anything, leaves signed and encrypted mail (S/MIME, PGP) alone and does "
+            "not ARC-seal mail it changed. Only switch this on for domains whose mail server does not check DKIM "
+            "again, or put the senders whose signature must stay intact under 'Skip senders'.",
+            "Phishingsites zijn vaak onschuldig als de mail binnenkomt en een uur later gevaarlijk. Bij de klik "
+            "zoekt Mailfilter de site op in Spamhaus DBL, SURBL en URIBL, doet de phishingcontroles hierboven "
+            "opnieuw, volgt linkverkorters en kijkt naar je eigen blokkeerlijst; een domein dat je hier blokkeert, "
+            "werkt ook niet meer in mail die al is afgeleverd. Veilige links gaan direct open. Elke klik staat "
+            "onder Linkklikken. Het bericht aanpassen maakt de DKIM-handtekening van de afzender ongeldig: "
+            "Mailfilter controleert SPF, DKIM en DMARC voordat er iets verandert, laat ondertekende en "
+            "versleutelde mail (S/MIME, PGP) ongemoeid en zet geen ARC-zegel op mail die is aangepast. Zet dit "
+            "alleen aan voor domeinen waarvan de mailserver DKIM niet nog eens controleert, of zet de afzenders "
+            "waarvan de handtekening heel moet blijven onder 'Afzenders overslaan'."),
+        "options": [
+            {"id": "allow_continue", "type": "bool", "default": True,
+             "label": _t("The recipient may continue after a warning",
+                         "De ontvanger mag na een waarschuwing toch doorgaan")},
+            {"id": "shorteners", "type": "bool", "default": True,
+             "label": _t("Follow link shorteners and check where they really go",
+                         "Linkverkorters volgen en controleren waar ze echt heen gaan")},
+            {"id": "skip_senders", "type": "list", "item": "domain", "default": [], "max_items": 200,
+             "label": _t("Skip senders (their mail stays untouched)",
+                         "Afzenders overslaan (hun mail blijft ongemoeid)")},
+            {"id": "skip_links", "type": "list", "item": "domain", "default": [], "max_items": 200,
+             "label": _t("Do not change links to these domains (your own domains never change)",
+                         "Links naar deze domeinen niet aanpassen (je eigen domeinen nooit)")},
+            {"id": "block", "type": "list", "item": "domain", "default": [], "max_items": 1000,
+             "label": _t("Always block links to these domains", "Links naar deze domeinen altijd blokkeren")},
+        ],
+    },
 ]
 
 ATTACHMENTS: list[dict[str, Any]] = [

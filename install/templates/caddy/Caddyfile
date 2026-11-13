@@ -41,6 +41,10 @@ https://{{HOSTNAME}} {
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8000
 	}
+	# Click links in incoming mail (link protection): checked by the web app at the click.
+	handle /l/* {
+		reverse_proxy 127.0.0.1:8000
+	}
 	# The interface prototype stays available for reference.
 	handle_path /prototype/* {
 		root * {{MF_SRC}}/prototype

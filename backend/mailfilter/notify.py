@@ -49,7 +49,7 @@ CHANNELS: tuple[Channel, ...] = ("email", "telegram", "webhook")
 Level = Literal["critical", "warning", "info"]
 
 # Alert types, in the order the settings screen shows them.
-TYPES = ("services", "queue", "blacklist", "certificate", "abuse", "backup")
+TYPES = ("services", "queue", "blacklist", "certificate", "abuse", "backup", "link_click")
 
 # Services the checker watches. Unlike the dashboard it also watches the web
 # app itself: if that is down, nobody sees the dashboard.
@@ -151,6 +151,10 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "nl": ("{count} afzender(s) gepauzeerd", "Deze afzenders verstuurden ineens spam of veel meer mail dan normaal. "
                "Hun mail wordt vastgehouden, er is niets verloren of verstuurd.\n{lines}"),
     },
+    "link_click": {
+        "en": ("{what_en}: {host}", "{recipient} clicked a link in an e-mail to {url}.\n{what_en}. {reasons_en}"),
+        "nl": ("{what_nl}: {host}", "{recipient} klikte in een e-mail op een link naar {url}.\n{what_nl}. {reasons_nl}"),
+    },
     "backup_failed": {
         "en": ("Backup failed", "The backup of {created} failed: {message}"),
         "nl": ("Backup mislukt", "De backup van {created} is mislukt: {message}"),
@@ -187,7 +191,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
     },
 }
 RESOLVED = {"en": "Resolved", "nl": "Opgelost"}
-LINKS = {"services": "/", "queue": "/trace?status=deferred", "blacklist": "/dns", "certificate": "/dns",
+LINKS = {"link_click": "/links", "services": "/", "queue": "/trace?status=deferred", "blacklist": "/dns", "certificate": "/dns",
          "abuse": "/relay", "backup_failed": "/system/backups", "backup_overdue": "/system/backups",
          "remote_failed": "/system/backups", "restore_failed": "/system/backups", "update_failed": "/", "test": "/",
          "archive_integrity": "/archive", "archive_failed": "/archive"}

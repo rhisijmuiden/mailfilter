@@ -316,14 +316,16 @@ def render_arc(rules: dict[str, CustomRule]) -> dict[str, str]:
     }
 
 
-def render_files(chosen: dict[str, CustomRule], active_domains: set[str]) -> dict[str, str]:
+def render_files(chosen: dict[str, CustomRule], active_domains: set[str], link_host: str = "") -> dict[str, str]:
     eff = effective(chosen)
     rules = {}
     for rid, rule in eff.items():
         rules[rid] = {"enabled": rule.enabled, "options": rule.options,
                       "domains": {d: v for d, v in sorted(rule.domains.items()) if d in active_domains}}
     settings = {"_comment": "Managed by Mailfilter (Configuration > Custom rules). Changes here are overwritten.",
-                "version": 1, "protected_domains": sorted(active_domains), "rules": rules}
+                "version": 1, "protected_domains": sorted(active_domains), "rules": rules,
+                # Host name of the click links (link protection); the web interface answers there.
+                "link_host": link_host.lower().rstrip(".")}
     return {
         SETTINGS_PATH: json.dumps(settings, indent=2, ensure_ascii=False) + "\n",
         LUA_PATH: LUA_SOURCE.read_text(encoding="utf-8"),

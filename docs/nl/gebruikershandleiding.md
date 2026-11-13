@@ -184,6 +184,8 @@ Als een van je servers of accounts plotseling spam of veel meer mail dan normaal
 
 **Configuratie › Eigen regels** toont extra filterregels, elk met uitleg onder **Wat doet dit?**: nieuwsbriefregels, bescherming tegen phishing en CEO-fraude, bijlageregels, doorgestuurde mail (ARC). Je beheerder bepaalt de standaard; per domein kies je **Standaard**, **Aan** of **Uit**. In de mailtrace zie je de naam van een regel als hij raakte.
 
+Met **Links controleren bij het klikken** aan worden links in binnenkomende mail opnieuw gecontroleerd op het moment dat iemand klikt; een gevaarlijke site geeft een waarschuwings- of blokkadepagina. **Mailverkeer › Linkklikken** toont elke klik voor je domeinen. Zie [Linkbescherming](linkbescherming.md).
+
 ## 13. Mailtrap
 
 **Mailverkeer › Mailtrap** (als je beheerder hem heeft aangezet) vangt alle mail van je **test- en acceptatieomgevingen** op, zodat die **nooit** naar echte mensen wordt verstuurd. De mail komt in een Mailtrap-mailbox waar je hem kunt lezen en controleren.

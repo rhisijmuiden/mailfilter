@@ -341,6 +341,13 @@ ok "Database 'mailfilter' ready"
 step "Web app"
 WEB_ADMIN_PASSWORD=""
 install_webapp
+# Link protection: Rspamd signs the click links in incoming mail, the web app checks them.
+LINK_KEY=$MF_ETC/link-protection.key
+if [[ ! -s $LINK_KEY ]]; then
+  install -m 0440 -o _rspamd -g mailfilter /dev/null "$LINK_KEY"
+  gen_secret 64 >"$LINK_KEY"
+fi
+chown _rspamd:mailfilter "$LINK_KEY"; chmod 0440 "$LINK_KEY"
 
 # ---------------------------------------------------------------------------
 step "Mail trace log collector"
