@@ -175,7 +175,7 @@ echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-se
 echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
 PKGS=(postfix postfix-lmdb postfix-ldap rspamd redis-server clamav-daemon clamav-freshclam dovecot-core dovecot-imapd
-      unbound unbound-anchor dns-root-data caddy certbot nftables unattended-upgrades postgresql
+      unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
       nodejs npm sudo git zstd gnupg openssh-client curl dnsutils ca-certificates jq crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
@@ -194,7 +194,10 @@ render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.con
 # DNSSEC trust anchor; unbound-anchor exits 1 when it (re)wrote the file, which is fine
 install -d -o unbound -g unbound /var/lib/unbound
 [[ -s /var/lib/unbound/root.key ]] || cp /usr/share/dns/root.key /var/lib/unbound/root.key
-unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
+# Debian 13 ships unbound-anchor as a separate package; the copy from dns-root-data is enough without it
+if command -v unbound-anchor >/dev/null; then
+  unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
+fi
 chown unbound:unbound /var/lib/unbound/root.key 2>/dev/null || true
 run unbound-checkconf
 run systemctl enable --now unbound
