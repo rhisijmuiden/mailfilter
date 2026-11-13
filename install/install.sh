@@ -169,6 +169,8 @@ ok "$(hostname -f)"
 # ---------------------------------------------------------------------------
 step "Installing packages (this takes a few minutes)"
 export DEBIAN_FRONTEND=noninteractive
+# PostgreSQL takes the encoding of its first cluster from the locale; minimal containers have none.
+[[ $(locale charmap 2>/dev/null) == UTF-8 ]] || export LANG=C.UTF-8 LC_ALL=C.UTF-8
 echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
 echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
@@ -192,7 +194,10 @@ render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.con
 # DNSSEC trust anchor; unbound-anchor exits 1 when it (re)wrote the file, which is fine
 install -d -o unbound -g unbound /var/lib/unbound
 [[ -s /var/lib/unbound/root.key ]] || cp /usr/share/dns/root.key /var/lib/unbound/root.key
-unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
+# Debian 13 ships unbound-anchor as a separate package; the copy from dns-root-data is enough without it
+if command -v unbound-anchor >/dev/null; then
+  unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
+fi
 chown unbound:unbound /var/lib/unbound/root.key 2>/dev/null || true
 run unbound-checkconf
 run systemctl enable --now unbound
@@ -320,8 +325,21 @@ else
   # Keeps the role in step with secrets.env, also after restoring a backup onto a new server
   runuser -u postgres -- psql -q -c "ALTER ROLE mailfilter LOGIN PASSWORD '$DB_PASSWORD'"
 fi
-if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='mailfilter'" | grep 1 >/dev/null; then
-  runuser -u postgres -- createdb -O mailfilter mailfilter
+# Always UTF-8, also when the server has no UTF-8 locale (minimal containers, LXC): PostgreSQL
+# would otherwise create the database as SQL_ASCII.
+DB_ENCODING=$(runuser -u postgres -- psql -tAc "SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname='mailfilter'")
+if [[ -n $DB_ENCODING && $DB_ENCODING != UTF8 ]]; then
+  DB_TABLES=$(runuser -u postgres -- psql -d mailfilter -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
+  if [[ ${DB_TABLES:-1} == 0 ]]; then
+    info "Database 'mailfilter' is empty and uses $DB_ENCODING; creating it again as UTF-8"
+    runuser -u postgres -- dropdb mailfilter
+    DB_ENCODING=""
+  else
+    warn "Database 'mailfilter' uses $DB_ENCODING instead of UTF-8. It keeps working; convert it with a backup and restore when convenient."
+  fi
+fi
+if [[ -z $DB_ENCODING ]]; then
+  runuser -u postgres -- createdb -O mailfilter -E UTF8 -T template0 --locale=C.UTF-8 mailfilter
 fi
 ok "Database 'mailfilter' ready"
 
