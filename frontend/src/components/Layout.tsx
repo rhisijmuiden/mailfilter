@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { setLanguage, type Lang } from "../i18n";
 import { api } from "../lib/api";
+import { useBranding } from "../lib/branding";
 import type { Me } from "../lib/auth";
 import type { Stats } from "../lib/trace";
 import { GROUPS, NAV } from "../nav";
@@ -26,6 +27,7 @@ export function Layout({ me }: { me: Me }) {
   useCommandPaletteKey(openPalette);
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const sys = useSystemInfo();
+  const brand = useBranding();
   const stats = useQuery({ queryKey: ["trace-stats"], queryFn: () => api.get<Stats>("/trace/stats?hours=24"), refetchInterval: 60_000 });
   const mailtrap = useQuery({
     queryKey: ["mailtrap-menu"],
@@ -55,7 +57,7 @@ export function Layout({ me }: { me: Me }) {
       <aside className="sidebar" aria-label={t("nav.menu")}>
         <div className="brand">
           <Logo />
-          <span className="product">{t("app.product")}</span>
+          <span className="product">{brand.name}</span>
           <span className="mono muted" style={{ fontSize: 11.5 }}>{sys.data?.hostname}</span>
         </div>
         <nav className="nav">

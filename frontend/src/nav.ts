@@ -1,6 +1,6 @@
 // The left menu. Each feature adds its entries here; `group` decides the section.
 import type { LucideIcon } from "lucide-react";
-import { Archive, Braces, Building2, Flag, FileChartColumn, FlaskConical, AtSign, BellRing, Boxes, Cloud, DatabaseBackup, FileInput, Gauge, Globe, KeyRound, LayoutDashboard, ListChecks, MailCheck, MousePointerClick, Network, Receipt, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { Archive, Braces, Building2, Flag, FileChartColumn, FlaskConical, AtSign, BellRing, Boxes, Cloud, DatabaseBackup, FileInput, Gauge, Globe, KeyRound, LayoutDashboard, ListChecks, MailCheck, MousePointerClick, Network, Palette, Receipt, ScrollText, Search, Send, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 export type NavGroup = "overview" | "mail" | "config" | "system";
 
@@ -41,6 +41,7 @@ export const NAV: NavItem[] = [
   { to: "/dns", label: "nav.dns", icon: Globe, group: "config", adminOnly: true },
   { to: "/users", label: "nav.users", icon: Users, group: "system", adminOnly: true },
   { to: "/billing", label: "nav.billing", icon: Building2, group: "system", adminOnly: true },
+  { to: "/system/branding", label: "nav.branding", icon: Palette, group: "system", adminOnly: true },
   { to: "/system/security", label: "nav.security", icon: KeyRound, group: "system", adminOnly: true },
   { to: "/audit", label: "nav.audit", icon: ScrollText, group: "system" },
   { to: "/system/api", label: "nav.api", icon: Braces, group: "system" },

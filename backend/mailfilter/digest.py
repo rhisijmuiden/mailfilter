@@ -28,7 +28,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import mailer
+from . import branding, mailer
 from .models import DigestDomain, DigestSent, Domain, TraceMessage
 from .queuectl import QueueError, held_ids, raw_message
 from .settings import get_settings
@@ -219,8 +219,10 @@ TEXT = {
 NACHT, KORAAL, WOLK, MUTED, LINE = "#14213D", "#FF6B57", "#F6F7FB", "#4F5B73", "#DCE1EB"
 
 
-def render(rep: Report, lang: str = "en", tz: str | None = None) -> tuple[str, str, str]:
-    """Return (subject, plain text, html) for one recipient."""
+def render(rep: Report, lang: str = "en", tz: str | None = None, brand: dict | None = None) -> tuple[str, str, str]:
+    """Return (subject, plain text, html) for one recipient. ``brand``: see branding.get."""
+    brand = brand or branding.DEFAULTS
+    head_bg, accent, name = brand["primary"], brand["accent"], brand["name"]
     t = TEXT.get(lang, TEXT["en"])
     zone = ZoneInfo(tz or get_settings().timezone)
     fmt = lambda d: d.astimezone(zone).strftime("%d-%m-%Y %H:%M")  # noqa: E731
@@ -243,7 +245,7 @@ def render(rep: Report, lang: str = "en", tz: str | None = None) -> tuple[str, s
         badge = (f'<span style="display:inline-block;background:#FFE7E3;color:#B8392A;border-radius:999px;'
                  f'padding:1px 8px;font-size:11px;font-weight:600;margin-right:6px">{e(t["new"])}</span>') if i.new else ""
         action = (f'<span style="color:{MUTED};font-size:12px">{e(t["virus"])}</span>' if i.virus else
-                  f'<a href="{e(action_url(i.token))}" style="display:inline-block;background:{KORAAL};color:{NACHT};'
+                  f'<a href="{e(action_url(i.token))}" style="display:inline-block;background:{accent};color:{branding.on_color(accent)};'
                   f'text-decoration:none;font-weight:600;font-size:13px;border-radius:6px;padding:7px 12px">{e(t["open"])}</a>')
         rows.append(
             f'<tr><td style="padding:14px 16px;border-top:1px solid {LINE}">'
@@ -255,8 +257,8 @@ def render(rep: Report, lang: str = "en", tz: str | None = None) -> tuple[str, s
         f'<!doctype html><html><body style="margin:0;background:{WOLK};font-family:Archivo,Segoe UI,Arial,sans-serif;color:{NACHT}">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{WOLK}"><tr><td align="center" style="padding:24px 12px">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#FFFFFF;border:1px solid {LINE};border-radius:12px;overflow:hidden">'
-        f'<tr><td style="background:{NACHT};color:#FFFFFF;padding:18px 16px;font-size:18px;font-weight:700">'
-        f'<span style="color:{KORAAL}">●</span> Mailfilter</td></tr>'
+        f'<tr><td style="background:{head_bg};color:{branding.on_color(head_bg)};padding:18px 16px;font-size:18px;font-weight:700">'
+        f'<span style="color:{accent}">●</span> {e(name)}</td></tr>'
         f'<tr><td style="padding:18px 16px 6px"><div style="font-size:20px;font-weight:700">{e(subject)}</div>'
         f'<p style="font-size:14px;line-height:1.5;color:{MUTED};margin:8px 0 0">{e(t["intro"].format(rcpt=rep.recipient))}</p></td></tr>'
         + "".join(rows) +
@@ -298,7 +300,7 @@ def run(db: Session, now: datetime | None = None, force: bool = False) -> RunRes
         if cfg.only_new and rep.new_count == 0:
             res.skipped += 1
             continue
-        subject, text, body = render(rep, cfg.language)
+        subject, text, body = render(rep, cfg.language, brand=branding.get(db))
         try:
             mailer.send(db, rep.recipient, subject, text, body)
         except mailer.MailError as e:

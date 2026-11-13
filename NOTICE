@@ -1,0 +1,36 @@
+Mailfilter
+Copyright (C) 2026 RHIS (https://rhis.nl)
+
+Mailfilter is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License version 3 (see LICENSE), with the
+additional terms below. These additional terms are permitted by section 7 of
+the GNU GPL version 3 and apply to this work and to every modified version of
+it.
+
+ADDITIONAL TERMS (GNU GPL version 3, section 7)
+
+1. Attribution (section 7(b)).
+   Every copy and every modified version of Mailfilter that has a web
+   interface must keep the "Powered by RHIS" attribution, with the RHIS icon
+   and a link to https://rhis.nl, visible at the bottom right of every page of
+   that interface, including the login page and public pages, as it is in the
+   original (src: frontend/src/components/PoweredBy.tsx and the link
+   protection pages in backend/mailfilter/branding.py). You may change its
+   colours and size slightly to fit your own theme, but it must stay readable
+   and may not be hidden, removed, covered, or made switchable by a setting.
+   These notices count as "Appropriate Legal Notices" in the sense of the
+   GNU GPL.
+
+2. No misrepresentation (section 7(c)).
+   A modified version must be marked as changed and may not be presented as
+   the original version made by RHIS.
+
+3. Names and logos (section 7(e)).
+   No rights are granted to use the name "RHIS" or the RHIS logos, except for
+   the attribution required in term 1. The RHIS house style in huisstijl/ is
+   the default look; you may replace the name, colours and logo of the product
+   with your own (System > Branding in the web interface).
+
+Everything else is under the GNU General Public License version 3 without
+changes. If you received a copy without these terms, they still apply: they
+are part of the licence under which RHIS publishes Mailfilter.

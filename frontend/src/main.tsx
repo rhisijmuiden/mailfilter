@@ -3,9 +3,11 @@ import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { PoweredBy } from "./components/PoweredBy";
 import { Loading, ToastProvider } from "./components/ui";
 import { i18nReady } from "./i18n";
 import { useMe } from "./lib/auth";
+import { useApplyBranding, useBranding } from "./lib/branding";
 import Login from "./pages/Login";
 import TwoFactorGate from "./pages/TwoFactorGate";
 import NotFound from "./pages/NotFound";
@@ -40,13 +42,20 @@ function App() {
 
 // The links in the daily quarantine report work without logging in.
 function Root() {
+  useApplyBranding(useBranding());
   const m = window.location.pathname.match(/^\/report\/([^/]+)$/);
-  return m ? (
-    <Suspense fallback={<Loading />}>
-      <ReportAction token={decodeURIComponent(m[1])} />
-    </Suspense>
-  ) : (
-    <App />
+  return (
+    <>
+      {m ? (
+        <Suspense fallback={<Loading />}>
+          <ReportAction token={decodeURIComponent(m[1]!)} />
+        </Suspense>
+      ) : (
+        <App />
+      )}
+      {/* Fixed on every page, also before login. Not a setting: see LICENSE. */}
+      <PoweredBy />
+    </>
   );
 }
 

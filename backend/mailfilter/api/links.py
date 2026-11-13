@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from mailfilter_config.rules import effective
 
+from .. import branding
 from .. import links as lp
 from ..audit import audit
 from ..db import session
@@ -148,6 +149,7 @@ background:var(--btn);color:var(--btn-ink);text-decoration:none}
 .ghost{background:transparent;color:var(--ink);text-decoration:underline;font-weight:500;font-size:14px;padding:6px}
 .foot{font-size:12.5px;color:var(--muted);margin-top:22px}
 .foot a{color:inherit}
+.logo img{display:block;max-width:100%;max-height:64px;margin:0 auto}
 .accent{height:4px;width:48px;background:var(--koraal);border-radius:4px;margin:20px auto 0}
 """
 ICONS = {
@@ -158,6 +160,22 @@ ICONS = {
              '<path d="m9.5 9.5 5 5"/></svg>',
 }
 ICONS["bad"] = ICONS["block"]
+
+
+def _head_tail(title: str) -> tuple[str, str, str]:
+    """(extra head, logo html, product name) from the branding settings."""
+    b = branding.current()
+    e = html.escape
+    head = f'<style>{branding.POWERED_BY_CSS}html:root{{--koraal:{b["accent"]}}}</style>'
+    if b.get("favicon"):
+        head += f'<link rel="icon" href="{e(b["favicon"])}">'
+    if b.get("logo"):
+        logo = f'<img src="{e(b["logo"])}" alt="{e(b["name"])}">'
+        if b.get("logo_dark"):
+            logo = (f'<picture><source srcset="{e(b["logo_dark"])}" media="(prefers-color-scheme: dark)">{logo}</picture>')
+    else:
+        logo = LOGO
+    return f"<title>{e(title)}{' · ' if title else ''}{e(b['name'])}</title>{head}", logo, b["name"]
 
 
 def _lang(request: Request) -> str:
@@ -176,8 +194,9 @@ def page(lang: str, kind: str, *, url: str = "", reasons: list[dict] | None = No
     t = T[lang]
     e = html.escape
     other = "nl" if lang == "en" else "en"
+    head, logo, name = _head_tail(t[kind + "_title"])
     body = [f'<div class="mark {kind}">{ICONS[kind]}</div>',
-            f'<h1>{e(t[kind + "_title"])}</h1>', f'<p>{e(t[kind + "_intro"])}</p>']
+            f'<h1>{e(t[kind + "_title"])}</h1>', f'<p>{e(t[kind + "_intro"].replace("Mailfilter", name))}</p>']
     if url:
         body.append(f'<div class="dest"><span>{e(t["goes_to"])}</span><b>{e(url)}</b></div>')
     items = [r for r in reasons or [] if r.get("level") != "safe" or r.get("code") == "shortener"]
@@ -198,9 +217,9 @@ def page(lang: str, kind: str, *, url: str = "", reasons: list[dict] | None = No
     body.append(f'<p class="foot">{e(foot)}{ref} · <a href="?lang={other}">{e(t["other"])}</a></p>')
     doc = (f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8">'
            f'<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">'
-           f'<meta name="referrer" content="no-referrer"><title>{e(t[kind + "_title"])} · Mailfilter</title>'
-           f'<style>{CSS}</style></head><body><div class="logo">{LOGO}</div>'
-           f'<main class="card">{"".join(body)}<div class="accent"></div></main></body></html>')
+           f'<meta name="referrer" content="no-referrer">{head}'
+           f'<style>{CSS}</style></head><body><div class="logo">{logo}</div>'
+           f'<main class="card">{"".join(body)}<div class="accent"></div></main>{branding.POWERED_BY_HTML}</body></html>')
     return HTMLResponse(doc, status_code=status_code, headers={"Referrer-Policy": "no-referrer",
                                                                 "X-Robots-Tag": "noindex"})
 
@@ -208,10 +227,11 @@ def page(lang: str, kind: str, *, url: str = "", reasons: list[dict] | None = No
 def _back(lang: str) -> HTMLResponse:
     # "Back" from a page opened from a mail program: there is no page to go back to.
     t = T[lang]
+    head, logo, _ = _head_tail("")
     doc = (f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8">'
-           f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>Mailfilter</title>'
-           f'<style>{CSS}</style></head><body><div class="logo">{LOGO}</div><main class="card">'
-           f'<h1>{html.escape(t["close"])}</h1><div class="accent"></div></main></body></html>')
+           f'<meta name="viewport" content="width=device-width,initial-scale=1">{head}'
+           f'<style>{CSS}</style></head><body><div class="logo">{logo}</div><main class="card">'
+           f'<h1>{html.escape(t["close"])}</h1><div class="accent"></div></main>{branding.POWERED_BY_HTML}</body></html>')
     return HTMLResponse(doc)
 
 

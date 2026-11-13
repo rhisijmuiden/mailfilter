@@ -3,7 +3,8 @@
     "product": "Mailfilter",
     "skip": "Skip to content"
   },
-  "nav": {"links": "Link clicks", 
+  "branding": {"title": "Branding", "sub": "Give this Mailfilter your own name, colours and logo. Users see it in the web app, on the login page and in the mails Mailfilter sends.", "identity": "Name and colours", "name": "Product name", "name_hint": "Shown in the menu, on the login page, in the browser tab and in reports.", "accent": "Accent colour", "accent_hint": "Main buttons, the active menu item and highlights.", "primary": "Dark colour", "primary_hint": "Dark surfaces such as the header of report mails and notifications.", "house_colors": "Use the default colours", "preview": "Preview", "sample_button": "Main button", "sample_dark": "Dark surface", "images": "Logos and icon", "logo": "Logo", "logo_hint": "For the light theme. SVG or PNG, at most 256 KB; wide logos work best.", "logo_dark": "Logo for dark mode", "logo_dark_hint": "Optional. A light version of your logo for the dark theme.", "favicon": "Browser icon", "favicon_hint": "Optional. Square SVG, PNG or ICO for the browser tab.", "default_used": "Default is used", "upload": "Upload", "replace": "Replace", "remove": "Remove", "reset": "Back to default", "reset_confirm": "Remove your own name, colours and logos and go back to the default house style?", "powered_note": "The small \"Powered by RHIS\" mark at the bottom right always stays visible. Mailfilter is open source (GPLv3) and this attribution is a condition of the licence, so it cannot be switched off here."},
+  "nav": {"branding": "Branding", "links": "Link clicks", 
     "archive": "Archive",
     "cloud": "Cloud mail",
     "usage": "Usage",
@@ -67,7 +68,7 @@
     "choose": "choose",
     "open": "open",
     "searching": "Searching…",
-    "kw": {"links": "link protection click safe links url phishing warning blocked", "archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
+    "kw": {"branding": "branding brand logo colours colors name white label theme favicon", "links": "link protection click safe links url phishing warning blocked", "archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
       "usage": "usage billing invoice mailboxes csv export accounting",
       "billing": "billing customers resellers prices tariffs customer number",
       "dashboard": "overview charts live now statistics",
@@ -132,6 +133,7 @@
     "refresh": "Refresh"
   },
   "errors": {
+    "bad_image": "This is not an image. Use SVG, PNG, WebP, JPEG or ICO.",
     "already_linked": "This domain is already linked to a cloud mail environment.",
     "test_address_not_in_domain": "Send the test to an address in this domain.",
     "unknown_customer": "That customer does not exist.",
@@ -290,6 +292,7 @@
     "forgot": "Forgot your password? Ask your administrator to set a new one."
   },
   "info": {
+    "license": "Open source (GPL-3.0) · made by RHIS",
     "title": "About Mailfilter",
     "version": "Version",
     "branch": "Channel",

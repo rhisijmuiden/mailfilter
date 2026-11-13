@@ -49,7 +49,8 @@ FORMAT = 1
 
 SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp", "smtp.password", "cloudflare_token",
                              "quarantine_report", "security", "dkim_rotation", "billing.tariffs",
-                             "gateway.recipient_cache"})
+                             "gateway.recipient_cache",
+                             "branding", "branding.logo", "branding.logo_dark", "branding.favicon"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
                  TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, Reseller, BillingCustomer, ApiKey, CloudTenant, ArchiveDomain)

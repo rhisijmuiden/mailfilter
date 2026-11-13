@@ -114,6 +114,7 @@ Detailed reference pages: [updates and backups](docs/updates-and-backups.md), [r
 - **REST API** with scoped API keys, IP restrictions, expiry dates and built-in OpenAPI documentation.
 - **Notifications** by e-mail, Telegram or webhook (JSON, Slack, Mattermost, Discord): service down, queue filling, blocklist, certificate, paused sender, backup or update problem.
 - **Own SMTP settings** for mail that Mailfilter sends itself.
+- **Own branding**: product name, accent and dark colour, logo (with a dark-mode version) and browser icon, used in the web app, on the login page and in report mails. The RHIS house style is the default.
 - **Cluster**: keep several Mailfilter servers on the same configuration; each one keeps filtering on its own if another fails.
 - **Import from Proxmox Mail Gateway**: domains, relay networks, address routes, TLS rules, allow and block lists and DKIM keys from a PMG backup file.
 
@@ -222,4 +223,8 @@ Tests: `cd backend && pytest` (set `MAILFILTER_TEST_DB_URL` to an empty test dat
 
 ## License
 
-[GNU General Public License v3.0](LICENSE).
+Mailfilter is open source under the [GNU General Public License v3.0](LICENSE), with [additional terms](NOTICE) under section 7 of that licence:
+
+- **Keep "Powered by RHIS".** The small "Powered by RHIS" mark with the RHIS icon at the bottom right of every page must stay visible in every copy and every modified version. It is not a setting and may not be removed or hidden.
+- **Your own brand is fine.** Name, colours, logo and browser icon can be changed under **System › Branding**; the RHIS house style is only the default.
+- A modified version must say it is changed, and the RHIS name and logos are not licensed for anything else.
