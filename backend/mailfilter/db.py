@@ -37,6 +37,7 @@ def _sessionmaker() -> sessionmaker[Session]:
 def get_db() -> Iterator[Session]:
     """FastAPI dependency: one session per request, committed by the handler."""
     db = _sessionmaker()()
+    db.info["web"] = True  # a person's change (see cluster/tracking.py for backup servers)
     try:
         yield db
     finally:

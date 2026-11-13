@@ -24,6 +24,8 @@ class ClusterNode(Base):
     addresses: Mapped[list] = mapped_column(JSONB, default=list)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     is_self: Mapped[bool] = mapped_column(Boolean, default=False)
+    # member (active cluster: all nodes equal), or primary / standby (backup mode)
+    role: Mapped[str] = mapped_column(String(10), default="member")
     # ---- local view of the peer (not synced) ----
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -32,9 +34,11 @@ class ClusterNode(Base):
     version: Mapped[str] = mapped_column(String(40), default="")
     revision: Mapped[Any] = mapped_column(JSONB, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(nullable=True)
+    # What the peer told about itself in its last hello, e.g. its failover state.
+    info: Mapped[Any] = mapped_column(JSONB, nullable=True)
 
     LOCAL = frozenset({"is_self", "last_seen_at", "last_sync_at", "last_error", "last_error_at", "version",
-                       "revision", "latency_ms", "joined_at"})
+                       "revision", "latency_ms", "joined_at", "info"})
 
 
 class ClusterNonce(Base):

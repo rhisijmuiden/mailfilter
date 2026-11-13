@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from . import __version__
 from .api import links as links_api
 from .api import router
+from .cluster.state import ClusterError
 from .api.v1 import router as v1_router
 from .modules import require as require_module
 
@@ -28,6 +29,12 @@ async def csrf_guard(request: Request, call_next):
     response = await call_next(request)
     response.headers.setdefault("Cache-Control", "no-store")
     return response
+
+
+@app.exception_handler(ClusterError)
+async def cluster_error(_: Request, exc: ClusterError) -> JSONResponse:
+    # E.g. a change on a backup server, which takes its configuration from the primary.
+    return JSONResponse({"detail": {"code": f"cluster_{exc.code}", "detail": exc.detail}}, status_code=409)
 
 
 @app.get("/api/health", include_in_schema=False)

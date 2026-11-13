@@ -37,6 +37,11 @@ SECRET_KEY = "cluster.secret"
 PREVIOUS_SECRET_KEY = "cluster.secret_previous"  # {"secret": enc, "until": iso}; only used for sending
 REVISION_KEY = "cluster.revision"  # {"at": iso, "node": node_id}
 LAST_IMPORT_KEY = "cluster.last_import"
+FAILOVER_KEY = "cluster.failover"  # cluster-wide, comes with the snapshot: {"enabled", "hostname", ...}
+FAILOVER_STATE_KEY = "cluster.failover_state"  # this node only: is it answering for the hostname now?
+
+ACTIVE, STANDBY = "active", "standby"
+FAILOVER_DEFAULTS = {"enabled": False, "hostname": "", "after_minutes": 5, "back_minutes": 10}
 
 MAX_AGE = 300  # seconds a sealed message stays valid
 JOIN_PREFIX = "MFC1."
@@ -122,7 +127,27 @@ def peers(db: Session) -> list[ClusterNode]:
 
 
 def node_info(n: ClusterNode) -> dict[str, Any]:
-    return {"node_id": n.node_id, "name": n.name, "url": n.url, "addresses": list(n.addresses or [])}
+    return {"node_id": n.node_id, "name": n.name, "url": n.url, "addresses": list(n.addresses or []),
+            "role": n.role or "member"}
+
+
+def mode(db: Session) -> str:
+    """active: all nodes equal. standby: one primary, the others are backup servers
+    that take their configuration from it and take over when it is down."""
+    return (config(db) or {}).get("mode") or ACTIVE
+
+
+def my_role(db: Session) -> str | None:
+    me = self_node(db)
+    return (me.role or "member") if me else None
+
+
+def primary(db: Session) -> ClusterNode | None:
+    return db.execute(select(ClusterNode).where(ClusterNode.role == "primary")).scalars().first()
+
+
+def failover_settings(db: Session) -> dict[str, Any]:
+    return {**FAILOVER_DEFAULTS, **(get_setting(db, FAILOVER_KEY) or {})}
 
 
 def cluster_server_facts(db: Session) -> dict[str, Any] | None:
@@ -153,7 +178,7 @@ def check_url(url: str) -> str:
 def leave_locally(db: Session) -> None:
     """Forget the cluster. The configuration stays; this server runs on its own."""
     db.execute(delete(ClusterNode))
-    for key in (CONFIG_KEY, REVISION_KEY, PREVIOUS_SECRET_KEY, LAST_IMPORT_KEY):
+    for key in (CONFIG_KEY, REVISION_KEY, PREVIOUS_SECRET_KEY, LAST_IMPORT_KEY, FAILOVER_KEY, FAILOVER_STATE_KEY):
         set_setting(db, key, None)
     set_secret(db, SECRET_KEY, None)
     set_secret(db, PREVIOUS_SECRET_KEY + ".value", None)
