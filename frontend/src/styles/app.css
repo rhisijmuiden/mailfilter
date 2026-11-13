@@ -429,3 +429,13 @@ code.pw{font-size:14px;padding:6px 10px;border-radius:var(--r-sm);background:var
 .wiz-bar{flex:1;height:6px;border-radius:6px;background:var(--surface-sunk);min-width:60px;overflow:hidden}
 .wiz-bar span{display:block;height:100%;border-radius:6px;background:var(--accent)}
 .wiz-bar span.ok{background:var(--ok)}
+
+/* System > Modules */
+.mod-ico{display:grid;place-items:center;width:36px;height:36px;border-radius:var(--r-sm);background:var(--surface-sunk);color:var(--ink-muted);flex:none}
+.mod-ico svg{width:18px;height:18px;stroke:currentColor}
+.mod-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.mod-tags:empty{display:none}
+.setting .st-on{color:var(--ok)} .setting .st-off{color:var(--ink-muted)}
+@media (max-width:560px){.setting .st-on,.setting .st-off{display:none}}
+.setting .mod-tags .tag{font-size:11.5px;color:var(--ink-muted)}
+.setting .mod-tags .tag.lucht{color:var(--info)}

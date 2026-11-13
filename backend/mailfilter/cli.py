@@ -112,6 +112,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "migrate":
         migrate()
         return 0
+    from . import modules
+
     with session() as db:
         if args.cmd == "abuse-scan":
             from .abuse import scan
@@ -187,6 +189,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "quarantine-report":
             from .digest import run
 
+            if not modules.enabled(db, "quarantine_report"):
+                print("not sent: module_off")
+                return 0
+
             res = run(db, force=args.now)
             if not res.ran:
                 print(f"not sent: {res.reason}")
@@ -199,12 +205,16 @@ def main(argv: list[str] | None = None) -> int:
             from .monthly import run as monthly_run
             from .usage import run as usage_run
 
-            try:
-                for m in usage_run(db):
-                    print(f"stored the usage of {m}")
-            except Exception as e:  # noqa: BLE001 - the monthly report must still go out
-                db.rollback()
-                print(f"usage measurement failed: {e}", file=sys.stderr)
+            if modules.enabled(db, "usage"):
+                try:
+                    for m in usage_run(db):
+                        print(f"stored the usage of {m}")
+                except Exception as e:  # noqa: BLE001 - the monthly report must still go out
+                    db.rollback()
+                    print(f"usage measurement failed: {e}", file=sys.stderr)
+            if not modules.enabled(db, "monthly_report"):
+                print("not sent: module_off")
+                return 0
             res = monthly_run(db, force=args.now)
             for m in res.stored:
                 print(f"stored the numbers of {m}")

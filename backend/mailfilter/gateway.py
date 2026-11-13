@@ -25,7 +25,7 @@ from mailfilter_config.rules import rule_from_dict
 
 from .models import (AddressRoute, ArchiveDomain, CloudTenant, DestinationPolicy, Domain, DomainDestination, DomainRoute, MailTrap, OutboundHold,
                      RelayNetwork, RelayPort, SmtpAccount, TlsPolicy, User)
-from . import recipients
+from . import modules, recipients
 from .settings import ETC, get_settings
 from .settings_store import get_setting, set_setting
 
@@ -116,14 +116,22 @@ def build_config(db: Session) -> mfc.GatewayConfig:
                    for t in db.execute(select(MailTrap).order_by(MailTrap.slug)).scalars()],
         cloud_tenants=[mfc.CloudTenant(provider=t.provider, domain=t.domain.name, tenant_id=t.tenant_id,
                                        enabled=t.enabled)
-                       for t in db.execute(select(CloudTenant).join(Domain).order_by(Domain.name)).scalars()],
+                       for t in db.execute(select(CloudTenant).join(Domain).order_by(Domain.name)).scalars()]
+                      if modules.enabled(db, "cloud") else [],
         mailtrap_enabled=mailtrap_enabled(db),
         archive_domains=list(db.execute(select(ArchiveDomain.name).where(ArchiveDomain.enabled.is_(True))
-                                        .order_by(ArchiveDomain.name)).scalars()),
+                                        .order_by(ArchiveDomain.name)).scalars()) if modules.enabled(db, "archive") else [],
         defaults=defaults(db),
         recipient_cache=recipients.cache(db),
-        custom_rules=custom_rules(db),
+        custom_rules=_rules_for_gateway(db),
     )
+
+
+def _rules_for_gateway(db: Session) -> dict[str, mfc.CustomRule]:
+    rules = custom_rules(db)
+    if not modules.enabled(db, "link_protection"):
+        rules.pop("link_protection", None)  # back to its default: off for every domain
+    return rules
 
 
 def hold_reason_text(h) -> str:

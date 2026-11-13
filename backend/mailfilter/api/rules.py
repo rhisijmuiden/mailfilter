@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from mailfilter_config.rules import BY_ID, RULES, CustomRule, effective, problems
 
+from .. import modules
 from ..audit import audit
 from ..deps import DB, AdminUser, CurrentUser, visible_domains
 from ..gateway import RULES_KEY, apply_changes, custom_rules, ensure_imported
@@ -50,7 +51,10 @@ def _out(db, user: User) -> dict:
     domains = _domains(db, user)
     chosen = effective(custom_rules(db))
     rules = []
+    link_protection = modules.enabled(db, "link_protection")
     for spec in RULES:
+        if spec["id"] == "link_protection" and not link_protection:
+            continue  # switched off under System > Modules
         r = chosen[spec["id"]]
         rules.append({
             "id": spec["id"], "group": spec["group"], "direction": spec["direction"], "symbol": spec["symbol"],
