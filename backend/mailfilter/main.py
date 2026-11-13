@@ -9,6 +9,7 @@ from . import __version__
 from .api import links as links_api
 from .api import router
 from .api.v1 import router as v1_router
+from .modules import require as require_module
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -38,4 +39,4 @@ app.include_router(router)
 # Click links of link protection: https://<host>/l/<token>, outside /api.
 app.include_router(links_api.public)
 # The public API has its own OpenAPI description (/api/v1/openapi.json).
-app.include_router(v1_router, include_in_schema=False)
+app.include_router(v1_router, include_in_schema=False, dependencies=[require_module("api")])

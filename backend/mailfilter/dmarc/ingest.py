@@ -145,6 +145,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         with session() as db:
+            from ..modules import enabled
+
+            if not enabled(db, "dmarc"):
+                print("dmarc report: dropped, the DMARC reports module is off")
+                return 0
             log = ingest_mail(db, raw, sender=argv[0] if argv else "")
     except OperationalError as exc:
         print(f"DMARC report not stored yet, database unavailable: {exc.__class__.__name__}", file=sys.stderr)

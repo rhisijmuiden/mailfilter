@@ -4,7 +4,7 @@
     "skip": "Naar inhoud"
   },
   "branding": {"title": "Huisstijl", "sub": "Geef deze Mailfilter je eigen naam, kleuren en logo. Gebruikers zien dit in de webapp, op de inlogpagina en in de mails die Mailfilter verstuurt.", "identity": "Naam en kleuren", "name": "Productnaam", "name_hint": "Staat in het menu, op de inlogpagina, in het browsertabblad en in rapporten.", "accent": "Accentkleur", "accent_hint": "Hoofdknoppen, het actieve menu-item en accenten.", "primary": "Donkere kleur", "primary_hint": "Donkere vlakken, zoals de kop van rapportmails en meldingen.", "house_colors": "Standaardkleuren gebruiken", "preview": "Voorbeeld", "sample_button": "Hoofdknop", "sample_dark": "Donker vlak", "images": "Logo's en icoon", "logo": "Logo", "logo_hint": "Voor het lichte thema. SVG of PNG, maximaal 256 KB; brede logo's werken het best.", "logo_dark": "Logo voor donkere modus", "logo_dark_hint": "Optioneel. Een lichte versie van je logo voor het donkere thema.", "favicon": "Browsericoon", "favicon_hint": "Optioneel. Vierkante SVG, PNG of ICO voor het browsertabblad.", "default_used": "Standaard wordt gebruikt", "upload": "Uploaden", "replace": "Vervangen", "remove": "Verwijderen", "reset": "Terug naar standaard", "reset_confirm": "Je eigen naam, kleuren en logo's verwijderen en teruggaan naar de standaard huisstijl?", "powered_note": "Het kleine \"Powered by RHIS\" rechtsonder blijft altijd zichtbaar. Mailfilter is open source (AGPLv3) en deze naamsvermelding is een voorwaarde van de licentie, daarom kun je hem hier niet uitzetten."},
-  "nav": {"branding": "Huisstijl", "links": "Linkklikken", 
+  "nav": {"modules": "Modules", "branding": "Huisstijl", "links": "Linkklikken", 
     "archive": "Archief",
     "cloud": "Cloud-mail",
     "usage": "Verbruik",
@@ -68,7 +68,7 @@
     "choose": "kiezen",
     "open": "openen",
     "searching": "Zoeken…",
-    "kw": {"branding": "huisstijl branding logo kleuren naam white label thema favicon", "links": "linkbescherming klik link url phishing waarschuwing geblokkeerd", "archive": "archief archivering bewaarplicht bewaartermijn zoeken oude mail juridisch export compliance", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
+    "kw": {"modules": "modules functies onderdelen aan uit inschakelen uitschakelen", "branding": "huisstijl branding logo kleuren naam white label thema favicon", "links": "linkbescherming klik link url phishing waarschuwing geblokkeerd", "archive": "archief archivering bewaarplicht bewaartermijn zoeken oude mail juridisch export compliance", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
       "usage": "verbruik facturatie factuur mailboxen csv export boekhouding",
       "billing": "facturatie klanten resellers tarieven prijzen debiteurnummer",
       "dashboard": "overzicht grafieken live nu statistieken",
@@ -2269,5 +2269,108 @@
     "accepts_all": "Let op: de mailserver nam ook een verzonnen adres aan.",
     "accepts_all_hint": "Hij accepteert alles, dus deze controle houdt niets tegen. Zet ontvangerfiltering aan op de server, of gebruik LDAP of een lijst."
   },
-  "links": {"title": "Linkklikken", "sub": "Links in binnenkomende mail worden opnieuw gecontroleerd als iemand erop klikt. Hier zie je elke klik en wat Mailfilter besloot.", "off": "Linkbescherming staat uit, dus links in nieuwe mail worden niet gecontroleerd bij het klikken. Zet het aan voor iedereen of per domein onder", "off_link": "Aangepaste regels › Phishing.", "time": "Tijd", "recipient": "Ontvanger", "link": "Link", "result": "Uitkomst", "why": "Waarom", "delivered": "Mail afgeleverd", "scanner": "Geopend door een beveiligingsscanner of linkvoorbeeld", "level_safe": "Veilig", "level_warn": "Gewaarschuwd", "level_block": "Geblokkeerd", "level_continued": "Toch doorgegaan", "kpi_block": "Geblokkeerd", "kpi_warn": "Gewaarschuwd", "kpi_continued": "Toch doorgegaan", "kpi_safe": "Veilig", "kpi_period_one": "afgelopen {{count}} dag", "kpi_period_other": "afgelopen {{count}} dagen", "filter_all": "Alles", "filter_block": "Geblokkeerd", "filter_warn": "Gewaarschuwd", "filter_continued": "Doorgegaan", "filter_safe": "Veilig", "period": "Periode", "period_days_one": "Afgelopen {{count}} dag", "period_days_other": "Afgelopen {{count}} dagen", "show_scanners": "Scanners tonen", "search": "Zoek link, ontvanger of Message-ID", "empty": "Nog geen klikken. Klikken verschijnen hier zodra iemand een beschermde link opent.", "no_results": "Geen klikken voor deze filters.", "count": "{{total}} klikken · pagina {{page}} van {{pages}}", "prev": "Vorige pagina", "next": "Volgende pagina", "trace": "Mail", "open_trace": "Open het bericht in Mail trace", "block": "Blokkeren", "block_confirm": "Alle links naar {{domain}} blokkeren? Dit werkt ook voor mail die al is afgeleverd.", "blocked_toast": "Links naar {{domain}} zijn geblokkeerd", "test_title": "Link testen", "test_sub": "Controleer een link zoals Mailfilter dat doet bij een klik. De test wordt niet bewaard.", "test_button": "Controleren", "test_clean": "Niets verdachts gevonden.", "reason": {"blocked_by_admin": "Geblokkeerd door de beheerder ({{host}}).", "blocklist": "{{list}} kent deze site als {{kind}}.", "ip_address": "Gaat naar een kaal IP-adres ({{host}}).", "user_part": "Begint met {{shown}} maar gaat naar {{host}}.", "lookalike": "{{host}} lijkt op {{target}}.", "flagged_at_delivery": "Was al verdacht toen de mail binnenkwam.", "fake_sender": "De afzender doet zich voor als iemand anders.", "shortener": "Verkorte link naar {{destination}}.", "shortener_unknown": "Verkorte link ({{host}}), bestemming onbekend."}, "kind": {"spam": "spam", "phishing": "phishing", "malware": "malware", "botnet": "deel van een botnet", "abuse": "misbruikt", "cracked": "gehackt", "redirector": "een misbruikte doorverwijzing"}}
+  "links": {"title": "Linkklikken", "sub": "Links in binnenkomende mail worden opnieuw gecontroleerd als iemand erop klikt. Hier zie je elke klik en wat Mailfilter besloot.", "off": "Linkbescherming staat uit, dus links in nieuwe mail worden niet gecontroleerd bij het klikken. Zet het aan voor iedereen of per domein onder", "off_link": "Aangepaste regels › Phishing.", "time": "Tijd", "recipient": "Ontvanger", "link": "Link", "result": "Uitkomst", "why": "Waarom", "delivered": "Mail afgeleverd", "scanner": "Geopend door een beveiligingsscanner of linkvoorbeeld", "level_safe": "Veilig", "level_warn": "Gewaarschuwd", "level_block": "Geblokkeerd", "level_continued": "Toch doorgegaan", "kpi_block": "Geblokkeerd", "kpi_warn": "Gewaarschuwd", "kpi_continued": "Toch doorgegaan", "kpi_safe": "Veilig", "kpi_period_one": "afgelopen {{count}} dag", "kpi_period_other": "afgelopen {{count}} dagen", "filter_all": "Alles", "filter_block": "Geblokkeerd", "filter_warn": "Gewaarschuwd", "filter_continued": "Doorgegaan", "filter_safe": "Veilig", "period": "Periode", "period_days_one": "Afgelopen {{count}} dag", "period_days_other": "Afgelopen {{count}} dagen", "show_scanners": "Scanners tonen", "search": "Zoek link, ontvanger of Message-ID", "empty": "Nog geen klikken. Klikken verschijnen hier zodra iemand een beschermde link opent.", "no_results": "Geen klikken voor deze filters.", "count": "{{total}} klikken · pagina {{page}} van {{pages}}", "prev": "Vorige pagina", "next": "Volgende pagina", "trace": "Mail", "open_trace": "Open het bericht in Mail trace", "block": "Blokkeren", "block_confirm": "Alle links naar {{domain}} blokkeren? Dit werkt ook voor mail die al is afgeleverd.", "blocked_toast": "Links naar {{domain}} zijn geblokkeerd", "test_title": "Link testen", "test_sub": "Controleer een link zoals Mailfilter dat doet bij een klik. De test wordt niet bewaard.", "test_button": "Controleren", "test_clean": "Niets verdachts gevonden.", "reason": {"blocked_by_admin": "Geblokkeerd door de beheerder ({{host}}).", "blocklist": "{{list}} kent deze site als {{kind}}.", "ip_address": "Gaat naar een kaal IP-adres ({{host}}).", "user_part": "Begint met {{shown}} maar gaat naar {{host}}.", "lookalike": "{{host}} lijkt op {{target}}.", "flagged_at_delivery": "Was al verdacht toen de mail binnenkwam.", "fake_sender": "De afzender doet zich voor als iemand anders.", "shortener": "Verkorte link naar {{destination}}.", "shortener_unknown": "Verkorte link ({{host}}), bestemming onbekend."}, "kind": {"spam": "spam", "phishing": "phishing", "malware": "malware", "botnet": "deel van een botnet", "abuse": "misbruikt", "cracked": "gehackt", "redirector": "een misbruikte doorverwijzing"}},
+  "modules": {
+    "title": "Modules",
+    "sub": "Zet onderdelen van Mailfilter aan of uit. Een module die uit staat, verdwijnt uit het menu en stopt met zijn werk op de achtergrond.",
+    "core_title": "Filteren staat altijd aan",
+    "core": "Spam- en virusfilter, quarantaine, mailtrace, domeinen, relaytoegang, toestaan- en blokkeerlijsten en throttling vormen de kern van Mailfilter en kunnen niet uit.",
+    "count": "{{on}} van {{total}} aan",
+    "group": {
+      "reports": "Rapporten & facturatie",
+      "mail": "Mailfuncties",
+      "integrations": "Koppelingen",
+      "system": "Systeem"
+    },
+    "on": "Aan",
+    "off_short": "Uit",
+    "tag_mailflow": "Verandert de mailstroom",
+    "tag_per_node": "Alleen deze server",
+    "in_use_any": "In gebruik",
+    "in_use": {
+      "cloud_one": "{{count}} tenant ingesteld",
+      "cloud_other": "{{count}} tenants ingesteld",
+      "archive_one": "Archiveert {{count}} domein",
+      "archive_other": "Archiveert {{count}} domeinen",
+      "api_one": "{{count}} API-sleutel",
+      "api_other": "{{count}} API-sleutels",
+      "mailtrap_one": "{{count}} mailbox",
+      "mailtrap_other": "{{count}} mailboxen",
+      "link_protection_one": "Ingeschakeld",
+      "link_protection_other": "Ingeschakeld",
+      "cluster_one": "Lid van een cluster",
+      "cluster_other": "Lid van een cluster"
+    },
+    "cluster_locked": "Verlaat eerst het cluster om dit uit te zetten.",
+    "confirm_title": "{{name}} uitzetten?",
+    "data_kept": "Er wordt niets verwijderd: zet je het weer aan, dan gaat alles verder waar het was.",
+    "switch_off": "Uitzetten",
+    "switched_on": "{{name}} staat aan",
+    "switched_off": "{{name}} staat uit",
+    "off": "Dit onderdeel van Mailfilter staat uit. Vraag je beheerder als je het nodig hebt.",
+    "off_admin": "Deze module staat uit. Zet hem aan onder Systeem > Modules om hem te gebruiken.",
+    "open": "Modules openen",
+    "m": {
+      "usage": {
+        "title": "Verbruik & facturatie",
+        "desc": "Mailboxen, mail en archief per klant per maand, tarieven, resellers en CSV-export.",
+        "off": "De pagina's Verbruik en Klanten & resellers verdwijnen en het verbruik wordt niet meer gemeten. Reseller-logins hebben alleen de pagina Verbruik, dus zij zien niets tot je dit weer aanzet."
+      },
+      "monthly_report": {
+        "title": "Maandrapport",
+        "desc": "Maandcijfers per domein op een pagina en per e-mail naar je klanten.",
+        "off": "De maandrapportpagina verdwijnt en er gaan geen maandrapportmails meer uit."
+      },
+      "quarantine_report": {
+        "title": "Quarantainerapport",
+        "desc": "Dagelijkse e-mail aan gebruikers met hun berichten in quarantaine en knoppen om ze vrij te geven.",
+        "off": "Er gaan geen quarantainerapporten meer uit. Knoppen in rapporten die al verstuurd zijn, blijven werken."
+      },
+      "spam_reports": {
+        "title": "Spammeldingen",
+        "desc": "Gebruikers sturen gemiste spam of onterecht geblokkeerde mail door naar spam@ en notspam@ om het filter te trainen.",
+        "off": "Mail naar de meldadressen spam@ en notspam@ wordt weggegooid en niet meer gebruikt om het filter te trainen."
+      },
+      "dmarc": {
+        "title": "DMARC-rapporten",
+        "desc": "Ontvangt de DMARC-rapporten van je domeinen en laat zien wie er namens ze mailt.",
+        "off": "Binnenkomende DMARC-rapporten worden weggegooid. Rapporten die al binnen zijn, blijven."
+      },
+      "link_protection": {
+        "title": "Linkbescherming",
+        "desc": "Herschrijft links in binnenkomende mail en controleert de site op het moment van klikken.",
+        "off": "Nieuwe mail wordt niet meer herschreven. Links in mail die al is afgeleverd, blijven werken."
+      },
+      "archive": {
+        "title": "Mailarchief",
+        "desc": "Onveranderbaar archief van alle mail voor de domeinen die je kiest, met bewaartermijn en juridische bewaring.",
+        "off": "Nieuwe mail wordt niet meer gearchiveerd. Het bestaande archief blijft, blijft verzegeld en wordt na de bewaartermijn opgeruimd."
+      },
+      "mailtrap": {
+        "title": "Mailtrap",
+        "desc": "Vangt mail van testomgevingen op in virtuele mailboxen in plaats van hem af te leveren.",
+        "off": "Mail van Mailtrap-IP-adressen en -logins wordt geweigerd (nooit doorgestuurd) en IMAP-toegang gaat dicht."
+      },
+      "cloud": {
+        "title": "Cloud-mail",
+        "desc": "Wizard en relay voor Microsoft 365- en Google Workspace-tenants achter Mailfilter.",
+        "off": "Uitgaande mail die Microsoft 365 of Google Workspace via Mailfilter stuurt, wordt niet meer geaccepteerd. Zet eerst de connectors in die tenants uit."
+      },
+      "api": {
+        "title": "REST API",
+        "desc": "API-sleutels voor hostingpanelen en scripts (/api/v1).",
+        "off": "Elk verzoek met een API-sleutel wordt geweigerd tot je dit weer aanzet. De sleutels zelf blijven."
+      },
+      "cluster": {
+        "title": "Cluster",
+        "desc": "Meerdere Mailfilter-servers met één gedeelde configuratie.",
+        "off": "De clusterpagina verdwijnt."
+      },
+      "pmg_import": {
+        "title": "Importeren uit Proxmox Mail Gateway",
+        "desc": "Domeinen, relaynetwerken en lijsten overnemen uit een Proxmox Mail Gateway.",
+        "off": "De importpagina verdwijnt. Wat al geïmporteerd is, blijft."
+      }
+    }
+  }
 }

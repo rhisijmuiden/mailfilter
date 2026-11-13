@@ -4,7 +4,7 @@
     "skip": "Skip to content"
   },
   "branding": {"title": "Branding", "sub": "Give this Mailfilter your own name, colours and logo. Users see it in the web app, on the login page and in the mails Mailfilter sends.", "identity": "Name and colours", "name": "Product name", "name_hint": "Shown in the menu, on the login page, in the browser tab and in reports.", "accent": "Accent colour", "accent_hint": "Main buttons, the active menu item and highlights.", "primary": "Dark colour", "primary_hint": "Dark surfaces such as the header of report mails and notifications.", "house_colors": "Use the default colours", "preview": "Preview", "sample_button": "Main button", "sample_dark": "Dark surface", "images": "Logos and icon", "logo": "Logo", "logo_hint": "For the light theme. SVG or PNG, at most 256 KB; wide logos work best.", "logo_dark": "Logo for dark mode", "logo_dark_hint": "Optional. A light version of your logo for the dark theme.", "favicon": "Browser icon", "favicon_hint": "Optional. Square SVG, PNG or ICO for the browser tab.", "default_used": "Default is used", "upload": "Upload", "replace": "Replace", "remove": "Remove", "reset": "Back to default", "reset_confirm": "Remove your own name, colours and logos and go back to the default house style?", "powered_note": "The small \"Powered by RHIS\" mark at the bottom right always stays visible. Mailfilter is open source (AGPLv3) and this attribution is a condition of the licence, so it cannot be switched off here."},
-  "nav": {"branding": "Branding", "links": "Link clicks", 
+  "nav": {"modules": "Modules", "branding": "Branding", "links": "Link clicks", 
     "archive": "Archive",
     "cloud": "Cloud mail",
     "usage": "Usage",
@@ -68,7 +68,7 @@
     "choose": "choose",
     "open": "open",
     "searching": "Searching…",
-    "kw": {"branding": "branding brand logo colours colors name white label theme favicon", "links": "link protection click safe links url phishing warning blocked", "archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
+    "kw": {"modules": "modules features switch on off enable disable", "branding": "branding brand logo colours colors name white label theme favicon", "links": "link protection click safe links url phishing warning blocked", "archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
       "usage": "usage billing invoice mailboxes csv export accounting",
       "billing": "billing customers resellers prices tariffs customer number",
       "dashboard": "overview charts live now statistics",
@@ -2269,5 +2269,108 @@
     "accepts_all": "Warning: the mail server also accepted a made-up address.",
     "accepts_all_hint": "It accepts everything, so this check stops nothing. Switch on recipient filtering on the server, or use LDAP or a list."
   },
-  "links": {"title": "Link clicks", "sub": "Links in incoming mail are checked again when someone clicks them. Here you see every click and what Mailfilter decided.", "off": "Link protection is off, so links in new mail are not checked at the click. Switch it on for everyone or per domain under", "off_link": "Custom rules › Phishing.", "time": "Time", "recipient": "Recipient", "link": "Link", "result": "Result", "why": "Why", "delivered": "Mail delivered", "scanner": "Opened by a security scanner or link preview", "level_safe": "Safe", "level_warn": "Warned", "level_block": "Blocked", "level_continued": "Continued anyway", "kpi_block": "Blocked", "kpi_warn": "Warned", "kpi_continued": "Continued anyway", "kpi_safe": "Safe", "kpi_period_one": "last {{count}} day", "kpi_period_other": "last {{count}} days", "filter_all": "All", "filter_block": "Blocked", "filter_warn": "Warned", "filter_continued": "Continued", "filter_safe": "Safe", "period": "Period", "period_days_one": "Last {{count}} day", "period_days_other": "Last {{count}} days", "show_scanners": "Show scanners", "search": "Search link, recipient or Message-ID", "empty": "No clicks yet. Clicks appear here as soon as someone opens a protected link.", "no_results": "No clicks for these filters.", "count": "{{total}} clicks · page {{page}} of {{pages}}", "prev": "Previous page", "next": "Next page", "trace": "Mail", "open_trace": "Open the message in Mail trace", "block": "Block", "block_confirm": "Block every link to {{domain}}? This also works for mail that was already delivered.", "blocked_toast": "Links to {{domain}} are blocked", "test_title": "Test a link", "test_sub": "Check a link the way Mailfilter does at a click. The test is not logged.", "test_button": "Check", "test_clean": "Nothing suspicious found.", "reason": {"blocked_by_admin": "Blocked by the administrator ({{host}}).", "blocklist": "{{list}} lists this site as {{kind}}.", "ip_address": "Goes to a bare IP address ({{host}}).", "user_part": "Starts with {{shown}} but goes to {{host}}.", "lookalike": "{{host}} looks like {{target}}.", "flagged_at_delivery": "Already suspicious when the mail arrived.", "fake_sender": "The sender pretends to be someone else.", "shortener": "Shortened link to {{destination}}.", "shortener_unknown": "Shortened link ({{host}}), destination unknown."}, "kind": {"spam": "spam", "phishing": "phishing", "malware": "malware", "botnet": "part of a botnet", "abuse": "abused", "cracked": "hacked", "redirector": "an abused redirect"}}
+  "links": {"title": "Link clicks", "sub": "Links in incoming mail are checked again when someone clicks them. Here you see every click and what Mailfilter decided.", "off": "Link protection is off, so links in new mail are not checked at the click. Switch it on for everyone or per domain under", "off_link": "Custom rules › Phishing.", "time": "Time", "recipient": "Recipient", "link": "Link", "result": "Result", "why": "Why", "delivered": "Mail delivered", "scanner": "Opened by a security scanner or link preview", "level_safe": "Safe", "level_warn": "Warned", "level_block": "Blocked", "level_continued": "Continued anyway", "kpi_block": "Blocked", "kpi_warn": "Warned", "kpi_continued": "Continued anyway", "kpi_safe": "Safe", "kpi_period_one": "last {{count}} day", "kpi_period_other": "last {{count}} days", "filter_all": "All", "filter_block": "Blocked", "filter_warn": "Warned", "filter_continued": "Continued", "filter_safe": "Safe", "period": "Period", "period_days_one": "Last {{count}} day", "period_days_other": "Last {{count}} days", "show_scanners": "Show scanners", "search": "Search link, recipient or Message-ID", "empty": "No clicks yet. Clicks appear here as soon as someone opens a protected link.", "no_results": "No clicks for these filters.", "count": "{{total}} clicks · page {{page}} of {{pages}}", "prev": "Previous page", "next": "Next page", "trace": "Mail", "open_trace": "Open the message in Mail trace", "block": "Block", "block_confirm": "Block every link to {{domain}}? This also works for mail that was already delivered.", "blocked_toast": "Links to {{domain}} are blocked", "test_title": "Test a link", "test_sub": "Check a link the way Mailfilter does at a click. The test is not logged.", "test_button": "Check", "test_clean": "Nothing suspicious found.", "reason": {"blocked_by_admin": "Blocked by the administrator ({{host}}).", "blocklist": "{{list}} lists this site as {{kind}}.", "ip_address": "Goes to a bare IP address ({{host}}).", "user_part": "Starts with {{shown}} but goes to {{host}}.", "lookalike": "{{host}} looks like {{target}}.", "flagged_at_delivery": "Already suspicious when the mail arrived.", "fake_sender": "The sender pretends to be someone else.", "shortener": "Shortened link to {{destination}}.", "shortener_unknown": "Shortened link ({{host}}), destination unknown."}, "kind": {"spam": "spam", "phishing": "phishing", "malware": "malware", "botnet": "part of a botnet", "abuse": "abused", "cracked": "hacked", "redirector": "an abused redirect"}},
+  "modules": {
+    "title": "Modules",
+    "sub": "Switch optional parts of Mailfilter on or off. A module that is off leaves the menu and stops its background work.",
+    "core_title": "Filtering is always on",
+    "core": "Spam and virus filtering, quarantine, mail trace, domains, relay access, allow and block lists and throttling are the core of Mailfilter and cannot be switched off.",
+    "count": "{{on}} of {{total}} on",
+    "group": {
+      "reports": "Reports & billing",
+      "mail": "Mail features",
+      "integrations": "Integrations",
+      "system": "System"
+    },
+    "on": "On",
+    "off_short": "Off",
+    "tag_mailflow": "Changes the mail flow",
+    "tag_per_node": "This server only",
+    "in_use_any": "In use",
+    "in_use": {
+      "cloud_one": "{{count}} tenant set up",
+      "cloud_other": "{{count}} tenants set up",
+      "archive_one": "Archiving {{count}} domain",
+      "archive_other": "Archiving {{count}} domains",
+      "api_one": "{{count}} API key",
+      "api_other": "{{count}} API keys",
+      "mailtrap_one": "{{count}} mailbox",
+      "mailtrap_other": "{{count}} mailboxes",
+      "link_protection_one": "Switched on",
+      "link_protection_other": "Switched on",
+      "cluster_one": "Member of a cluster",
+      "cluster_other": "Member of a cluster"
+    },
+    "cluster_locked": "Leave the cluster first to switch this off.",
+    "confirm_title": "Switch {{name}} off?",
+    "data_kept": "Nothing is deleted: switch it back on and everything continues where it was.",
+    "switch_off": "Switch off",
+    "switched_on": "{{name}} is on",
+    "switched_off": "{{name}} is off",
+    "off": "This part of Mailfilter is switched off. Ask your administrator if you need it.",
+    "off_admin": "This module is switched off. Switch it on under System > Modules to use it.",
+    "open": "Open Modules",
+    "m": {
+      "usage": {
+        "title": "Usage & billing",
+        "desc": "Mailboxes, mail and archive per customer per month, tariffs, resellers and CSV export.",
+        "off": "The Usage and Customers & resellers pages disappear and usage is no longer measured. Reseller logins only have the Usage page, so they will see nothing until you switch this back on."
+      },
+      "monthly_report": {
+        "title": "Monthly report",
+        "desc": "Monthly figures per domain on a page and by e-mail to your customers.",
+        "off": "The monthly report page disappears and no monthly report mails are sent."
+      },
+      "quarantine_report": {
+        "title": "Quarantine report",
+        "desc": "Daily e-mail to users with their quarantined messages and release buttons.",
+        "off": "No quarantine reports are sent any more. Buttons in reports that were already sent keep working."
+      },
+      "spam_reports": {
+        "title": "Spam reports",
+        "desc": "Users forward missed spam or wrongly blocked mail to spam@ and notspam@ to train the filter.",
+        "off": "Mail to the spam@ and notspam@ report addresses is dropped and no longer used to train the filter."
+      },
+      "dmarc": {
+        "title": "DMARC reports",
+        "desc": "Receives the DMARC aggregate reports for your domains and shows who sends in their name.",
+        "off": "Incoming DMARC reports are dropped. Reports already received stay."
+      },
+      "link_protection": {
+        "title": "Link protection",
+        "desc": "Rewrites links in incoming mail and checks the site at the moment someone clicks.",
+        "off": "New mail is no longer rewritten. Links in mail that was already delivered keep working."
+      },
+      "archive": {
+        "title": "Mail archive",
+        "desc": "Tamper-proof archive of all mail for the domains you choose, with retention and legal hold.",
+        "off": "New mail is no longer archived. The existing archive stays, is kept sealed and is cleaned up after its retention period."
+      },
+      "mailtrap": {
+        "title": "Mailtrap",
+        "desc": "Catches mail from test environments in virtual mailboxes instead of delivering it.",
+        "off": "Mail from Mailtrap IP addresses and logins is refused (never relayed) and IMAP access closes."
+      },
+      "cloud": {
+        "title": "Cloud mail",
+        "desc": "Wizard and relay for Microsoft 365 and Google Workspace tenants behind Mailfilter.",
+        "off": "Outgoing mail that Microsoft 365 or Google Workspace relays through Mailfilter is no longer accepted. Switch the connectors in those tenants off first."
+      },
+      "api": {
+        "title": "REST API",
+        "desc": "API keys for hosting panels and scripts (/api/v1).",
+        "off": "Every request with an API key is refused until you switch this back on. The keys themselves stay."
+      },
+      "cluster": {
+        "title": "Cluster",
+        "desc": "Several Mailfilter servers sharing one configuration.",
+        "off": "The Cluster page disappears."
+      },
+      "pmg_import": {
+        "title": "Import from Proxmox Mail Gateway",
+        "desc": "Take over domains, relay networks and lists from a Proxmox Mail Gateway.",
+        "off": "The import page disappears. What was imported stays."
+      }
+    }
+  }
 }

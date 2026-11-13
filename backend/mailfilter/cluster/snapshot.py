@@ -5,7 +5,7 @@ Synced (the same on every node):
     throttling (defaults and per destination), address routes, TLS policies
   * users (with password hashes, roles, language and their domains)
   * allow and block lists, and which domains get the daily quarantine report
-  * settings listed in SYNCED_SETTINGS (custom rules, hacked-sender protection,
+  * settings listed in SYNCED_SETTINGS (custom rules, modules on/off, hacked-sender protection,
     e-mail sending incl. SMTP password, Cloudflare token)
   * billing customers, resellers and tariffs (who pays for which domain)
   * DKIM keys, so every node signs with the key that is in DNS
@@ -48,7 +48,7 @@ from .state import ClusterError
 FORMAT = 1
 
 SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp", "smtp.password", "cloudflare_token",
-                             "quarantine_report", "security", "dkim_rotation", "billing.tariffs",
+                             "quarantine_report", "security", "dkim_rotation", "billing.tariffs", "modules",
                              "gateway.recipient_cache",
                              "branding", "branding.logo", "branding.logo_dark", "branding.favicon"})
 

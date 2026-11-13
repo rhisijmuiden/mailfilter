@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Modules
+- New page System › Modules: switch optional modules on or off (usage & billing, monthly report, quarantine report, spam reports, DMARC reports, link protection, mail archive, Mailtrap, cloud mail, REST API, cluster, PMG import). A module that is off leaves the menu, its API answers 403 and its background work stops; modules that change the mail flow re-apply the gateway. Synced in a cluster (Mailtrap stays per server).
+
 ### Open source and branding
 - Mailfilter is open source under AGPLv3 (was GPLv3) with additional terms (`NOTICE`): the "Powered by RHIS" mark at the bottom right of every page must stay.
 - New page System › Branding: own product name, accent and dark colour, logo, dark-mode logo and browser icon. Used in the web app, login page, quarantine report, monthly report and link protection pages; synced in a cluster. The RHIS house style stays the default.

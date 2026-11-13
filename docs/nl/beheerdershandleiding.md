@@ -254,6 +254,12 @@ Geef een gepauzeerde afzender vrij onder **Relay-toegang** zodra de oorzaak is o
 
 **Systeem › Beveiliging › Tweestapsverificatie verplichten**: *Optioneel*, *Verplicht voor beheerders* of *Verplicht voor iedereen*. Zet het eerst voor jezelf aan. Gebruikers zonder worden bij de volgende keer inloggen gevraagd het in te stellen; de pagina toont wie dat nog moet doen. In noodgevallen op de server: `mailfilter-admin reset-2fa EMAIL`.
 
+### Modules
+
+**Systeem › Modules** zet onderdelen van Mailfilter aan of uit: Verbruik & facturatie, Maandrapport, Quarantainerapport, Spammeldingen, DMARC-rapporten, Linkbescherming, Mailarchief, Mailtrap, Cloud-mail, REST API, Cluster en Importeren uit PMG. Spam- en virusfilter, quarantaine, mailtrace, domeinen, relaytoegang, lijsten en throttling staan altijd aan.
+
+Een module die uit staat, verdwijnt uit het menu (de pagina meldt dat hij uit staat), de API geeft `403 module_disabled` en het werk op de achtergrond stopt: geen rapportmails, geen verbruiksmeting, mail naar de DMARC- en spammeldadressen wordt weggegooid, API-sleutels worden geweigerd. Modules met *Verandert de mailstroom* passen de gateway opnieuw toe: linkbescherming herschrijft geen nieuwe mail meer (links in afgeleverde mail blijven werken), het archief archiveert geen nieuwe mail meer (het bestaande archief blijft verzegeld en wordt na de bewaartermijn opgeruimd), cloud-mail accepteert geen mail meer die Microsoft 365 of Google Workspace doorstuurt, en de Mailtrap weigert opgevangen afzenders. Zet je iets uit dat in gebruik is, dan vraagt Mailfilter eerst om bevestiging. Er wordt niets verwijderd: zet je een module weer aan, dan gaat hij verder waar hij was. Alles staat standaard aan behalve de Mailtrap. In een cluster gaan de schakelaars mee naar de andere servers, behalve de Mailtrap (per server); de module Cluster kan niet uit zolang de server in een cluster zit.
+
 ### Huisstijl
 
 **Systeem › Huisstijl** geeft deze Mailfilter je eigen uiterlijk: productnaam, accentkleur (hoofdknoppen, actief menu-item), donkere kleur (kop van rapportmails), een logo, optioneel een licht logo voor donkere modus en een browsericoon (SVG, PNG, WebP, JPEG of ICO, maximaal 256 KB per bestand). Het voorbeeld laat het resultaat zien voordat je opslaat. Naam en kleuren worden ook gebruikt in het quarantaine-overzicht, het maandrapport en de pagina's van linkbescherming. **Terug naar standaard** zet de RHIS-huisstijl terug. In een cluster gaat de huisstijl mee naar de andere servers.

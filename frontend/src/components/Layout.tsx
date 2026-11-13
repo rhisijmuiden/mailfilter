@@ -6,6 +6,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { setLanguage, type Lang } from "../i18n";
 import { api } from "../lib/api";
 import { useBranding } from "../lib/branding";
+import { moduleOn, useModules, type ModuleKey } from "../lib/modules";
 import type { Me } from "../lib/auth";
 import type { Stats } from "../lib/trace";
 import { GROUPS, NAV } from "../nav";
@@ -29,13 +30,17 @@ export function Layout({ me }: { me: Me }) {
   const sys = useSystemInfo();
   const brand = useBranding();
   const stats = useQuery({ queryKey: ["trace-stats"], queryFn: () => api.get<Stats>("/trace/stats?hours=24"), refetchInterval: 60_000 });
+  const mods = useModules();
+  const mailtrapOn = mods.data?.enabled.mailtrap === true;
   const mailtrap = useQuery({
     queryKey: ["mailtrap-menu"],
     queryFn: () => api.get<{ unread: number; visible: boolean }>("/mailtrap/unread"),
     refetchInterval: 60_000,
+    enabled: mailtrapOn,
   });
   const BADGES = { quarantine: stats.data?.quarantined_now, mailtrap: mailtrap.data?.unread };
-  const MODULES = { mailtrap: !!mailtrap.data?.visible };
+  // Switched-off modules leave the menu; the Mailtrap also needs a mailbox for non-admins.
+  const showModule = (key: ModuleKey) => (key === "mailtrap" ? mailtrapOn && !!mailtrap.data?.visible : !!mods.data && moduleOn(mods.data, key));
   useEffect(() => setNavOpen(false), [loc.pathname]);
 
   const changeLang = async (lang: Lang) => {
@@ -49,7 +54,7 @@ export function Layout({ me }: { me: Me }) {
     qc.setQueryData(["me"], null);
   };
 
-  const items = NAV.filter((n) => (me.role === "reseller" ? n.reseller : !n.adminOnly || me.role === "admin") && (!n.module || MODULES[n.module]));
+  const items = NAV.filter((n) => (me.role === "reseller" ? n.reseller : !n.adminOnly || me.role === "admin") && (!n.module || showModule(n.module)));
   const initials = (me.name || me.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0]!.toUpperCase()).join("");
 
   return (

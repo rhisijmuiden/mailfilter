@@ -254,6 +254,12 @@ Release a paused sender under **Relay access** once the cause is fixed: **Releas
 
 **System › Security › Require two-factor login**: *Optional*, *Required for admins* or *Required for everyone*. Turn it on for yourself first. Users without it are asked to set it up at their next sign-in; the page lists who still has to. Emergency on the server: `mailfilter-admin reset-2fa EMAIL`.
 
+### Modules
+
+**System › Modules** switches optional parts of Mailfilter on or off: Usage & billing, Monthly report, Quarantine report, Spam reports, DMARC reports, Link protection, Mail archive, Mailtrap, Cloud mail, REST API, Cluster and Import from PMG. Spam and virus filtering, quarantine, mail trace, domains, relay access, lists and throttling are always on.
+
+A module that is off disappears from the menu (its page says it is switched off), its API answers `403 module_disabled` and its background work stops: no report mails, no usage measurement, mail to the DMARC and spam report addresses is dropped, API keys are refused. Modules marked *Changes the mail flow* re-apply the gateway: link protection no longer rewrites new mail (links in delivered mail keep working), the archive stops archiving new mail (the existing archive stays sealed and is cleaned up after its retention), cloud mail no longer accepts mail relayed by Microsoft 365 or Google Workspace, and the Mailtrap refuses trapped senders. Switching off something that is in use asks first. Nothing is deleted, so switching a module back on continues where it was. Everything is on by default except the Mailtrap. The switches are copied to the other servers in a cluster, except the Mailtrap (per server); the Cluster module cannot be switched off while the server is in a cluster.
+
 ### Branding
 
 **System › Branding** gives this Mailfilter your own look: product name, accent colour (main buttons, active menu item), dark colour (header of report mails), a logo, an optional light logo for dark mode and a browser icon (SVG, PNG, WebP, JPEG or ICO, at most 256 KB each). The preview shows the result before you save. The name and colours are also used in the quarantine report, the monthly report and the link protection pages. **Back to default** returns to the RHIS house style. In a cluster the branding is copied to the other servers.

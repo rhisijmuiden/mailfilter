@@ -3,6 +3,7 @@ import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { ModuleGate } from "./components/ModuleGate";
 import { PoweredBy } from "./components/PoweredBy";
 import { Loading, ToastProvider } from "./components/ui";
 import { i18nReady } from "./i18n";
@@ -30,7 +31,7 @@ function App() {
     <Routes>
       <Route element={<Layout me={user} />}>
         {ROUTES.filter((r) => (user.role === "reseller" ? r.reseller : !r.adminOnly || user.role === "admin")).map((r) => (
-          <Route key={r.path} path={r.path} element={r.element(user)} />
+          <Route key={r.path} path={r.path} element={r.module ? <ModuleGate module={r.module} me={user}>{r.element(user)}</ModuleGate> : r.element(user)} />
         ))}
         {user.role === "reseller" && <Route path="/" element={<Navigate to="/usage" replace />} />}
         <Route path="/login" element={<Navigate to="/" replace />} />
