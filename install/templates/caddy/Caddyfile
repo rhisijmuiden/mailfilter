@@ -5,7 +5,6 @@
 {{CADDY_GLOBAL}}
 	servers {
 		protocols h1 h2 h3
-{{CADDY_SERVERS}}
 	}
 }
 
@@ -23,15 +22,15 @@
 (mailfilter_app) {
 	encode zstd gzip
 	import security_headers
-	# API (FastAPI, mailfilter-web.service). Behind a reverse proxy, Caddy keeps the
-	# proxy's X-Forwarded-For (trusted_proxies above) and uvicorn trusts it
+	# API (FastAPI, mailfilter-web.service). Behind a reverse proxy, Caddy passes the
+	# proxy's X-Forwarded-* on (trusted_proxies) and uvicorn trusts it
 	# (FORWARDED_ALLOW_IPS in /etc/mailfilter/web.env).
 	handle /api/* {
-		reverse_proxy 127.0.0.1:8000
+		{{APP_PROXY}}
 	}
 	# Click links in incoming mail (link protection): checked by the web app at the click.
 	handle /l/* {
-		reverse_proxy 127.0.0.1:8000
+		{{APP_PROXY}}
 	}
 	# The interface prototype stays available for reference.
 	handle_path /prototype/* {

@@ -123,7 +123,7 @@ for WEB_MODE in public internal proxy http; do
   render "$TPL/nftables/nftables.conf" "/tmp/nftables.$WEB_MODE.conf"
   check "nft -c ($WEB_MODE web access)" nft -c -f "/tmp/nftables.$WEB_MODE.conf"
 done
-check "proxy mode trusts only the proxy" grep -q "trusted_proxies static 10.0.0.5 2001:db8:1::/64" /tmp/Caddyfile.proxy
+check "proxy mode trusts only the proxy" grep -q "trusted_proxies 10.0.0.5 2001:db8:1::/64" /tmp/Caddyfile.proxy
 check "internal mode does not use Let's Encrypt" bash -c '! grep -q letsencrypt /tmp/Caddyfile.internal && grep -q "issuer internal" /tmp/Caddyfile.internal'
 render "$TPL/caddy/Caddyfile.acme" /tmp/Caddyfile.acme
 check "caddy validate (acme)" caddy validate --config /tmp/Caddyfile.acme --adapter caddyfile

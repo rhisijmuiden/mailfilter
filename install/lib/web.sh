@@ -207,10 +207,10 @@ web_certificate() {
   return 0
 }
 
-# web_caddyfile_vars: CADDY_GLOBAL, CADDY_SERVERS and WEB_SITES for templates/caddy/Caddyfile.
+# web_caddyfile_vars: CADDY_GLOBAL, APP_PROXY and WEB_SITES for templates/caddy/Caddyfile.
 web_caddyfile_vars() {
   local names_http names_https tls ip
-  CADDY_SERVERS=""
+  APP_PROXY="reverse_proxy 127.0.0.1:8000"
   case $WEB_MODE in
     public)
       CADDY_GLOBAL=$'\t# The certificate for the web interface comes from certbot (Postfix uses the same\n\t# files). Caddy only gets certificates itself for mta-sts.<domain> names, on\n\t# demand and only for relay domains (the web app answers the "ask").\n\tauto_https disable_redirects\n\ton_demand_tls {\n\t\task http://127.0.0.1:8000/api/mta-sts/allowed\n\t}'
@@ -276,7 +276,9 @@ EOF
       ;;
     proxy)
       CADDY_GLOBAL=$'\tauto_https off'
-      CADDY_SERVERS=$'\t\t# The reverse proxy in front: its X-Forwarded-For and X-Forwarded-Proto are trusted.\n\t\ttrusted_proxies static '"${TRUSTED_PROXIES[*]}"
+      # The reverse proxy in front: its X-Forwarded-For and X-Forwarded-Proto are passed on
+      # (Caddy 2.6 in Debian 13 has trusted_proxies on reverse_proxy, not on the server).
+      APP_PROXY=$'reverse_proxy 127.0.0.1:8000 {\n\t\t\ttrusted_proxies '"${TRUSTED_PROXIES[*]}"$'\n\t\t}'
       WEB_SITES=$(printf 'http://:%s {\n\timport mailfilter_app\n}' "$WEB_PORT")
       ;;
     http)
