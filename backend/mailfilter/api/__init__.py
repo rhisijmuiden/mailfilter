@@ -2,14 +2,15 @@
 
 from fastapi import APIRouter
 
-from . import (abuse, audit, auth, backup, bimi, cluster, dashboard, digest, dkim, dmarc, dns, feedback, gateway, links, lists, mailtrap, monthly, notify,
-               pmg_import, quarantine, rules, search, smtp, system, trace, users)
+from . import (abuse, apikeys, archive, audit, auth, backup, bimi, cloud, cluster, dashboard, digest, dkim, dmarc, dns, feedback, gateway, links, lists, mailtrap,
+               monthly, notify, pmg_import, quarantine, rules, search, smtp, system, trace, usage, users, v1)
 
 router = APIRouter(prefix="/api")
 router.include_router(auth.router)
 router.include_router(users.router)
 router.include_router(audit.router)
 router.include_router(gateway.router)
+router.include_router(cloud.router)
 router.include_router(abuse.router)
 router.include_router(system.router)
 router.include_router(trace.router)
@@ -20,6 +21,7 @@ router.include_router(lists.router)
 router.include_router(feedback.router)
 router.include_router(digest.router)
 router.include_router(monthly.router)
+router.include_router(usage.router)
 router.include_router(dns.router)
 router.include_router(dns.public)
 router.include_router(dkim.router)
@@ -33,5 +35,7 @@ router.include_router(pmg_import.router)
 router.include_router(rules.router)
 router.include_router(links.router)
 router.include_router(mailtrap.router)
+router.include_router(archive.router)
 router.include_router(cluster.router)
 router.include_router(cluster.public)
+router.include_router(apikeys.router)

@@ -15,6 +15,7 @@ export type DomainRow = {
   enabled: boolean;
   tls: "may" | "encrypt" | "verify";
   verify_recipients: boolean;
+  recipient_check?: RecipientCheck;
   concurrency: number | null;
   rate_delay: number | null;
   out_per_hour: number | null;
@@ -77,3 +78,36 @@ export type AbuseSettings = {
   enabled: boolean; window_minutes: number; spam_min: number; spam_percent: number; volume_min: number;
   volume_factor: number; quiet_hours: number; exempt: string[]; notify: string[];
 };
+
+// Recipient check per transport domain (/api/gateway/domains/{id}/recipients).
+export type RecipientCheck = "callout" | "ldap" | "list" | "off";
+export type LdapSettings = {
+  servers: string[];
+  security: "starttls" | "ldaps" | "none";
+  verify_cert: boolean;
+  bind_dn: string;
+  bind_password: string | null; // null keeps the saved password
+  base_dn: string;
+  preset: "ad" | "generic";
+  query_filter: string;
+  result_attribute: string;
+  has_password: boolean;
+};
+export type RecipientSettings = {
+  domain: string;
+  kind: DomainKind;
+  recipient_check: RecipientCheck;
+  ldap: LdapSettings | null;
+  recipients: string[];
+  destinations: Destination[];
+  default_filters: Record<string, string>;
+};
+export type RecipientTest = {
+  method: RecipientCheck;
+  address: string;
+  exists: boolean | null;
+  detail: string;
+  accepts_all: boolean | null;
+  server?: string;
+};
+export type CacheSettings = { positive_days: number; negative_minutes: number };

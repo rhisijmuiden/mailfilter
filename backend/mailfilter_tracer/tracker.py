@@ -84,6 +84,10 @@ class Message:
         return self.recipients[address]
 
 
+# Recipients Postfix adds for the mail archive (see mailfilter.archive).
+ARCHIVE_SUFFIX = "@archive.mailfilter.invalid"
+
+
 class Tracker:
     """Keeps messages that are still in flight. apply() returns the message that changed.
 
@@ -116,6 +120,9 @@ class Tracker:
         if not ev.qid:
             return None
         msg = self._get(ev.qid, ev.ts)
+        if str(d.get("to", "")).lower().endswith(ARCHIVE_SUFFIX):
+            # The mail archive's own copy (mfarchive pipe): not a real recipient, never shown in the trace.
+            return msg
 
         if ev.kind == "client":
             msg.listener = ev.service.split("/")[0]

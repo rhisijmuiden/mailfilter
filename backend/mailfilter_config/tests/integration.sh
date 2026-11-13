@@ -24,7 +24,14 @@ cat >/tmp/gateway.json <<'JSON'
      "destinations": [{"host": "mail.rhis.nl", "port": 25}, {"host": "2a02:58:1f:42::25", "port": 2525}],
      "queue": {"concurrency": 3, "rate_delay": null}, "outbound": {"per_hour": 5000, "per_day": null}},
     {"name": "voorbeeld.nl", "verify_recipients": false,
-     "destinations": [{"host": "mx.voorbeeld.nl", "port": 25, "mx": true}]}
+     "destinations": [{"host": "mx.voorbeeld.nl", "port": 25, "mx": true}]},
+    {"name": "lijst.nl", "recipient_check": "list", "recipients": ["info", "Sales@lijst.nl"],
+     "destinations": [{"host": "mail.lijst.nl", "port": 25}]},
+    {"name": "ad.example.nl", "recipient_check": "ldap",
+     "ldap": {"servers": ["dc1.ad.example.nl", "ldaps://dc2.ad.example.nl:3269"], "security": "starttls",
+              "bind_dn": "CN=svc-mailfilter,OU=Service,DC=ad,DC=example,DC=nl", "bind_password": "pa$$ w0rd#1",
+              "base_dn": "DC=ad,DC=example,DC=nl", "preset": "ad"},
+     "destinations": [{"host": "exchange.ad.example.nl", "port": 25}]}
   ],
   "relay_networks": [
     {"cidr": "203.0.113.25", "description": "Webserver 1", "customer": "rhis"},
@@ -52,6 +59,14 @@ check "paused IP is held" bash -c 'postmap -q 203.0.113.25 cidr:/etc/mailfilter/
 check "paused account is held" bash -c 'postmap -q webshop@rhis.nl hash:/etc/mailfilter/postfix/outbound_hold_sasl | grep -q "^HOLD"'
 check "hold check runs for every message" bash -c 'postconf -h smtpd_end_of_data_restrictions | grep -q check_sasl_access'
 check "rspamadm configtest" rspamadm configtest
+check "recipient list: listed address accepted" bash -c 'postmap -q sales@lijst.nl hash:/etc/mailfilter/postfix/relay_recipients | grep -q OK'
+check "recipient list: other address not listed" bash -c '! postmap -q nobody@lijst.nl hash:/etc/mailfilter/postfix/relay_recipients'
+check "callout domain accepts all here" bash -c 'postmap -q @rhis.nl hash:/etc/mailfilter/postfix/relay_recipients | grep -q OK'
+check "callout only for callout domains" bash -c 'postmap -q rhis.nl hash:/etc/mailfilter/postfix/recipient_verify && ! postmap -q lijst.nl hash:/etc/mailfilter/postfix/recipient_verify'
+check "LDAP table in relay_recipient_maps" bash -c 'postconf -h relay_recipient_maps | grep -q "proxy:ldap:/etc/mailfilter/postfix/ldap/ad_example_nl_"'
+check "LDAP table only readable by root and postfix" bash -c 'stat -c "%a %U %G" /etc/mailfilter/postfix/ldap/ad_example_nl_*.cf | grep -qx "640 root postfix"'
+check "LDAP table syntax (postmap reads it)" bash -c 'out=$(postmap -q x@other.nl ldap:$(ls /etc/mailfilter/postfix/ldap/ad_example_nl_*.cf) 2>&1); ! grep -qi "unsupported\|fatal" <<<"$out"'
+check "gateway.json not world-readable" bash -c '[ "$(stat -c %a /etc/mailfilter/gateway.json)" = 640 ]'
 check "rspamd per-domain rate loaded" bash -c 'rspamadm configdump ratelimit | grep -q "equal"'
 check "DKIM key made for new domain" bash -c 'ls /var/lib/rspamd/dkim/rhis.nl.mf*.key && grep -q "^rhis.nl mf" /etc/mailfilter/rspamd/dkim_selectors.map && grep -q "v=DKIM1" /etc/mailfilter/dkim-rhis.nl.mf*.txt'
 check "firewall relay ports" bash -c 'nft -f /etc/mailfilter/nftables/relay_ports.nft && nft list set inet mailfilter relay_ports | grep -q 10465'
@@ -69,6 +84,7 @@ import json; d = json.load(open("/tmp/gateway.json")); d["domains"] = d["domains
 PY
 check "apply smaller config" "$MFC" apply --state /tmp/less.json --no-reload
 check "queue removed from master.cf" bash -c '! postconf -M | grep -q "^mfq_rhis_nl_"'
+check "LDAP table kept for remaining LDAP domain" bash -c 'ls /etc/mailfilter/postfix/ldap/ad_example_nl_*.cf'
 check "queue limit removed from main.cf" bash -c '! postconf -n | grep -q "^mfq_rhis_nl_"'
 check "postfix check after removal" postfix check
 echo "== custom rules: newsletter filter in a real Rspamd scan"
@@ -82,6 +98,8 @@ d["custom_rules"] = {"newsletter_no_unsubscribe": {"enabled": True, "options": {
                      "link_protection": {"enabled": False, "options": {"skip_links": ["partner.example"]},
                                          "domains": {"rhis.nl": True}}}
 d["hostname"] = "mailfilter.test"
+# Cloud mail: rhis.nl is a Microsoft 365 tenant that sends out through the Mailfilter.
+d["cloud_tenants"] = [{"provider": "m365", "domain": "rhis.nl", "tenant_id": "8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a"}]
 json.dump(d, open("/tmp/rules.json", "w"))
 PY
 # The key the installer makes for link protection (Rspamd signs, the web app checks).
@@ -239,6 +257,19 @@ check "link protection header and symbol" bash -c "$(declare -f has); has /tmp/s
 check "no ARC seal on mail with rewritten links" bash -c '! grep -qi "^ARC-Seal:" /tmp/scan-lp.eml || { cat /tmp/scan-lp.eml; exit 1; }'
 rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from factuur@supplier.example --rcpt info@voorbeeld.nl /tmp/lp.eml >/tmp/scan-lp2.eml 2>&1 || true
 check "links untouched for a domain without link protection" bash -c 'grep -q "https://pay.supplier.example/f?id=1&x=2" /tmp/scan-lp2.eml && ! grep -q "mailfilter.test/l/" /tmp/scan-lp2.eml || { cat /tmp/scan-lp2.eml; exit 1; }'
+echo "== cloud mail: Microsoft 365 tenant relaying through the Mailfilter"
+check "Microsoft server may relay only for the tenant's domain" bash -c '[[ $(postmap -q 40.107.1.10 cidr:/etc/mailfilter/postfix/cloud_relay.cidr) == mfc_m365 ]] && postconf -h mfc_m365 | grep -q "rhis.nl=OK" && postconf -h smtpd_restriction_classes | grep -q mfc_m365'
+check "postfix check with cloud mail" postfix check
+m365() { # tenant id header, sender, recipient
+  printf 'From: Reinder <reinder@rhis.nl>\nTo: klant@example.org\nSubject: Offerte\nMessage-ID: <%s@rhis.nl>\nDate: Wed, 12 Nov 2026 10:00:00 +0100\nX-MS-Exchange-CrossTenant-Id: %s\nContent-Type: text/plain; charset=utf-8\n\nHierbij de offerte.\n' "$RANDOM" "$1" >/tmp/m365.eml
+  rspamc -h 127.0.0.1:11333 -j --ip 40.107.1.10 --from "$2" --rcpt "$3" /tmp/m365.eml
+}
+m365 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a reinder@rhis.nl klant@example.org >/tmp/scan-m365-ok.json 2>&1 || true
+m365 11111111-2222-3333-4444-555555555555 reinder@rhis.nl klant@example.org >/tmp/scan-m365-bad.json 2>&1 || true
+m365 11111111-2222-3333-4444-555555555555 iemand@contoso.example info@rhis.nl >/tmp/scan-m365-in.json 2>&1 || true
+check "mail from the linked tenant passes" bash -c "$(declare -f has); has /tmp/scan-m365-ok.json MF_CLOUD_TENANT_OK"
+check "mail from another tenant in our name is refused" bash -c "$(declare -f has action_is); has /tmp/scan-m365-bad.json MF_CLOUD_TENANT_FORGED && action_is /tmp/scan-m365-bad.json reject"
+check "normal inbound mail from Microsoft is left alone" bash -c '! grep -q MF_CLOUD_TENANT /tmp/scan-m365-in.json || { cat /tmp/scan-m365-in.json; exit 1; }'
 echo "== relay domain (outbound only), SMTP account and sender lock"
 python3 - <<'PY'
 import json; d = json.load(open("/tmp/gateway.json"))

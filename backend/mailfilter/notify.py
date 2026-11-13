@@ -175,6 +175,16 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "en": ("No recent backup", "The last successful backup is from {last} (alert after {hours} hours)."),
         "nl": ("Geen recente backup", "De laatste geslaagde backup is van {last} (melding na {hours} uur)."),
     },
+    "archive_integrity": {
+        "en": ("Mail archive check found problems", "The integrity check of the mail archive found {count} problem(s): "
+               "{summary}. Open Archive in the web interface for the details."),
+        "nl": ("Controle mailarchief vond problemen", "De integriteitscontrole van het mailarchief vond {count} probleem/problemen: "
+               "{summary}. Open Archief in de webinterface voor de details."),
+    },
+    "archive_failed": {
+        "en": ("Mail archive maintenance failed", "The nightly archive work (seal, lock, clean-up) reported: {message}"),
+        "nl": ("Onderhoud mailarchief mislukt", "Het nachtelijke archiefwerk (verzegelen, vergrendelen, opschonen) meldde: {message}"),
+    },
     "test": {
         "en": ("Test notification", "This is a test from Mailfilter on {host}. This channel works."),
         "nl": ("Testmelding", "Dit is een test van Mailfilter op {host}. Dit kanaal werkt."),
@@ -183,7 +193,8 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
 RESOLVED = {"en": "Resolved", "nl": "Opgelost"}
 LINKS = {"link_click": "/links", "services": "/", "queue": "/trace?status=deferred", "blacklist": "/dns", "certificate": "/dns",
          "abuse": "/relay", "backup_failed": "/system/backups", "backup_overdue": "/system/backups",
-         "remote_failed": "/system/backups", "restore_failed": "/system/backups", "update_failed": "/", "test": "/"}
+         "remote_failed": "/system/backups", "restore_failed": "/system/backups", "update_failed": "/", "test": "/",
+         "archive_integrity": "/archive", "archive_failed": "/archive"}
 EMOJI = {"critical": "\U0001F534", "warning": "\U0001F7E0", "info": "\U0001F535", "resolved": "✅"}
 
 

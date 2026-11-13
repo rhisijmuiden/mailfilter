@@ -11,7 +11,8 @@ import re
 from dataclasses import dataclass
 
 from .rules import problems as rule_problems
-from .model import ALL_TLS_MODES, DOMAIN_KINDS, LISTENER_TLS, MAILTRAP_MODES, PROTOCOLS, TLS_MODES, GatewayConfig
+from .model import (ALL_TLS_MODES, DOMAIN_KINDS, LDAP_PRESETS, LDAP_SECURITY, RECIPIENT_CHECKS, LISTENER_TLS, MAILTRAP_MODES, PROTOCOLS,
+                    TLS_MODES, GatewayConfig)
 
 # Ports the gateway itself uses; an extra relay listener may not take them.
 RESERVED_PORTS = {22, 25, 53, 80, 443, 465, 587, 993, 3310, 5432, 6379, 11332, 11333, 11334, 11335}
@@ -155,12 +156,22 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
                 add(f"{df}.host", "loop_relay_domain",
                     f"{dest.host} is itself a domain on this Mailfilter; delivering there may loop.",
                     f"{dest.host} is zelf een domein op deze Mailfilter; afleveren daar kan een lus geven.")
+        _check_recipients(add, f, d)
         _check_queue(add, f"{f}.queue", d.queue)
         for attr in ("per_hour", "per_day"):
             v = getattr(d.outbound, attr)
             if v is not None and not 1 <= int(v) <= 10_000_000:
                 add(f"{f}.outbound.{attr}", "limit_invalid", "Limit must be a positive number.",
                     "Limiet moet een positief getal zijn.")
+
+    rc = cfg.recipient_cache
+    if not 1 <= int(rc.positive_days) <= 90:
+        add("recipient_cache.positive_days", "cache_invalid", "Remember existing addresses for 1 to 90 days.",
+            "Onthoud bestaande adressen 1 tot 90 dagen.")
+    if not 1 <= int(rc.negative_minutes) <= 7 * 24 * 60:
+        add("recipient_cache.negative_minutes", "cache_invalid",
+            "Remember unknown addresses for 1 minute to 7 days.",
+            "Onthoud onbekende adressen 1 minuut tot 7 dagen.")
 
     # ---- routes for single addresses -----------------------------------------
     for i, r in enumerate(cfg.address_routes):
@@ -308,6 +319,12 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
                 "Het wachtwoord kon niet worden opgeslagen.")
 
     _check_mailtraps(cfg, add, own_ips)
+    _check_cloud_tenants(cfg, add)
+
+    for i, name in enumerate(cfg.archive_domains):
+        if normalise_domain(str(name)) != str(name).strip().lower():
+            add(f"archive_domains[{i}]", "archive_domain_invalid", f"'{name}' is not a valid domain name.",
+                f"'{name}' is geen geldige domeinnaam.")
 
     dft = cfg.defaults
     for attr in ("relay_ip_per_minute", "relay_ip_per_hour", "domain_per_hour", "domain_per_day",
@@ -320,6 +337,111 @@ def validate(cfg: GatewayConfig) -> list[Problem]:
     return problems
 
 
+# Server entry: host, host:port, [IPv6]:port or ldap(s)://host[:port]
+_LDAP_SERVER = re.compile(r"(?:(ldaps?)://)?(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::(\d{1,5}))?/?")
+# Values end up in a Postfix table file: one line, no "#" at the start, no control characters.
+_SAFE_VALUE = re.compile(r"[^\x00-\x1f\x7f]*")
+
+
+def normalise_ldap_server(entry: str, security: str) -> str | None:
+    """"dc1.example.nl" -> "ldap://dc1.example.nl:389" (or ldaps://...:636); None when invalid."""
+    m = _LDAP_SERVER.fullmatch((entry or "").strip().lower())
+    if not m:
+        return None
+    scheme, host, port = m.group(1), m.group(2), m.group(3)
+    bare = host.strip("[]")
+    if not (_ip(bare) or normalise_domain(bare) or re.fullmatch(r"[a-z0-9-]{1,63}", bare)):
+        return None
+    scheme = scheme or ("ldaps" if security == "ldaps" else "ldap")
+    port = int(port or (636 if scheme == "ldaps" else 389))
+    if not 1 <= port <= 65535:
+        return None
+    if ":" in bare and not host.startswith("["):
+        host = f"[{bare}]"
+    return f"{scheme}://{host}:{port}"
+
+
+def normalise_recipient(entry: str, domain: str) -> str | None:
+    """An address of `domain` ("info" or "info@example.nl"), lower-case; None when invalid
+    or in another domain. Sub-addresses (info+tag@) are matched by Postfix itself."""
+    local, at, dom = (entry or "").strip().lower().rpartition("@")
+    if not at:
+        local, dom = dom, domain
+    if normalise_domain(dom) != domain or not local or len(local) > 64 or not EMAIL_RE.fullmatch(local):
+        return None
+    return f"{local}@{domain}"
+
+
+def _check_recipients(add, f: str, d) -> None:
+    """Recipient check of a transport domain (normalises the list and LDAP servers in place)."""
+    if d.recipient_check not in RECIPIENT_CHECKS:
+        add(f"{f}.recipient_check", "recipient_check_invalid",
+            "Choose how recipients are checked: mail server, LDAP, list or off.",
+            "Kies hoe ontvangers worden gecontroleerd: mailserver, LDAP, lijst of uit.")
+        return
+    if d.recipient_check == "list":
+        clean, bad = [], []
+        for r in d.recipients:
+            n = normalise_recipient(r, d.name)
+            (clean if n else bad).append(n or r)
+        if bad:
+            shown = ", ".join(bad[:5]) + (" …" if len(bad) > 5 else "")
+            add(f"{f}.recipients", "recipient_invalid",
+                f"Not an address of {d.name}: {shown}",
+                f"Geen adres van {d.name}: {shown}")
+        d.recipients = sorted(set(clean))
+        if not d.recipients and not bad:
+            add(f"{f}.recipients", "recipients_empty",
+                f"The list is empty, so all mail for {d.name} would be refused. Add the addresses that exist.",
+                f"De lijst is leeg, dus alle mail voor {d.name} zou worden geweigerd. Voeg de bestaande adressen toe.")
+    if d.recipient_check != "ldap":
+        return
+    src = d.ldap
+    if src is None:
+        add(f"{f}.ldap", "ldap_missing", "Fill in the LDAP server.", "Vul de LDAP-server in.")
+        return
+    if src.security not in LDAP_SECURITY:
+        add(f"{f}.ldap.security", "ldap_security_invalid", "Security must be STARTTLS, LDAPS or none.",
+            "Beveiliging moet STARTTLS, LDAPS of geen zijn.")
+        return
+    if src.preset not in LDAP_PRESETS:
+        add(f"{f}.ldap.preset", "ldap_preset_invalid", "Type must be Active Directory or LDAP.",
+            "Type moet Active Directory of LDAP zijn.")
+    servers, bad_server = [], False
+    for s in src.servers:
+        n = normalise_ldap_server(s, src.security)
+        if not n:
+            bad_server = True
+            add(f"{f}.ldap.servers", "ldap_server_invalid", f"'{s}' is not an LDAP server name.",
+                f"'{s}' is geen naam van een LDAP-server.")
+        else:
+            servers.append(n)
+    src.servers = list(dict.fromkeys(servers))
+    if not src.servers and not bad_server:
+        add(f"{f}.ldap.servers", "ldap_server_missing", "Fill in at least one LDAP server.",
+            "Vul minstens één LDAP-server in.")
+    for attr in ("bind_dn", "bind_password", "base_dn", "query_filter", "result_attribute"):
+        v = getattr(src, attr)
+        if not _SAFE_VALUE.fullmatch(v) or v != v.strip() or len(v) > 1000:
+            add(f"{f}.ldap.{attr}", "ldap_value_invalid",
+                "This field may not contain line breaks or begin or end with a space.",
+                "Dit veld mag geen regeleinden bevatten en niet met een spatie beginnen of eindigen.")
+    if not src.base_dn:
+        add(f"{f}.ldap.base_dn", "ldap_base_missing", "Fill in where to search (base DN), e.g. DC=example,DC=nl.",
+            "Vul in waar gezocht wordt (base DN), bijv. DC=example,DC=nl.")
+    if src.bind_dn and not src.bind_password:
+        add(f"{f}.ldap.bind_password", "ldap_password_missing", "Fill in the password of the bind account.",
+            "Vul het wachtwoord van het bind-account in.")
+    flt = src.filter()
+    if "%s" not in flt and "%u" not in flt or not (flt.startswith("(") and flt.endswith(")")):
+        add(f"{f}.ldap.query_filter", "ldap_filter_invalid",
+            "The filter must be in brackets and contain %s (the address) or %u (the part before @).",
+            "Het filter moet tussen haakjes staan en %s (het adres) of %u (het deel voor de @) bevatten.")
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,63}", src.result_attribute or ""):
+        add(f"{f}.ldap.result_attribute", "ldap_attribute_invalid", "Not an LDAP attribute name.",
+            "Geen naam van een LDAP-attribuut.")
+
+
 def normalise_allow(entry: str) -> str | None:
     """"user@example.nl" or "@example.nl" (the whole domain), lower-case; None when invalid."""
     local, at, dom = (entry or "").strip().lower().rpartition("@")
@@ -327,6 +449,39 @@ def normalise_allow(entry: str) -> str | None:
     if not at or not ndom or (local and not EMAIL_RE.fullmatch(local)):
         return None
     return f"{local}@{ndom}"
+
+
+def _check_cloud_tenants(cfg: GatewayConfig, add) -> None:
+    from .cloud import PROVIDERS, TENANT_ID_RE
+
+    kinds = {d.name: d.kind for d in cfg.domains}
+    seen: set[str] = set()
+    for i, t in enumerate(cfg.cloud_tenants):
+        f = f"cloud_tenants[{i}]"
+        if t.provider not in PROVIDERS:
+            add(f"{f}.provider", "cloud_provider_invalid", "Choose Microsoft 365 or Google Workspace.",
+                "Kies Microsoft 365 of Google Workspace.")
+            continue
+        name = normalise_domain(t.domain or "")
+        if not name:
+            add(f"{f}.domain", "domain_invalid", f"'{t.domain}' is not a valid domain name.",
+                f"'{t.domain}' is geen geldige domeinnaam.")
+            continue
+        t.domain = name
+        if name in seen:
+            add(f"{f}.domain", "cloud_duplicate", f"{name} is already linked to a cloud mail tenant.",
+                f"{name} is al aan een cloud-mailomgeving gekoppeld.")
+        seen.add(name)
+        if name not in kinds:
+            add(f"{f}.domain", "cloud_domain_missing", f"Add {name} under Domains first.",
+                f"Voeg {name} eerst toe onder Domeinen.")
+        t.tenant_id = (t.tenant_id or "").strip().lower()
+        if t.provider == "m365" and not TENANT_ID_RE.fullmatch(t.tenant_id):
+            add(f"{f}.tenant_id", "tenant_id_invalid",
+                "A Microsoft 365 tenant ID looks like 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a.",
+                "Een Microsoft 365 tenant-ID ziet eruit als 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a.")
+        if t.provider == "google":
+            t.tenant_id = ""
 
 
 def _check_mailtraps(cfg: GatewayConfig, add, own_ips) -> None:

@@ -8,12 +8,12 @@ import { Card, Drawer, ErrorText, Field, PageHead, formatDate, useToast } from "
 import { api } from "../lib/api";
 
 type User = {
-  id: number; email: string; name: string; role: "admin" | "customer"; language: "en" | "nl";
-  is_active: boolean; domains: string[]; last_login_at: string | null; two_factor_enabled: boolean;
+  id: number; email: string; name: string; role: "admin" | "customer" | "reseller"; language: "en" | "nl";
+  is_active: boolean; domains: string[]; last_login_at: string | null; two_factor_enabled: boolean; reseller_id: number | null;
 };
 type Form = Omit<User, "id" | "last_login_at" | "two_factor_enabled"> & { password: string };
 
-const EMPTY: Form = { email: "", name: "", role: "customer", language: "nl", is_active: true, domains: [], password: "" };
+const EMPTY: Form = { email: "", name: "", role: "customer", language: "nl", is_active: true, domains: [], reseller_id: null, password: "" };
 
 export default function Users() {
   const { t, i18n } = useTranslation();
@@ -45,7 +45,7 @@ export default function Users() {
         </>
       ) },
     { key: "domains", label: t("users.domains"), sort: (u) => u.domains.join(","), text: (u) => u.domains.join(" "),
-      render: (u) => (u.role === "admin" ? <span className="muted">{t("users.all_domains")}</span> : u.domains.map((d) => <span key={d} className="tag" style={{ marginRight: 4 }}>{d}</span>)) },
+      render: (u) => (u.role === "admin" ? <span className="muted">{t("users.all_domains")}</span> : u.role === "reseller" ? <span className="muted">{t("users.reseller")}</span> : u.domains.map((d) => <span key={d} className="tag" style={{ marginRight: 4 }}>{d}</span>)) },
     { key: "twofa", label: t("users.twofa"), sort: (u) => (u.two_factor_enabled ? 1 : 0), nowrap: true,
       render: (u) => (u.two_factor_enabled ? <span className="status s-ok"><ShieldCheck /> {t("twofa.on")}</span> : <span className="status s-mute">{t("twofa.off")}</span>) },
     { key: "last", label: t("users.last_login"), sort: (u) => u.last_login_at ?? "", nowrap: true, mobileLabel: true,
@@ -100,6 +100,8 @@ function UserDrawer({ user, onClose }: { user: User | null; onClose: () => void 
   });
   const [created, setCreated] = useState<string | null>(null);
   const options = useQuery({ queryKey: ["domain-options"], queryFn: () => api.get<string[]>("/users/domain-options") });
+  const resellers = useQuery({ queryKey: ["billing"], queryFn: () => api.get<{ resellers: { id: number; name: string }[] }>("/billing"),
+    enabled: f.role === "reseller" });
   const body = { ...f, password: f.password || null };
   const save = useMutation({
     mutationFn: () => (user ? api.put<User & { password?: string | null }>(`/users/${user.id}`, body) : api.post<User & { password?: string | null }>("/users", body)),
@@ -154,6 +156,7 @@ function UserDrawer({ user, onClose }: { user: User | null; onClose: () => void 
           <select className="select" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as User["role"] })}>
             <option value="customer">{t("users.customer")}</option>
             <option value="admin">{t("users.admin")}</option>
+            <option value="reseller">{t("users.reseller")}</option>
           </select>
         </Field>
         <Field label={t("users.language")}>
@@ -162,6 +165,16 @@ function UserDrawer({ user, onClose }: { user: User | null; onClose: () => void 
             <option value="en">{t("lang.en")}</option>
           </select>
         </Field>
+        {f.role === "reseller" && (
+          <Field label={t("users.reseller")} hint={t("users.reseller_hint")} full>
+            {resellers.data && !resellers.data.resellers.length ? <span className="muted">{t("users.no_resellers")}</span> : (
+              <select className="select" required value={f.reseller_id ?? ""} onChange={(e) => setF({ ...f, reseller_id: e.target.value ? +e.target.value : null })}>
+                <option value="" />
+                {resellers.data?.resellers.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            )}
+          </Field>
+        )}
         {f.role === "customer" && (
           <div className="field full">
             <span style={{ fontSize: 12.5, fontWeight: 650 }}>{t("users.domains")}</span>

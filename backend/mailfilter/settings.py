@@ -60,6 +60,9 @@ class Settings:
     mailtrap_dir: Path = Path("/var/lib/mailfilter/mailtrap")
     # Signs the click links of link protection (shared with Rspamd).
     link_key_file: Path = ETC / "link-protection.key"
+    # Mail archive (gzip files per domain), written by the mfarchive pipe. Outside
+    # /var/lib/mailfilter on purpose: it is part of every backup.
+    archive_dir: Path = Path("/var/lib/mailfilter-archive")
 
 
 @lru_cache
@@ -89,4 +92,5 @@ def get_settings() -> Settings:
         lists_dir=Path(env.get("MF_LISTS_DIR", "/var/lib/mailfilter/lists")),
         mailtrap_dir=Path(env.get("MF_MAILTRAP_DIR", "/var/lib/mailfilter/mailtrap")),
         link_key_file=Path(env.get("MF_LINK_KEY_FILE", str(ETC / "link-protection.key"))),
+        archive_dir=Path(env.get("MF_ARCHIVE_DIR", "/var/lib/mailfilter-archive")),
     )
