@@ -29,6 +29,12 @@ export function Layout({ me }: { me: Me }) {
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const sys = useSystemInfo();
   const brand = useBranding();
+  // A backup server (cluster in backup mode) takes its settings from the primary: say so on every page.
+  const cluster = useQuery({
+    queryKey: ["cluster-status"],
+    queryFn: () => api.get<{ enabled: boolean; role?: string; primary?: string | null; primary_url?: string | null; failover_active?: boolean }>("/cluster/status"),
+    refetchInterval: 60_000,
+  });
   const stats = useQuery({ queryKey: ["trace-stats"], queryFn: () => api.get<Stats>("/trace/stats?hours=24"), refetchInterval: 60_000 });
   const mods = useModules();
   const mailtrapOn = mods.data?.enabled.mailtrap === true;
@@ -134,6 +140,15 @@ export function Layout({ me }: { me: Me }) {
           </div>
         </header>
         <main className="content" id="content">
+          {cluster.data?.role === "standby" && loc.pathname !== "/system/cluster" && (
+            <div className="callout" role="status" style={{ marginBottom: 16 }}>
+              <span>
+                {t("cluster.standby_banner", { primary: cluster.data.primary ?? "" })}
+                {cluster.data.failover_active ? ` ${t("cluster.standby_banner_active")}` : ""}{" "}
+                {cluster.data.primary_url && <a href={cluster.data.primary_url}>{t("cluster.open_primary")}</a>}
+              </span>
+            </div>
+          )}
           <Suspense fallback={<Skeleton rows={6} />}>
             <Outlet />
           </Suspense>

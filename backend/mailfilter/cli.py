@@ -161,6 +161,12 @@ def main(argv: list[str] | None = None) -> int:
             # A peer that is down is shown on the Cluster page; it is not a failure of this timer.
             for name, result in peer.sync_all(db).items():
                 print(f"{name}: {result}")
+            from .cluster import failover
+
+            if state.enabled(db):  # backup mode: take over or hand back the failover name
+                result = failover.check(db)
+                if result not in ("off", "not_standby", "ok"):
+                    print(f"failover: {result}")
             return 0
         if args.cmd in ("archive-maintain", "archive-verify"):
             return _archive(db, args)

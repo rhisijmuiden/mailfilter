@@ -20,6 +20,18 @@ from .snapshot import LOCAL_COLUMNS, SYNCED_MODELS, SYNCED_SETTINGS
 
 FLAG = "cluster_changed"
 PUSH = "cluster_push"
+ALLOW_ON_STANDBY = "cluster_allow_on_standby"  # promote: a standby that becomes primary
+
+
+class _NoName:
+    name = ""
+
+
+def mark_changed(session: Session, *, allow_on_standby: bool = False) -> None:
+    """For cluster-wide settings that are not a synced table (mode, failover)."""
+    session.info[FLAG] = True
+    if allow_on_standby:
+        session.info[ALLOW_ON_STANDBY] = True
 
 
 def _changes_config(obj) -> bool:
@@ -51,6 +63,13 @@ def _before_commit(session: Session) -> None:
         return
     session.flush()
     if session.info.pop(FLAG, None) and state.enabled(session):
+        if state.my_role(session) == "standby" and not session.info.pop(ALLOW_ON_STANDBY, None):
+            # A backup server takes its configuration from the primary only. A person's
+            # change is refused (it would be overwritten); housekeeping by timers stays
+            # local and is not sent on (the primary runs the same timers).
+            if session.info.get("web"):
+                raise state.ClusterError("standby_readonly", (state.primary(session) or _NoName).name)
+            return
         state.bump_revision(session)
         session.flush()
         session.info[PUSH] = True
@@ -66,7 +85,7 @@ def _after_commit(session: Session) -> None:
 @event.listens_for(Session, "after_soft_rollback")
 def _after_rollback(session: Session, _previous) -> None:
     if not session.in_transaction():
-        for k in (FLAG, PUSH, "cluster_import"):
+        for k in (FLAG, PUSH, ALLOW_ON_STANDBY, "cluster_import"):
             session.info.pop(k, None)
 
 
