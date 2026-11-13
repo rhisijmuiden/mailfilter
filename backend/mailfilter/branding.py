@@ -3,7 +3,7 @@
 Mailfilter is open source; every install may look like its own product. The
 default is the RHIS house style (rhis-huisstijl). One element is fixed and is
 NOT part of these settings: the small "Powered by RHIS" mark at the bottom
-right of every page (see LICENSE, additional terms under GPLv3 section 7(b)).
+right of every page (see LICENSE, additional terms under AGPLv3 section 7(b)).
 """
 
 from __future__ import annotations

@@ -225,8 +225,9 @@ Tests: `cd backend && pytest` (zet `MAILFILTER_TEST_DB_URL` op een lege testdata
 
 ## Licentie
 
-Mailfilter is open source onder de [GNU General Public License v3.0](LICENSE), met [aanvullende voorwaarden](NOTICE) volgens artikel 7 van die licentie:
+Mailfilter is open source onder de [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0), met [aanvullende voorwaarden](NOTICE) volgens artikel 7 van die licentie:
 
 - **"Powered by RHIS" blijft staan.** Het kleine "Powered by RHIS" met het RHIS-icoon rechtsonder op elke pagina moet in elke kopie en elke aangepaste versie zichtbaar blijven. Het is geen instelling en mag niet verwijderd of verborgen worden.
 - **Je eigen huisstijl mag.** Naam, kleuren, logo en browsericoon pas je aan onder **Systeem › Huisstijl**; de RHIS-huisstijl is alleen de standaard.
+- **Aanpassingen blijven open.** Wie een aangepaste versie via het netwerk voor anderen draait, moet hun de broncode daarvan aanbieden (AGPL artikel 13).
 - Een aangepaste versie moet vermelden dat hij is aangepast, en de naam en logo's van RHIS mag je verder niet gebruiken.

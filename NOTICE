@@ -2,12 +2,12 @@ Mailfilter
 Copyright (C) 2026 RHIS (https://rhis.nl)
 
 Mailfilter is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License version 3 (see LICENSE), with the
-additional terms below. These additional terms are permitted by section 7 of
-the GNU GPL version 3 and apply to this work and to every modified version of
-it.
+the terms of the GNU Affero General Public License version 3 (see LICENSE),
+with the additional terms below. These additional terms are permitted by
+section 7 of the GNU AGPL version 3 and apply to this work and to every
+modified version of it.
 
-ADDITIONAL TERMS (GNU GPL version 3, section 7)
+ADDITIONAL TERMS (GNU AGPL version 3, section 7)
 
 1. Attribution (section 7(b)).
    Every copy and every modified version of Mailfilter that has a web
@@ -19,7 +19,7 @@ ADDITIONAL TERMS (GNU GPL version 3, section 7)
    colours and size slightly to fit your own theme, but it must stay readable
    and may not be hidden, removed, covered, or made switchable by a setting.
    These notices count as "Appropriate Legal Notices" in the sense of the
-   GNU GPL.
+   GNU AGPL.
 
 2. No misrepresentation (section 7(c)).
    A modified version must be marked as changed and may not be presented as
@@ -31,6 +31,13 @@ ADDITIONAL TERMS (GNU GPL version 3, section 7)
    the default look; you may replace the name, colours and logo of the product
    with your own (System > Branding in the web interface).
 
-Everything else is under the GNU General Public License version 3 without
-changes. If you received a copy without these terms, they still apply: they
+SOURCE CODE FOR NETWORK USERS (GNU AGPL version 3, section 13)
+
+If you run a modified version of Mailfilter for others over a network, you
+must offer those users the source code of your modified version. The Info
+window of the web interface links to the source code; point that link to
+the source of your version.
+
+Everything else is under the GNU Affero General Public License version 3
+without changes. If you received a copy without these terms, they still apply: they
 are part of the licence under which RHIS publishes Mailfilter.
