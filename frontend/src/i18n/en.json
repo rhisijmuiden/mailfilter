@@ -3,7 +3,7 @@
     "product": "Mailfilter",
     "skip": "Skip to content"
   },
-  "branding": {"title": "Branding", "sub": "Give this Mailfilter your own name, colours and logo. Users see it in the web app, on the login page and in the mails Mailfilter sends.", "identity": "Name and colours", "name": "Product name", "name_hint": "Shown in the menu, on the login page, in the browser tab and in reports.", "accent": "Accent colour", "accent_hint": "Main buttons, the active menu item and highlights.", "primary": "Dark colour", "primary_hint": "Dark surfaces such as the header of report mails and notifications.", "house_colors": "Use the default colours", "preview": "Preview", "sample_button": "Main button", "sample_dark": "Dark surface", "images": "Logos and icon", "logo": "Logo", "logo_hint": "For the light theme. SVG or PNG, at most 256 KB; wide logos work best.", "logo_dark": "Logo for dark mode", "logo_dark_hint": "Optional. A light version of your logo for the dark theme.", "favicon": "Browser icon", "favicon_hint": "Optional. Square SVG, PNG or ICO for the browser tab.", "default_used": "Default is used", "upload": "Upload", "replace": "Replace", "remove": "Remove", "reset": "Back to default", "reset_confirm": "Remove your own name, colours and logos and go back to the default house style?", "powered_note": "The small \"Powered by RHIS\" mark at the bottom right always stays visible. Mailfilter is open source (GPLv3) and this attribution is a condition of the licence, so it cannot be switched off here."},
+  "branding": {"title": "Branding", "sub": "Give this Mailfilter your own name, colours and logo. Users see it in the web app, on the login page and in the mails Mailfilter sends.", "identity": "Name and colours", "name": "Product name", "name_hint": "Shown in the menu, on the login page, in the browser tab and in reports.", "accent": "Accent colour", "accent_hint": "Main buttons, the active menu item and highlights.", "primary": "Dark colour", "primary_hint": "Dark surfaces such as the header of report mails and notifications.", "house_colors": "Use the default colours", "preview": "Preview", "sample_button": "Main button", "sample_dark": "Dark surface", "images": "Logos and icon", "logo": "Logo", "logo_hint": "For the light theme. SVG or PNG, at most 256 KB; wide logos work best.", "logo_dark": "Logo for dark mode", "logo_dark_hint": "Optional. A light version of your logo for the dark theme.", "favicon": "Browser icon", "favicon_hint": "Optional. Square SVG, PNG or ICO for the browser tab.", "default_used": "Default is used", "upload": "Upload", "replace": "Replace", "remove": "Remove", "reset": "Back to default", "reset_confirm": "Remove your own name, colours and logos and go back to the default house style?", "powered_note": "The small \"Powered by RHIS\" mark at the bottom right always stays visible. Mailfilter is open source (AGPLv3) and this attribution is a condition of the licence, so it cannot be switched off here."},
   "nav": {"branding": "Branding", "links": "Link clicks", 
     "archive": "Archive",
     "cloud": "Cloud mail",
@@ -292,7 +292,7 @@
     "forgot": "Forgot your password? Ask your administrator to set a new one."
   },
   "info": {
-    "license": "Open source (GPL-3.0) · made by RHIS",
+    "license": "Open source (AGPL-3.0) · made by RHIS",
     "title": "About Mailfilter",
     "version": "Version",
     "branch": "Channel",

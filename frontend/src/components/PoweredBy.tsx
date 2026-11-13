@@ -1,7 +1,7 @@
 // "Powered by RHIS" at the bottom right of every page.
 //
 // This mark is deliberately NOT a branding setting: Mailfilter is open source
-// under GPLv3 with an additional term (section 7(b)) that this attribution must
+// under AGPLv3 with an additional term (section 7(b)) that this attribution must
 // stay visible. See LICENSE and NOTICE before you change it.
 export function PoweredBy() {
   return (
