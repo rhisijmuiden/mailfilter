@@ -28,6 +28,7 @@ class InfoOut(BaseModel):
     channel: str = ""
     commit: str = ""
     commit_date: str = ""
+    web_mode: str = "public"  # System > Web access; pages warn when features need public HTTPS
 
 
 def _read(name: str, default: str) -> str:
@@ -49,6 +50,7 @@ def info(_: CurrentUser) -> InfoOut:
         hostname=get_settings().hostname,
         label=version,
         channel={"main": "production", "test": "test"}.get(branch, "custom"),
+        web_mode=get_settings().web_mode,
     )
 
 
@@ -103,3 +105,27 @@ def job(job_id: JobId, _: AdminUser) -> dict[str, Any]:
 @router.get("/jobs/{job_id}/log")
 def job_log(job_id: JobId, _: AdminUser) -> dict[str, Any]:
     return ctl.call("job", "log", job_id)
+
+
+# ---- web access: how the web interface is reached (System > Web access) ---------------
+class WebAccessIn(BaseModel):
+    mode: Literal["public", "internal", "proxy", "http"]
+    port: int | None = None
+    url: str = ""
+    trusted_proxies: list[str] = []
+    web_from: list[str] = []
+
+
+@router.get("/web")
+def web_access(_: AdminUser) -> dict[str, Any]:
+    return ctl.call("web", "show")
+
+
+@router.put("/web")
+def set_web_access(body: WebAccessIn, request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
+    """Starts install/web-access.sh as a job: Caddy and the web app restart, maybe on another address."""
+    job = ctl.call("web", "set", "--stdin", input=body.model_dump_json())
+    audit(db, request, user, "system.web_access", body.mode, job=job.get("id"), port=body.port,
+          trusted_proxies=body.trusted_proxies, web_from=body.web_from, url=body.url)
+    db.commit()
+    return job

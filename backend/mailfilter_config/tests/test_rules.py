@@ -66,6 +66,10 @@ class ProtectionRulesTest(unittest.TestCase):
         rules = data["rules"]
         self.assertTrue(rules["phishing_lookalike"]["enabled"])
         self.assertFalse(rules["external_banner"]["enabled"])
+        # Link protection: off by default, continue after a warning allowed; the click host is the server.
+        self.assertFalse(rules["link_protection"]["enabled"])
+        self.assertTrue(rules["link_protection"]["options"]["allow_continue"])
+        self.assertIn("MF_LINK_PROTECT", files[PROTECTION_LUA_PATH])
         self.assertIn("exe", rules["attachments_dangerous"]["options"]["extensions"])
         self.assertEqual(rules["attachments_dangerous"]["options"]["action"], "reject")
         self.assertEqual(rules["attachments_macros"]["options"]["action"], "quarantine")
@@ -75,6 +79,11 @@ class ProtectionRulesTest(unittest.TestCase):
         self.assertIn("sign_inbound = false;", arc)
         self.assertIn(ARC_TRUSTED_MAP, arc)
         self.assertIn("google.com\n", files[ARC_TRUSTED_MAP])
+
+    def test_link_host_is_the_server_name(self):
+        c = cfg()
+        c.hostname = "Mailfilter.RHIS.nl."
+        self.assertEqual(json.loads(render(c).files[SETTINGS_PATH])["link_host"], "mailfilter.rhis.nl")
 
     def test_lists_are_normalised(self):
         c = cfg(attachments_dangerous=CustomRule(True, {"extensions": ".EXE, *.js\nexe", "action": "quarantine"}),

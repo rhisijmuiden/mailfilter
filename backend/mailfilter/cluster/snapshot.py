@@ -5,7 +5,7 @@ Synced (the same on every node):
     throttling (defaults and per destination), address routes, TLS policies
   * users (with password hashes, roles, language and their domains)
   * allow and block lists, and which domains get the daily quarantine report
-  * settings listed in SYNCED_SETTINGS (custom rules, hacked-sender protection,
+  * settings listed in SYNCED_SETTINGS (custom rules, modules on/off, hacked-sender protection,
     e-mail sending incl. SMTP password, Cloudflare token)
   * billing customers, resellers and tariffs (who pays for which domain)
   * DKIM keys, so every node signs with the key that is in DNS
@@ -48,8 +48,9 @@ from .state import ClusterError
 FORMAT = 1
 
 SYNCED_SETTINGS = frozenset({"gateway.defaults", "custom_rules", "abuse", "smtp", "smtp.password", "cloudflare_token",
-                             "quarantine_report", "security", "dkim_rotation", "billing.tariffs",
-                             "gateway.recipient_cache"})
+                             "quarantine_report", "security", "dkim_rotation", "billing.tariffs", "modules",
+                             "gateway.recipient_cache",
+                             "branding", "branding.logo", "branding.logo_dark", "branding.favicon"})
 
 SYNCED_MODELS = (Domain, DomainRoute, DomainDestination, RelayNetwork, RelayPort, DestinationPolicy, AddressRoute,
                  TlsPolicy, User, ClusterNode, SenderListEntry, DigestDomain, SmtpAccount, Reseller, BillingCustomer, ApiKey, CloudTenant, ArchiveDomain)
@@ -195,6 +196,8 @@ def export(db: Session, *, with_dkim: bool = True) -> dict[str, Any]:
         "cluster": {
             "cluster_id": cfg.get("cluster_id"),
             "spf_name": cfg.get("spf_name", ""),
+            "mode": cfg.get("mode") or state.ACTIVE,
+            "failover": state.failover_settings(db) if cfg else None,
             "secret": state.secret(db) if cfg else None,
             "nodes": [state.node_info(n) for n in db.execute(select(ClusterNode).order_by(ClusterNode.name)).scalars()],
         },
@@ -485,10 +488,15 @@ def _import_cluster(db: Session, c: dict[str, Any]) -> bool:
         n = have.get(nid) or ClusterNode(node_id=nid, is_self=False)
         if not n.is_self:  # our own name/url/addresses are ours to set
             n.name, n.url, n.addresses = str(info["name"])[:100], str(info["url"])[:300], list(info.get("addresses", []))
+        role = info.get("role", "member")
+        n.role = role if role in ("member", "primary", "standby") else "member"
         db.add(n)
     cfg = dict(state.config(db) or {})
     if c.get("spf_name"):
         cfg["spf_name"] = c["spf_name"]
+    cfg["mode"] = c.get("mode") if c.get("mode") in (state.ACTIVE, state.STANDBY) else state.ACTIVE
+    if isinstance(c.get("failover"), dict):
+        set_setting(db, state.FAILOVER_KEY, {k: c["failover"].get(k, v) for k, v in state.FAILOVER_DEFAULTS.items()})
     set_setting(db, state.CONFIG_KEY, cfg)
     if c.get("secret") and c["secret"] != state.secret(db):
         state.set_cluster_secret(db, c["secret"])

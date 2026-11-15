@@ -10,10 +10,11 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from .. import digest, mailer
+from .. import branding, digest, mailer
 from ..audit import audit
 from ..deps import DB, CurrentUser, visible_domains
 from ..models import DigestDomain, Domain, QuarantineAction, TraceMessage
+from ..modules import require
 from ..queuectl import QueueError, delete, held_ids, learn, raw_message, release
 from .lists import add_entry, save_maps
 
@@ -69,12 +70,12 @@ def _settings(db, user) -> SettingsOut:
     )
 
 
-@router.get("/quarantine-report/settings", response_model=SettingsOut)
+@router.get("/quarantine-report/settings", response_model=SettingsOut, dependencies=[require("quarantine_report")])
 def get_report_settings(user: CurrentUser, db: DB) -> SettingsOut:
     return _settings(db, user)
 
 
-@router.put("/quarantine-report/settings", response_model=SettingsOut)
+@router.put("/quarantine-report/settings", response_model=SettingsOut, dependencies=[require("quarantine_report")])
 def put_report_settings(body: SettingsIn, request: Request, user: CurrentUser, db: DB) -> SettingsOut:
     if body.config is not None:
         if not user.is_admin:
@@ -96,7 +97,7 @@ def put_report_settings(body: SettingsIn, request: Request, user: CurrentUser, d
     return _settings(db, user)
 
 
-@router.post("/quarantine-report/example", response_model=ExampleOut)
+@router.post("/quarantine-report/example", response_model=ExampleOut, dependencies=[require("quarantine_report")])
 def send_example(user: CurrentUser, db: DB) -> ExampleOut:
     """Send the current user one report with the mail held for their domains."""
     names = {d.name for d in _my_domains(db, user)}
@@ -114,7 +115,7 @@ def send_example(user: CurrentUser, db: DB) -> ExampleOut:
     if not combined.items:
         raise HTTPException(status.HTTP_409_CONFLICT, "nothing_held")
     combined.items.sort(key=lambda i: i.received, reverse=True)
-    subject, text, html = digest.render(combined, user.language)
+    subject, text, html = digest.render(combined, user.language, brand=branding.get(db))
     try:
         mailer.send(db, user.email, subject, text, html)
     except mailer.MailError as e:

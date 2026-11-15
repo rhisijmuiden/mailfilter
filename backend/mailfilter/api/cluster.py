@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
@@ -21,7 +22,7 @@ from ..cluster import peer, state
 from ..cluster import tracking
 from ..cluster.snapshot import SYNCED_SETTINGS, export
 from ..cluster.state import ClusterError
-from ..deps import DB, AdminUser
+from ..deps import DB, AdminUser, CurrentUser
 from ..models import ClusterNode
 from ..settings_store import get_setting, set_setting
 
@@ -51,6 +52,8 @@ class NodeOut(BaseModel):
     in_sync: bool
     latency_ms: int | None
     state: str  # self, ok, behind, unreachable, error, waiting
+    role: str  # member, primary, standby
+    failover: dict[str, Any] | None  # a standby's failover state, as it reported it
 
 
 def _iso(v) -> str | None:
@@ -73,15 +76,25 @@ def _node_out(n: ClusterNode, mine: dict | None) -> NodeOut:
     return NodeOut(node_id=n.node_id, name=n.name, url=n.url, addresses=list(n.addresses or []), is_self=n.is_self,
                    joined_at=_iso(n.joined_at), last_seen_at=_iso(n.last_seen_at), last_sync_at=_iso(n.last_sync_at),
                    last_error=n.last_error or "", last_error_at=_iso(n.last_error_at),
-                   version=__version__ if n.is_self else n.version, in_sync=in_sync, latency_ms=n.latency_ms, state=st)
+                   version=__version__ if n.is_self else n.version, in_sync=in_sync, latency_ms=n.latency_ms, state=st,
+                   role=n.role or "member", failover=(n.info or {}).get("failover") if not n.is_self else None)
 
 
 def _overview(db) -> dict[str, Any]:
+    from ..cluster.failover import current_state
+
     cfg = state.config(db)
     mine = state.revision(db)
     nodes = [_node_out(n, mine) for n in db.execute(
         select(ClusterNode).order_by(ClusterNode.is_self.desc(), ClusterNode.name)).scalars()]
+    p = state.primary(db)
     return {
+        "mode": state.mode(db),
+        "role": state.my_role(db),
+        "primary": p.name if p else None,
+        "primary_url": p.url if p else None,
+        "failover": state.failover_settings(db),
+        "failover_state": current_state(db) if state.my_role(db) == "standby" else None,
         "enabled": bool(cfg),
         "cluster_id": (cfg or {}).get("cluster_id"),
         "spf_name": (cfg or {}).get("spf_name", ""),
@@ -95,6 +108,18 @@ def _overview(db) -> dict[str, Any]:
     }
 
 
+@router.get("/status")
+def cluster_status(_: CurrentUser, db: DB) -> dict[str, Any]:
+    """For the banner on every page: is this a backup server, and is it standing in?"""
+    if not state.enabled(db):
+        return {"enabled": False}
+    from ..cluster.failover import current_state
+
+    p = state.primary(db)
+    return {"enabled": True, "mode": state.mode(db), "role": state.my_role(db), "primary": p.name if p else None,
+            "primary_url": p.url if p else None, "failover_active": bool(current_state(db).get("active"))}
+
+
 @router.get("")
 def overview(_: AdminUser, db: DB) -> dict[str, Any]:
     return _overview(db)
@@ -102,6 +127,8 @@ def overview(_: AdminUser, db: DB) -> dict[str, Any]:
 
 class CreateIn(BaseModel):
     name: str = Field(min_length=1, max_length=63)
+    # active: servers work together; standby: this server is the primary, the next ones are backups
+    mode: Literal["active", "standby"] = "active"
 
 
 def _check_name(name: str) -> str:
@@ -121,19 +148,21 @@ def create(body: CreateIn, request: Request, admin: AdminUser, db: DB) -> dict[s
     if not url:
         raise _err(ClusterError("no_hostname"))
     node_id = state.new_id()
-    set_setting(db, state.CONFIG_KEY, {"cluster_id": state.new_id(), "node_id": node_id,
+    set_setting(db, state.CONFIG_KEY, {"cluster_id": state.new_id(), "node_id": node_id, "mode": body.mode,
                                        "spf_name": ServerConfig.load().spf_name, "created_at": state.now().isoformat()})
     state.set_cluster_secret(db, state.new_secret())
     db.add(ClusterNode(node_id=node_id, name=_check_name(body.name), url=url, addresses=state.own_addresses(),
-                       is_self=True))
+                       is_self=True, role="primary" if body.mode == state.STANDBY else "member"))
     state.bump_revision(db)
-    audit(db, request, admin, "cluster.create", body.name)
+    audit(db, request, admin, "cluster.create", body.name, mode=body.mode)
     db.commit()
     return _overview(db)
 
 
 @router.get("/join-code")
 def get_join_code(request: Request, admin: AdminUser, db: DB) -> dict[str, str]:
+    if state.my_role(db) == "standby":
+        raise _err(ClusterError("standby_readonly", (state.primary(db) or ClusterNode(name="")).name), 409)
     try:
         code = state.join_code(db)
     except ClusterError as e:
@@ -211,6 +240,161 @@ def sync_now(_: AdminUser, db: DB) -> dict[str, Any]:
     return {**_overview(db), "results": results}
 
 
+# ---- backup mode ------------------------------------------------------------------
+def _not_on_standby(db) -> None:
+    if state.my_role(db) == "standby":
+        raise _err(ClusterError("standby_readonly", (state.primary(db) or ClusterNode(name="")).name), 409)
+
+
+class ModeIn(BaseModel):
+    mode: Literal["active", "standby"]
+
+
+@router.put("/mode")
+def set_mode(body: ModeIn, request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    """Switch between working together and primary + backup. This server becomes the primary."""
+    if not state.enabled(db):
+        raise _err(ClusterError("not_in_cluster"))
+    _not_on_standby(db)
+    cfg = dict(state.config(db) or {})
+    cfg["mode"] = body.mode
+    set_setting(db, state.CONFIG_KEY, cfg)
+    for n in db.execute(select(ClusterNode)).scalars():
+        n.role = ("primary" if n.is_self else "standby") if body.mode == state.STANDBY else "member"
+    tracking.mark_changed(db)
+    audit(db, request, admin, "cluster.mode", body.mode)
+    db.commit()
+    return _overview(db)
+
+
+class FailoverIn(BaseModel):
+    enabled: bool = False
+    hostname: str = Field(default="", max_length=253)
+    after_minutes: int = Field(default=5, ge=2, le=120)
+    back_minutes: int = Field(default=10, ge=2, le=1440)
+
+
+@router.put("/failover")
+def set_failover(body: FailoverIn, request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    if not state.enabled(db):
+        raise _err(ClusterError("not_in_cluster"))
+    _not_on_standby(db)
+    host = body.hostname.strip().lower().rstrip(".")
+    if host and not re.fullmatch(r"([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}", host):
+        raise _err(ClusterError("failover_bad_hostname"))
+    if body.enabled and not host:
+        raise _err(ClusterError("failover_no_hostname"))
+    if host and host in {n.url.removeprefix("https://").split(":")[0] for n in db.execute(select(ClusterNode)).scalars()}:
+        raise _err(ClusterError("failover_is_node_name"))
+    set_setting(db, state.FAILOVER_KEY, {**body.model_dump(), "hostname": host})
+    tracking.mark_changed(db)
+    audit(db, request, admin, "cluster.failover", host, enabled=body.enabled)
+    db.commit()
+    return _overview(db)
+
+
+@router.post("/promote")
+def promote(request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    """On a backup server: make it the primary (e.g. the old primary is gone for a while).
+    The old primary becomes a backup as soon as it is back and syncs."""
+    me = state.self_node(db)
+    if me is None or me.role != "standby":
+        raise _err(ClusterError("not_standby"))
+    for n in db.execute(select(ClusterNode)).scalars():
+        if n.role == "primary":
+            n.role = "standby"
+    me.role = "primary"
+    set_setting(db, state.FAILOVER_STATE_KEY, None)
+    tracking.mark_changed(db, allow_on_standby=True)
+    audit(db, request, admin, "cluster.promote", me.name)
+    db.commit()
+    return _overview(db)
+
+
+@router.post("/failover/take-over")
+def failover_take_over(request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    from ..cluster import failover
+
+    try:
+        failover.take_over_now(db, admin.email)
+    except ClusterError as e:
+        raise _err(e) from None
+    audit(db, request, admin, "cluster.failover.take_over")
+    db.commit()
+    return _overview(db)
+
+
+@router.post("/failover/point-primary")
+def failover_point_primary(request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    from ..cluster import failover
+
+    try:
+        failover.point_at_primary(db, admin.email)
+    except ClusterError as e:
+        raise _err(e) from None
+    audit(db, request, admin, "cluster.failover.point_primary")
+    db.commit()
+    return _overview(db)
+
+
+def _mx_plans(db) -> tuple[list[Any], list[dict[str, Any]], Any]:
+    """MX records for every live domain: primary 10, backups 20 (all 10 when working together)."""
+    from mailfilter_dns import publish
+    from mailfilter_dns.cloudflare import Cloudflare
+
+    from ..cluster.failover import make_cloudflare
+    from ..models import DomainRoute, Domain
+    from ..settings_store import get_secret
+
+    token = get_secret(db, "cloudflare_token")
+    if not token:
+        raise _err(ClusterError("failover_no_cloudflare"), 409)
+    cf: Cloudflare = make_cloudflare(token)
+    nodes = list(db.execute(select(ClusterNode)).scalars())
+    hosts = {n.url.removeprefix("https://").split(":")[0]: n for n in nodes}
+    targets = [(20 if n.role == "standby" else 10, h) for h, n in sorted(hosts.items(), key=lambda x: (x[1].role == "standby", x[0]))]
+    plans, skipped = [], []
+    names = db.execute(select(Domain.name).join(DomainRoute, DomainRoute.domain_id == Domain.id).order_by(Domain.name)).scalars()
+    for name in names:
+        zone = cf.zone_for(name)
+        if zone is None:
+            skipped.append({"domain": name, "reason": "no_zone"})
+            continue
+        current = {r.content.lower().rstrip(".") for r in cf.records(zone, name=name, type="MX")}
+        if not current & set(hosts):
+            skipped.append({"domain": name, "reason": "not_live"})  # mail does not come through Mailfilter yet
+            continue
+        plan = publish.Plan(zone.id, zone.name, name, publish.plan_mx(cf, zone, name, targets))
+        if plan.needed:
+            plans.append(plan)
+    return plans, skipped, cf
+
+
+@router.post("/mx/plan")
+def mx_plan(_: AdminUser, db: DB) -> dict[str, Any]:
+    _not_on_standby(db)
+    plans, skipped, _cf = _mx_plans(db)
+    return {"plans": [p.to_dict() for p in plans], "skipped": skipped}
+
+
+@router.post("/mx/apply")
+def mx_apply(request: Request, admin: AdminUser, db: DB) -> dict[str, Any]:
+    from mailfilter_dns import publish
+    from mailfilter_dns.cloudflare import CloudflareError
+
+    _not_on_standby(db)
+    plans, skipped, cf = _mx_plans(db)
+    done = []
+    try:
+        for p in plans:
+            done += publish.apply(cf, p, actor=admin.email)
+    except CloudflareError as e:
+        raise _err(ClusterError("failover_cloudflare", str(e)[:300]), 502) from None
+    audit(db, request, admin, "cluster.mx", "", domains=len(plans))
+    db.commit()
+    return {"domains": [p.domain for p in plans], "changes": len(done), "skipped": skipped}
+
+
 # ---- other nodes -------------------------------------------------------------------
 async def _raw(request: Request) -> bytes:
     if int(request.headers.get("content-length") or 0) > peer.MAX_BODY:
@@ -257,10 +441,12 @@ def _hello(raw: bytes, request: Request, db) -> Response:
     n.last_seen_at = state.now()
     n.version = str(data.get("version", ""))[:40]
     n.revision = data.get("revision")
+    if isinstance(data.get("info"), dict):
+        n.info = data["info"]
     db.commit()
     me = state.self_node(db)
     return _answer(key, "hello", nonce, {"node": state.node_info(me), "revision": state.revision(db),
-                                         "version": __version__})
+                                         "version": __version__, "info": peer.status_info(db)})
 
 
 @public.post("/snapshot", include_in_schema=False)
@@ -324,7 +510,10 @@ def _join(raw: bytes, request: Request, db) -> Response:
     if any(n.url == url for n in state.peers(db)) or url == state.own_url():
         db.commit()
         raise HTTPException(status.HTTP_409_CONFLICT, "cluster_url_in_use")
-    db.add(ClusterNode(node_id=node_id, name=name, url=url,
+    if state.my_role(db) == "standby":
+        db.commit()
+        raise HTTPException(status.HTTP_409_CONFLICT, "cluster_join_via_primary")
+    db.add(ClusterNode(node_id=node_id, name=name, url=url, role="standby" if state.mode(db) == state.STANDBY else "member",
                        addresses=[str(a)[:45] for a in info.get("addresses", [])][:4],
                        version=str(data.get("version", ""))[:40], last_seen_at=state.now()))
     audit(db, request, None, "cluster.node_joined", name, url=url)
@@ -343,7 +532,7 @@ def _leave(raw: bytes, request: Request, db) -> Response:
     data, nonce, key = _open(raw, db, "leave", member=False)
     n = db.get(ClusterNode, str(data.get("node_id", "")))
     # A node may only take itself out.
-    if n is not None and not n.is_self and data.get("from") == n.node_id:
+    if n is not None and not n.is_self and data.get("from") == n.node_id and state.my_role(db) != "standby":
         audit(db, request, None, "cluster.node_left", n.name)
         db.delete(n)
     db.commit()

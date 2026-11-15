@@ -182,6 +182,8 @@ If one of your servers or accounts suddenly sends spam or far more mail than usu
 
 **Configuration › Custom rules** shows extra filter rules, each with an explanation under **What does this do?**: newsletter rules, phishing and CEO fraud protection, attachment rules, forwarded mail (ARC). Your administrator sets the default; for each of your domains you can choose **Default**, **On** or **Off**. The trace shows a rule's name when it fired.
 
+With **Check links when they are clicked** on, links in incoming mail are checked again at the moment someone clicks them; a dangerous site shows a warning or block page. **Mail flow › Link clicks** lists every click for your domains. See [Link protection](link-protection.md).
+
 ## 13. Mailtrap
 
 **Mail flow › Mailtrap** (when your administrator has switched it on) catches all mail from your **test and staging environments**, so it is **never sent** to real people. The mail lands in a Mailtrap mailbox where you can read and check it.

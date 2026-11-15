@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MailCheck, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PublicHttpsNotice } from "../components/PublicHttpsNotice";
 import { Card, ErrorText, Field, Loading, PageHead, formatDate, useToast } from "../components/ui";
 import { api } from "../lib/api";
 import type { Me } from "../lib/auth";
@@ -44,6 +45,7 @@ export default function QuarantineReport({ me }: { me: Me }) {
           </button>
         }
       />
+      <PublicHttpsNotice feature="report" />
       <ErrorText error={example.error || save.error} />
       <div className="grid two">
         {admin && cfg && (

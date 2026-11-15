@@ -10,6 +10,7 @@ from .feedback import SpamFeedback
 from .gateway import AddressRoute, CloudTenant, DestinationPolicy, OutboundHold, DomainDestination, DomainRoute, RelayNetwork, RelayPort, SmtpAccount, TlsPolicy
 from .cluster import ClusterNode, ClusterNonce
 from .mailtrap import MailTrap, MailTrapNetwork, mailtrap_user
+from .links import LinkClick
 from .lists import DigestDomain, DigestSent, SenderListEntry
 from .reports import MonthlyReportUser, MonthlyStats
 from .trace import QuarantineAction, TraceMessage, TraceRecipient
@@ -20,4 +21,4 @@ __all__ = ["ApiKey", "ArchiveDomain", "ArchiveMessage", "ArchivePurge", "Archive
            "ClusterNode", "ClusterNonce",
            "DigestDomain", "DigestSent", "SenderListEntry", "MailTrap", "MailTrapNetwork", "mailtrap_user",
            "MonthlyReportUser", "MonthlyStats", "SpamFeedback",
-           "BillingCustomer", "Reseller", "UsageCustomerMonth", "UsageDaily", "UsageMonth"]
+           "BillingCustomer", "Reseller", "UsageCustomerMonth", "UsageDaily", "UsageMonth", "LinkClick"]

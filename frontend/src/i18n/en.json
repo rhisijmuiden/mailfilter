@@ -3,7 +3,8 @@
     "product": "Mailfilter",
     "skip": "Skip to content"
   },
-  "nav": {
+  "branding": {"title": "Branding", "sub": "Give this Mailfilter your own name, colours and logo. Users see it in the web app, on the login page and in the mails Mailfilter sends.", "identity": "Name and colours", "name": "Product name", "name_hint": "Shown in the menu, on the login page, in the browser tab and in reports.", "accent": "Accent colour", "accent_hint": "Main buttons, the active menu item and highlights.", "primary": "Dark colour", "primary_hint": "Dark surfaces such as the header of report mails and notifications.", "house_colors": "Use the default colours", "preview": "Preview", "sample_button": "Main button", "sample_dark": "Dark surface", "images": "Logos and icon", "logo": "Logo", "logo_hint": "For the light theme. SVG or PNG, at most 256 KB; wide logos work best.", "logo_dark": "Logo for dark mode", "logo_dark_hint": "Optional. A light version of your logo for the dark theme.", "favicon": "Browser icon", "favicon_hint": "Optional. Square SVG, PNG or ICO for the browser tab.", "default_used": "Default is used", "upload": "Upload", "replace": "Replace", "remove": "Remove", "reset": "Back to default", "reset_confirm": "Remove your own name, colours and logos and go back to the default house style?", "powered_note": "The small \"Powered by RHIS\" mark at the bottom right always stays visible. Mailfilter is open source (AGPLv3) and this attribution is a condition of the licence, so it cannot be switched off here."},
+  "nav": {"web_access": "Web access", "modules": "Modules", "branding": "Branding", "links": "Link clicks", 
     "archive": "Archive",
     "cloud": "Cloud mail",
     "usage": "Usage",
@@ -67,7 +68,7 @@
     "choose": "choose",
     "open": "open",
     "searching": "Searching…",
-    "kw": {"archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
+    "kw": {"web_access": "web access https http certificate lets encrypt reverse proxy firewall dmz port ssl", "modules": "modules features switch on off enable disable", "branding": "branding brand logo colours colors name white label theme favicon", "links": "link protection click safe links url phishing warning blocked", "archive": "archive compliance retention search old mail legal hold export", "cloud": "microsoft 365 office 365 exchange online google workspace gmail connector gateway tenant", 
       "usage": "usage billing invoice mailboxes csv export accounting",
       "billing": "billing customers resellers prices tariffs customer number",
       "dashboard": "overview charts live now statistics",
@@ -132,6 +133,8 @@
     "refresh": "Refresh"
   },
   "errors": {
+    "cluster_standby_readonly": "This is a backup server: it takes its settings from the primary. Change it on the primary.",
+    "bad_image": "This is not an image. Use SVG, PNG, WebP, JPEG or ICO.",
     "already_linked": "This domain is already linked to a cloud mail environment.",
     "test_address_not_in_domain": "Send the test to an address in this domain.",
     "unknown_customer": "That customer does not exist.",
@@ -290,6 +293,7 @@
     "forgot": "Forgot your password? Ask your administrator to set a new one."
   },
   "info": {
+    "license": "Open source (AGPL-3.0) · made by RHIS",
     "title": "About Mailfilter",
     "version": "Version",
     "branch": "Channel",
@@ -1333,7 +1337,7 @@
     "failed_restore": "Restore failed.",
     "done_remote_sync": "Remote copy is up to date.",
     "failed_remote_sync": "Remote copy failed.",
-    "steps": {
+    "steps": {"web_access": "Switching the web interface", 
       "backup_start": "{{type}} {{id}}",
       "backup_files": "Saving files (settings, DKIM keys, certificates, quarantine)",
       "backup_database": "Saving the database",
@@ -1743,6 +1747,8 @@
     "threshold_certificate": "Days before",
     "type_abuse": "Sender paused",
     "type_abuse_d": "A server or account was paused because it suddenly sent spam or a flood of mail.",
+    "type_link_click": "Dangerous link clicked",
+    "type_link_click_d": "Someone clicked a link that was blocked, or continued after a warning.",
     "type_backup": "Backup or update problem",
     "type_backup_d": "A backup, remote copy, restore or update failed, or there has been no successful backup for a while.",
     "threshold_backup": "After hours",
@@ -1771,6 +1777,7 @@
     "code_blacklist": "Listed on {{name}} ({{ip}})",
     "code_certificate": "Certificate expires in {{days}} days",
     "code_abuse": "{{count}} sender(s) paused",
+    "code_link_click": "Link click: {{host}}",
     "code_backup_failed": "Backup failed",
     "code_backup_overdue": "No recent backup",
     "code_remote_failed": "Remote backup copy failed",
@@ -1928,6 +1935,49 @@
     "versions_differ": "Not every server runs the same Mailfilter version. Update all servers (Info button) so they keep syncing correctly.",
     "import_failed": "The last configuration from {{from}} ({{when}}) could not be applied on this server, so it kept its previous configuration.",
     "dns_hint": "In DNS: the shared SPF record {{spf}} lists the addresses of all servers (publish it again in the DNS toolbox after adding a server), and give each domain an MX record for every server (DNS toolbox › MX) so mail keeps arriving when one is down.",
+    "mode": "How the servers work together",
+    "mode_active": "Work together",
+    "mode_active_d": "All servers handle mail at the same time and are equal: change settings on any of them. Good for spreading the load.",
+    "mode_standby": "Primary with a backup server",
+    "mode_standby_d": "This server does the work and is where you change settings. The backup server gets everything copied and takes over when the primary is down.",
+    "mode_switch_note": "{{name}} (this server) becomes the primary; the other servers become backups.",
+    "role_primary": "Primary",
+    "role_member": "Member",
+    "role_standby": "Backup",
+    "dns_hint_standby": "In DNS: give each domain an MX record for the primary (priority 10) and one for the backup (priority 20); use the button below. Mail then goes to the backup by itself when the primary does not answer. The shared SPF record {{spf}} lists the addresses of all servers (publish it again in the DNS toolbox after adding a server).",
+    "standby_banner": "This is a backup server. It takes its settings from {{primary}}; change settings there.",
+    "standby_banner_active": "It is now standing in for the primary.",
+    "open_primary": "Open the primary",
+    "promote": "Make this the primary",
+    "promote_title": "Make this server the primary?",
+    "promote_d": "Use this when {{primary}} is gone for longer. From now on you change settings here, and {{primary}} becomes the backup as soon as it is back.",
+    "failover_active_since": "Standing in for the primary since {{when}}.",
+    "mx_title": "MX records for all domains",
+    "mx_d_standby": "Sets every domain's MX records in Cloudflare: the primary with priority 10, the backup with 20. Only domains whose mail already comes through Mailfilter are changed.",
+    "mx_d_active": "Sets every domain's MX records in Cloudflare to all servers with the same priority. Only domains whose mail already comes through Mailfilter are changed.",
+    "mx_preview": "Show what changes",
+    "mx_apply": "Change {{count}} domain(s)",
+    "mx_nothing": "All MX records are already right.",
+    "mx_skipped": "Not changed (not in Cloudflare, or mail does not come through Mailfilter yet): {{list}}",
+    "mx_done": "MX records changed for {{count}} domain(s). Undo is possible in the DNS toolbox.",
+    "failover_title": "Take over sending servers",
+    "failover_d": "Incoming mail reaches the backup by itself through its MX record. Servers that send through Mailfilter (websites, scanners) use one host name. When the primary does not answer, the backup points that name at itself in Cloudflare, and back at the primary once it is up again. Administrators get an e-mail each time.",
+    "failover_enabled": "Take over automatically",
+    "failover_hostname": "Host name your sending servers use",
+    "failover_hostname_d": "For example smtp.example.nl, in a Cloudflare zone. Not the name of one of the servers. Set your web servers to send through this name.",
+    "failover_after": "Take over after (minutes)",
+    "failover_after_d": "How long the primary must be unreachable, over HTTPS and on port 25.",
+    "failover_back": "Hand back after (minutes)",
+    "failover_back_d": "How long the primary must answer again first.",
+    "failover_cert": "Sending servers that check the certificate need this name in the certificate of both servers. Most web servers do not check it.",
+    "failover_point_primary": "Point the name at {{name}} now",
+    "failover_take_over": "Take over now",
+    "failover_pointed": "The name now points at {{name}}",
+    "failover_taken": "This server now answers for the name",
+    "failover_unknown": "not checked yet",
+    "failover_state_ok": "watching, primary answers (checked {{when}})",
+    "failover_state_down": "primary not answering since {{when}}",
+    "failover_state_active": "standing in for the primary since {{when}}",
     "synced_title": "The same on every server",
     "synced_d": "A change on any server is sent to the others within seconds.",
     "sync_domains": "Domains and where their mail is delivered",
@@ -1948,7 +1998,7 @@
     "local_paused": "Paused senders (each server watches its own outgoing mail)",
     "local_dmarc": "Received DMARC reports and blocklist checks",
     "local_host": "Host name, IP addresses and certificate",
-    "err": {
+    "err": {"standby_readonly": "This is a backup server: it takes its settings from the primary. Change it on the primary, or make this server the primary.", "not_standby": "Only a backup server can do this.", "join_via_primary": "Use a join code from the primary server.", "failover_no_hostname": "Fill in the host name your sending servers use.", "failover_bad_hostname": "This is not a valid host name.", "failover_is_node_name": "Use a separate name, not the name of one of the servers.", "failover_no_cloudflare": "Connect Cloudflare first (DNS toolbox › Cloudflare).", "failover_no_zone": "This name is not in one of your Cloudflare zones.", "failover_no_addresses": "The server has no public IP addresses set.", "failover_cloudflare": "Cloudflare refused the change.", 
       "not_in_cluster": "This server is not in a cluster.",
       "already_in_cluster": "This server is already in a cluster. Leave it first.",
       "no_hostname": "This server has no host name set, so other servers cannot reach it. Run the installer with a host name first.",
@@ -1973,7 +2023,7 @@
   },
   "twofa": {"title": "Two-factor login", "on": "On", "off": "Off", "intro": "Protect your account with a code from an authenticator app (for example Microsoft Authenticator, Google Authenticator, 1Password or Bitwarden) on top of your password.", "setup": "Set up two-factor login", "step_app": "Install an authenticator app on your phone.", "step_scan": "Scan the QR code with the app, or type in the key.", "step_code": "Enter the 6-digit code the app shows.", "qr": "QR code for your authenticator app", "manual": "Can't scan? Enter this key:", "code": "6-digit code", "code_or_recovery": "Code from the app or a recovery code", "confirm": "Turn on", "codes_once": "Save these recovery codes somewhere safe. Each one lets you sign in once without your phone. They are shown only now.", "codes_file": "Mailfilter recovery codes. Each code works once.", "download": "Download", "codes_saved": "I saved them", "since": "On since", "codes_left": "Recovery codes left", "renew": "New recovery codes", "renew_hint": "Your old recovery codes stop working. Confirm with a code from your app.", "disable": "Turn off", "disable_hint": "Confirm with your password and a code from your app.", "enabled_toast": "Two-factor login is on", "disabled_toast": "Two-factor login is off", "required_notice": "Your administrator requires two-factor login for your account.", "required_by_admin": "Required by your administrator, so it cannot be turned off.", "admin_tip": "Lost everything? Another admin can reset it under Users, or run mailfilter-admin reset-2fa on the server.", "gate_title": "Set up two-factor login", "gate_sub": "Your administrator requires two-factor login. Set it up for {{email}} to continue."},
   "security": {"title": "Security", "sub": "Rules for signing in to Mailfilter.", "require": "Require two-factor login", "policy_off": "Optional", "policy_off_hint": "Everyone can turn it on under My account.", "policy_admins": "Required for admins", "policy_admins_hint": "Admins must set it up at their next sign-in. Customers choose themselves.", "policy_all": "Required for everyone", "policy_all_hint": "Every user must set it up at their next sign-in.", "self_first": "Turn on two-factor login for yourself first:", "status": "Status", "with_2fa": "Users with 2FA", "of": "{{n}} of {{total}}", "missing_one": "1 user still has to set it up at the next sign-in:", "missing_other": "{{count}} users still have to set it up at the next sign-in:", "lost_phone": "Someone lost their phone? Reset their two-factor login under Users."},
-  "audit": {"title": "Audit log", "sub_admin": "Who changed what, and when.", "sub_customer": "Your own actions and the changes to your domains.", "export": "Export CSV", "search": "Search user, target, IP or details", "action": "Action", "all_actions": "All actions", "user": "User", "all_users": "All users", "domain": "Domain", "all_domains": "All domains", "period": "Period", "period_1": "Last 24 hours", "period_7": "Last 7 days", "period_30": "Last 30 days", "period_90": "Last 90 days", "period_all": "Everything", "empty": "No entries for these filters.", "time": "Time", "who": "Who", "what": "What", "details": "Details", "system": "Mailfilter (automatic)", "count": "{{total}} entries · page {{page}} of {{pages}}", "prev": "Previous page", "next": "Next page", "groups": {"archive": "Mail archive", "cloud": "Cloud mail", "mailtrap": "Mailtrap", "login": "Sign-ins", "2fa": "Two-factor login", "user": "Users", "quarantine": "Quarantine", "sender": "Paused senders", "domain": "Domains and routing", "relay": "Relay access", "throttling": "Throttling", "dns": "DNS", "backup": "Backups", "system": "System and updates", "pmg_import": "PMG import", "dmarc": "DMARC", "rules": "Custom rules", "cluster": "Cluster", "lists": "Allow and block lists", "other": "Other", "api": "API keys"}, "actions": {"archive_search": "Searched the archive", "archive_view": "Opened archived mail", "archive_download": "Downloaded archived mail", "archive_export": "Exported from the archive", "archive_verify": "Checked archive integrity", "archive_domain": "Changed archive settings", "archive_purge": "Removed mail after retention", "cloud_tenant_linked": "Linked cloud mail environment", "cloud_tenant_updated": "Changed cloud mail environment", "cloud_tenant_unlinked": "Unlinked cloud mail environment", "cloud_step_done": "Ticked off cloud mail step", "cloud_step_undone": "Unticked cloud mail step", "cloud_test_sent": "Sent cloud mail test", "mailtrap_switched": "Switched Mailtrap on/off", "mailtrap_added": "Added Mailtrap mailbox", "mailtrap_updated": "Changed Mailtrap mailbox", "mailtrap_deleted": "Deleted Mailtrap mailbox", "mailtrap_password_reset": "New Mailtrap password", "mailtrap_emptied": "Emptied Mailtrap mailbox", "mailtrap_forwarded": "Forwarded caught mail", "mailtrap_released": "Sent caught mail anyway", "login": "Signed in", "login_failed": "Sign-in failed", "login_2fa_failed": "Wrong 2FA code", "password_changed": "Changed password", "2fa_enabled": "Turned on 2FA", "2fa_disabled": "Turned off 2FA", "2fa_reset": "Reset 2FA", "2fa_recovery_codes_renewed": "New recovery codes", "security_require_2fa": "Changed 2FA requirement", "user_created": "Created user", "user_updated": "Changed user", "user_deleted": "Deleted user", "quarantine_released": "Released from quarantine", "quarantine_deleted": "Deleted from quarantine", "sender_paused": "Paused sender", "sender_released": "Released sender", "abuse_settings_updated": "Changed hacked-sender settings", "domain_created": "Added domain", "domain_updated": "Changed domain", "domain_deleted": "Deleted domain", "address_route_added": "Added address route", "address_route_updated": "Changed address route", "address_route_deleted": "Deleted address route", "tls_policy_added": "Added TLS policy", "tls_policy_updated": "Changed TLS policy", "tls_policy_deleted": "Deleted TLS policy", "gateway_applied": "Applied configuration", "relay_network_added": "Allowed relay IP", "relay_network_updated": "Changed relay IP", "relay_network_deleted": "Removed relay IP", "relay_port_added": "Added relay port", "relay_port_updated": "Changed relay port", "relay_port_deleted": "Removed relay port", "throttling_updated": "Changed throttling", "dns_publish": "Published {{kind}} record", "dns_undo": "Undid DNS change", "dns_mta_sts_policy": "Changed MTA-STS policy", "dns_golive": "Went live", "dns_golive_rollback": "Rolled back go-live", "dns_blacklist_check": "Checked blacklists", "cloudflare_token_set": "Set Cloudflare token", "cloudflare_token_removed": "Removed Cloudflare token", "backup_create": "Started backup", "backup_config": "Changed backup settings", "backup_restore": "Restored backup", "backup_delete": "Deleted backup", "system_update": "Started update", "settings_smtp": "Changed e-mail sending", "pmg_import_upload": "Uploaded PMG backup", "pmg_import_apply": "Applied PMG import", "dmarc_upload": "Uploaded DMARC report", "custom_rule_updated": "Changed custom rule", "backup_remote_config": "Changed remote backup", "backup_remote_forget_hostkey": "Forgot remote host key", "backup_remote_passphrase_shown": "Showed backup passphrase", "backup_remote_sync": "Copied backup to remote", "cluster_create": "Created cluster", "cluster_join": "Joined cluster", "cluster_join_code_shown": "Showed join code", "cluster_leave": "Left cluster", "cluster_node_joined": "Server joined the cluster", "cluster_node_left": "Server left the cluster", "cluster_remove_node": "Removed server from cluster", "cluster_rename": "Renamed server", "list_allow_add": "Added to allow list", "list_allow_remove": "Removed from allow list", "list_block_add": "Added to block list", "list_block_remove": "Removed from block list", "quarantine_report_settings": "Changed quarantine report", "monthly_report_settings": "Changed monthly report", "quarantine_report_release": "Released via quarantine report", "quarantine_report_release_allow": "Released and allowed via quarantine report", "quarantine_report_block": "Blocked via quarantine report", "settings_notifications": "Changed notifications", "smtp_account_added": "Made SMTP account", "smtp_account_updated": "Changed SMTP account", "smtp_account_password_reset": "New SMTP password", "smtp_account_deleted": "Deleted SMTP account", "dkim_rotation_started": "Started DKIM key rotation", "dkim_rotation_published": "New DKIM key seen in DNS", "dkim_rotation_switched": "Switched to new DKIM key", "dkim_rotation_finished": "Finished DKIM key rotation", "dkim_rotation_cancelled": "Cancelled DKIM key rotation", "dkim_rotation_settings": "Changed DKIM rotation settings", "api_key_created": "Created API key", "api_key_updated": "Changed API key", "api_key_revoked": "Revoked API key"}, "fields": {"method": "method", "role": "role", "domains": "domains", "active": "active", "sender": "sender", "learned": "learned", "reason": "reason", "kind": "kind", "previous": "previous", "job": "job", "via": "via", "owner": "owner", "scopes": "rights", "allowed_ips": "allowed IPs", "hint": "key"}, "via_api": "via API key {{name}}"},
+  "audit": {"title": "Audit log", "sub_admin": "Who changed what, and when.", "sub_customer": "Your own actions and the changes to your domains.", "export": "Export CSV", "search": "Search user, target, IP or details", "action": "Action", "all_actions": "All actions", "user": "User", "all_users": "All users", "domain": "Domain", "all_domains": "All domains", "period": "Period", "period_1": "Last 24 hours", "period_7": "Last 7 days", "period_30": "Last 30 days", "period_90": "Last 90 days", "period_all": "Everything", "empty": "No entries for these filters.", "time": "Time", "who": "Who", "what": "What", "details": "Details", "system": "Mailfilter (automatic)", "count": "{{total}} entries · page {{page}} of {{pages}}", "prev": "Previous page", "next": "Next page", "groups": {"archive": "Mail archive", "cloud": "Cloud mail", "mailtrap": "Mailtrap", "login": "Sign-ins", "2fa": "Two-factor login", "user": "Users", "quarantine": "Quarantine", "sender": "Paused senders", "domain": "Domains and routing", "relay": "Relay access", "throttling": "Throttling", "dns": "DNS", "backup": "Backups", "system": "System and updates", "pmg_import": "PMG import", "dmarc": "DMARC", "rules": "Custom rules", "cluster": "Cluster", "lists": "Allow and block lists", "other": "Other", "api": "API keys"}, "actions": {"link_domain_blocked": "Blocked link domain", "mailtrap_switched": "Searched the archive", "archive_view": "Opened archived mail", "archive_download": "Downloaded archived mail", "archive_export": "Exported from the archive", "archive_verify": "Checked archive integrity", "archive_domain": "Changed archive settings", "archive_purge": "Removed mail after retention", "cloud_tenant_linked": "Linked cloud mail environment", "cloud_tenant_updated": "Changed cloud mail environment", "cloud_tenant_unlinked": "Unlinked cloud mail environment", "cloud_step_done": "Ticked off cloud mail step", "cloud_step_undone": "Unticked cloud mail step", "cloud_test_sent": "Sent cloud mail test", "mailtrap_switched": "Switched Mailtrap on/off", "mailtrap_added": "Added Mailtrap mailbox", "mailtrap_updated": "Changed Mailtrap mailbox", "mailtrap_deleted": "Deleted Mailtrap mailbox", "mailtrap_password_reset": "New Mailtrap password", "mailtrap_emptied": "Emptied Mailtrap mailbox", "mailtrap_forwarded": "Forwarded caught mail", "mailtrap_released": "Sent caught mail anyway", "login": "Signed in", "login_failed": "Sign-in failed", "login_2fa_failed": "Wrong 2FA code", "password_changed": "Changed password", "2fa_enabled": "Turned on 2FA", "2fa_disabled": "Turned off 2FA", "2fa_reset": "Reset 2FA", "2fa_recovery_codes_renewed": "New recovery codes", "security_require_2fa": "Changed 2FA requirement", "user_created": "Created user", "user_updated": "Changed user", "user_deleted": "Deleted user", "quarantine_released": "Released from quarantine", "quarantine_deleted": "Deleted from quarantine", "sender_paused": "Paused sender", "sender_released": "Released sender", "abuse_settings_updated": "Changed hacked-sender settings", "domain_created": "Added domain", "domain_updated": "Changed domain", "domain_deleted": "Deleted domain", "address_route_added": "Added address route", "address_route_updated": "Changed address route", "address_route_deleted": "Deleted address route", "tls_policy_added": "Added TLS policy", "tls_policy_updated": "Changed TLS policy", "tls_policy_deleted": "Deleted TLS policy", "gateway_applied": "Applied configuration", "relay_network_added": "Allowed relay IP", "relay_network_updated": "Changed relay IP", "relay_network_deleted": "Removed relay IP", "relay_port_added": "Added relay port", "relay_port_updated": "Changed relay port", "relay_port_deleted": "Removed relay port", "throttling_updated": "Changed throttling", "dns_publish": "Published {{kind}} record", "dns_undo": "Undid DNS change", "dns_mta_sts_policy": "Changed MTA-STS policy", "dns_golive": "Went live", "dns_golive_rollback": "Rolled back go-live", "dns_blacklist_check": "Checked blacklists", "cloudflare_token_set": "Set Cloudflare token", "cloudflare_token_removed": "Removed Cloudflare token", "backup_create": "Started backup", "backup_config": "Changed backup settings", "backup_restore": "Restored backup", "backup_delete": "Deleted backup", "system_update": "Started update", "settings_smtp": "Changed e-mail sending", "pmg_import_upload": "Uploaded PMG backup", "pmg_import_apply": "Applied PMG import", "dmarc_upload": "Uploaded DMARC report", "custom_rule_updated": "Changed custom rule", "backup_remote_config": "Changed remote backup", "backup_remote_forget_hostkey": "Forgot remote host key", "backup_remote_passphrase_shown": "Showed backup passphrase", "backup_remote_sync": "Copied backup to remote", "cluster_create": "Created cluster", "cluster_join": "Joined cluster", "cluster_join_code_shown": "Showed join code", "cluster_leave": "Left cluster", "cluster_node_joined": "Server joined the cluster", "cluster_node_left": "Server left the cluster", "cluster_remove_node": "Removed server from cluster", "cluster_mode": "Changed cluster mode", "cluster_failover": "Changed failover settings", "cluster_promote": "Made backup the primary", "cluster_failover_take_over": "Took over the failover name", "cluster_failover_point_primary": "Pointed failover name at primary", "cluster_mx": "Set MX records for the cluster", "cluster_rename": "Renamed server", "list_allow_add": "Added to allow list", "list_allow_remove": "Removed from allow list", "list_block_add": "Added to block list", "list_block_remove": "Removed from block list", "quarantine_report_settings": "Changed quarantine report", "monthly_report_settings": "Changed monthly report", "quarantine_report_release": "Released via quarantine report", "quarantine_report_release_allow": "Released and allowed via quarantine report", "quarantine_report_block": "Blocked via quarantine report", "settings_notifications": "Changed notifications", "smtp_account_added": "Made SMTP account", "smtp_account_updated": "Changed SMTP account", "smtp_account_password_reset": "New SMTP password", "smtp_account_deleted": "Deleted SMTP account", "dkim_rotation_started": "Started DKIM key rotation", "dkim_rotation_published": "New DKIM key seen in DNS", "dkim_rotation_switched": "Switched to new DKIM key", "dkim_rotation_finished": "Finished DKIM key rotation", "dkim_rotation_cancelled": "Cancelled DKIM key rotation", "dkim_rotation_settings": "Changed DKIM rotation settings", "api_key_created": "Created API key", "api_key_updated": "Changed API key", "api_key_revoked": "Revoked API key"}, "fields": {"method": "method", "role": "role", "domains": "domains", "active": "active", "sender": "sender", "learned": "learned", "reason": "reason", "kind": "kind", "previous": "previous", "job": "job", "via": "via", "owner": "owner", "scopes": "rights", "allowed_ips": "allowed IPs", "hint": "key"}, "via_api": "via API key {{name}}"},
   "relaydom": {
     "check_now": "Check DNS now",
     "checking": "Checking…",
@@ -2262,5 +2312,161 @@
     "via_off": "No check",
     "accepts_all": "Warning: the mail server also accepted a made-up address.",
     "accepts_all_hint": "It accepts everything, so this check stops nothing. Switch on recipient filtering on the server, or use LDAP or a list."
+  },
+  "links": {"title": "Link clicks", "sub": "Links in incoming mail are checked again when someone clicks them. Here you see every click and what Mailfilter decided.", "off": "Link protection is off, so links in new mail are not checked at the click. Switch it on for everyone or per domain under", "off_link": "Custom rules › Phishing.", "time": "Time", "recipient": "Recipient", "link": "Link", "result": "Result", "why": "Why", "delivered": "Mail delivered", "scanner": "Opened by a security scanner or link preview", "level_safe": "Safe", "level_warn": "Warned", "level_block": "Blocked", "level_continued": "Continued anyway", "kpi_block": "Blocked", "kpi_warn": "Warned", "kpi_continued": "Continued anyway", "kpi_safe": "Safe", "kpi_period_one": "last {{count}} day", "kpi_period_other": "last {{count}} days", "filter_all": "All", "filter_block": "Blocked", "filter_warn": "Warned", "filter_continued": "Continued", "filter_safe": "Safe", "period": "Period", "period_days_one": "Last {{count}} day", "period_days_other": "Last {{count}} days", "show_scanners": "Show scanners", "search": "Search link, recipient or Message-ID", "empty": "No clicks yet. Clicks appear here as soon as someone opens a protected link.", "no_results": "No clicks for these filters.", "count": "{{total}} clicks · page {{page}} of {{pages}}", "prev": "Previous page", "next": "Next page", "trace": "Mail", "open_trace": "Open the message in Mail trace", "block": "Block", "block_confirm": "Block every link to {{domain}}? This also works for mail that was already delivered.", "blocked_toast": "Links to {{domain}} are blocked", "test_title": "Test a link", "test_sub": "Check a link the way Mailfilter does at a click. The test is not logged.", "test_button": "Check", "test_clean": "Nothing suspicious found.", "reason": {"blocked_by_admin": "Blocked by the administrator ({{host}}).", "blocklist": "{{list}} lists this site as {{kind}}.", "ip_address": "Goes to a bare IP address ({{host}}).", "user_part": "Starts with {{shown}} but goes to {{host}}.", "lookalike": "{{host}} looks like {{target}}.", "flagged_at_delivery": "Already suspicious when the mail arrived.", "fake_sender": "The sender pretends to be someone else.", "shortener": "Shortened link to {{destination}}.", "shortener_unknown": "Shortened link ({{host}}), destination unknown."}, "kind": {"spam": "spam", "phishing": "phishing", "malware": "malware", "botnet": "part of a botnet", "abuse": "abused", "cracked": "hacked", "redirector": "an abused redirect"}},
+  "modules": {
+    "title": "Modules",
+    "sub": "Switch optional parts of Mailfilter on or off. A module that is off leaves the menu and stops its background work.",
+    "core_title": "Filtering is always on",
+    "core": "Spam and virus filtering, quarantine, mail trace, domains, relay access, allow and block lists and throttling are the core of Mailfilter and cannot be switched off.",
+    "count": "{{on}} of {{total}} on",
+    "group": {
+      "reports": "Reports & billing",
+      "mail": "Mail features",
+      "integrations": "Integrations",
+      "system": "System"
+    },
+    "on": "On",
+    "off_short": "Off",
+    "tag_mailflow": "Changes the mail flow",
+    "tag_per_node": "This server only",
+    "in_use_any": "In use",
+    "in_use": {
+      "cloud_one": "{{count}} tenant set up",
+      "cloud_other": "{{count}} tenants set up",
+      "archive_one": "Archiving {{count}} domain",
+      "archive_other": "Archiving {{count}} domains",
+      "api_one": "{{count}} API key",
+      "api_other": "{{count}} API keys",
+      "mailtrap_one": "{{count}} mailbox",
+      "mailtrap_other": "{{count}} mailboxes",
+      "link_protection_one": "Switched on",
+      "link_protection_other": "Switched on",
+      "cluster_one": "Member of a cluster",
+      "cluster_other": "Member of a cluster"
+    },
+    "cluster_locked": "Leave the cluster first to switch this off.",
+    "confirm_title": "Switch {{name}} off?",
+    "data_kept": "Nothing is deleted: switch it back on and everything continues where it was.",
+    "switch_off": "Switch off",
+    "switched_on": "{{name}} is on",
+    "switched_off": "{{name}} is off",
+    "off": "This part of Mailfilter is switched off. Ask your administrator if you need it.",
+    "off_admin": "This module is switched off. Switch it on under System > Modules to use it.",
+    "open": "Open Modules",
+    "m": {
+      "usage": {
+        "title": "Usage & billing",
+        "desc": "Mailboxes, mail and archive per customer per month, tariffs, resellers and CSV export.",
+        "off": "The Usage and Customers & resellers pages disappear and usage is no longer measured. Reseller logins only have the Usage page, so they will see nothing until you switch this back on."
+      },
+      "monthly_report": {
+        "title": "Monthly report",
+        "desc": "Monthly figures per domain on a page and by e-mail to your customers.",
+        "off": "The monthly report page disappears and no monthly report mails are sent."
+      },
+      "quarantine_report": {
+        "title": "Quarantine report",
+        "desc": "Daily e-mail to users with their quarantined messages and release buttons.",
+        "off": "No quarantine reports are sent any more. Buttons in reports that were already sent keep working."
+      },
+      "spam_reports": {
+        "title": "Spam reports",
+        "desc": "Users forward missed spam or wrongly blocked mail to spam@ and notspam@ to train the filter.",
+        "off": "Mail to the spam@ and notspam@ report addresses is dropped and no longer used to train the filter."
+      },
+      "dmarc": {
+        "title": "DMARC reports",
+        "desc": "Receives the DMARC aggregate reports for your domains and shows who sends in their name.",
+        "off": "Incoming DMARC reports are dropped. Reports already received stay."
+      },
+      "link_protection": {
+        "title": "Link protection",
+        "desc": "Rewrites links in incoming mail and checks the site at the moment someone clicks.",
+        "off": "New mail is no longer rewritten. Links in mail that was already delivered keep working."
+      },
+      "archive": {
+        "title": "Mail archive",
+        "desc": "Tamper-proof archive of all mail for the domains you choose, with retention and legal hold.",
+        "off": "New mail is no longer archived. The existing archive stays, is kept sealed and is cleaned up after its retention period."
+      },
+      "mailtrap": {
+        "title": "Mailtrap",
+        "desc": "Catches mail from test environments in virtual mailboxes instead of delivering it.",
+        "off": "Mail from Mailtrap IP addresses and logins is refused (never relayed) and IMAP access closes."
+      },
+      "cloud": {
+        "title": "Cloud mail",
+        "desc": "Wizard and relay for Microsoft 365 and Google Workspace tenants behind Mailfilter.",
+        "off": "Outgoing mail that Microsoft 365 or Google Workspace relays through Mailfilter is no longer accepted. Switch the connectors in those tenants off first."
+      },
+      "api": {
+        "title": "REST API",
+        "desc": "API keys for hosting panels and scripts (/api/v1).",
+        "off": "Every request with an API key is refused until you switch this back on. The keys themselves stay."
+      },
+      "cluster": {
+        "title": "Cluster",
+        "desc": "Several Mailfilter servers sharing one configuration.",
+        "off": "The Cluster page disappears."
+      },
+      "pmg_import": {
+        "title": "Import from Proxmox Mail Gateway",
+        "desc": "Take over domains, relay networks and lists from a Proxmox Mail Gateway.",
+        "off": "The import page disappears. What was imported stays."
+      }
+    }
+  },
+  "web": {
+    "title": "Web access",
+    "sub": "How the web interface is reached: directly on the internet, behind a firewall, behind a reverse proxy or over plain HTTP. Mail filtering does not change.",
+    "now": "Now: {{mode}}",
+    "current": "Current",
+    "recommended": "Recommended",
+    "choose": "How is the web interface reached?",
+    "no_le_yet": "no Let's Encrypt certificate yet",
+    "own_cert": "own certificate",
+    "caddy_cert": "self-made certificate",
+    "proxy_on": "HTTP on port {{port}} for {{proxies}}",
+    "mode": {
+      "public": {
+        "title": "Directly on the internet",
+        "desc": "HTTPS with a free Let's Encrypt certificate, renewed automatically. Ports 80 and 443 are open."
+      },
+      "internal": {
+        "title": "Behind a firewall or in a DMZ",
+        "desc": "HTTPS with a certificate the server makes itself, no Let's Encrypt request. Optionally only reachable from your networks."
+      },
+      "proxy": {
+        "title": "Behind a reverse proxy",
+        "desc": "Your proxy (nginx, HAProxy, Traefik...) does HTTPS and talks to Mailfilter over HTTP. Only the proxy may connect."
+      },
+      "http": {
+        "title": "Plain HTTP",
+        "desc": "No encryption at all. Only for a closed management network."
+      }
+    },
+    "proxies": "IP addresses of the reverse proxy",
+    "proxies_hint": "One per line; networks such as 10.0.0.0/24 are fine. Only these may connect, and their X-Forwarded-For and X-Forwarded-Proto headers are trusted.",
+    "port": "Port",
+    "port_hint_proxy": "Where the proxy sends its requests.",
+    "url": "Address on the proxy",
+    "url_hint": "What users type in the browser. Used in links in mails (quarantine report, alerts).",
+    "from": "Only reachable from (optional)",
+    "from_hint": "IP addresses or networks, one per line. Empty: everyone who can reach the server.",
+    "http_warn_title": "Passwords travel unencrypted",
+    "http_warn": "With plain HTTP anyone on the network path can read passwords and mail. Only use it on a closed management network, and preferably limit who can connect.",
+    "internal_note": "Browsers warn about the self-made certificate until you trust it. You can also use your own certificate: run the installer with --web-cert and --web-key.",
+    "limits": "Not directly on the internet: features that other mail servers or recipients open over HTTPS stop working from outside: MTA-STS policies, BIMI logos, link protection and the buttons in quarantine report mails. A cluster also needs HTTPS between the servers. Behind a reverse proxy they keep working when the proxy publishes this host name.",
+    "notice": {"dns": "The web interface is set to “{{mode}}”. MTA-STS policies and BIMI logos are fetched by other mail servers over HTTPS from the internet, so they only work when mta-sts.<domain> and this host name are reachable from the internet.", "links": "The web interface is set to “{{mode}}”. Protected links in mail point to this server, so recipients outside your network cannot open them.", "report": "The web interface is set to “{{mode}}”. The release and block buttons in the report mail point to this server, so they only work for users who can reach it."},
+    "apply": "Switch",
+    "new_address": "New address:",
+    "rescue_title": "Locked out?",
+    "rescue": "If the web interface can no longer be reached, log in to the server with SSH and switch back:",
+    "confirm_title": "Switch web access?",
+    "confirm": "The web interface switches to: {{mode}}. The web server restarts, which takes a few seconds.",
+    "confirm_url": "Afterwards, open it at",
+    "running": "Switching… If this page stops answering, open {{url}}.",
+    "open_new": "Open the new address"
   }
 }

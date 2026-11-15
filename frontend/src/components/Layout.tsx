@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { setLanguage, type Lang } from "../i18n";
 import { api } from "../lib/api";
+import { useBranding } from "../lib/branding";
+import { moduleOn, useModules, type ModuleKey } from "../lib/modules";
 import type { Me } from "../lib/auth";
 import type { Stats } from "../lib/trace";
 import { GROUPS, NAV } from "../nav";
@@ -26,14 +28,25 @@ export function Layout({ me }: { me: Me }) {
   useCommandPaletteKey(openPalette);
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const sys = useSystemInfo();
+  const brand = useBranding();
+  // A backup server (cluster in backup mode) takes its settings from the primary: say so on every page.
+  const cluster = useQuery({
+    queryKey: ["cluster-status"],
+    queryFn: () => api.get<{ enabled: boolean; role?: string; primary?: string | null; primary_url?: string | null; failover_active?: boolean }>("/cluster/status"),
+    refetchInterval: 60_000,
+  });
   const stats = useQuery({ queryKey: ["trace-stats"], queryFn: () => api.get<Stats>("/trace/stats?hours=24"), refetchInterval: 60_000 });
+  const mods = useModules();
+  const mailtrapOn = mods.data?.enabled.mailtrap === true;
   const mailtrap = useQuery({
     queryKey: ["mailtrap-menu"],
     queryFn: () => api.get<{ unread: number; visible: boolean }>("/mailtrap/unread"),
     refetchInterval: 60_000,
+    enabled: mailtrapOn,
   });
   const BADGES = { quarantine: stats.data?.quarantined_now, mailtrap: mailtrap.data?.unread };
-  const MODULES = { mailtrap: !!mailtrap.data?.visible };
+  // Switched-off modules leave the menu; the Mailtrap also needs a mailbox for non-admins.
+  const showModule = (key: ModuleKey) => (key === "mailtrap" ? mailtrapOn && !!mailtrap.data?.visible : !!mods.data && moduleOn(mods.data, key));
   useEffect(() => setNavOpen(false), [loc.pathname]);
 
   const changeLang = async (lang: Lang) => {
@@ -47,7 +60,7 @@ export function Layout({ me }: { me: Me }) {
     qc.setQueryData(["me"], null);
   };
 
-  const items = NAV.filter((n) => (me.role === "reseller" ? n.reseller : !n.adminOnly || me.role === "admin") && (!n.module || MODULES[n.module]));
+  const items = NAV.filter((n) => (me.role === "reseller" ? n.reseller : !n.adminOnly || me.role === "admin") && (!n.module || showModule(n.module)));
   const initials = (me.name || me.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((s) => s[0]!.toUpperCase()).join("");
 
   return (
@@ -55,7 +68,7 @@ export function Layout({ me }: { me: Me }) {
       <aside className="sidebar" aria-label={t("nav.menu")}>
         <div className="brand">
           <Logo />
-          <span className="product">{t("app.product")}</span>
+          <span className="product">{brand.name}</span>
           <span className="mono muted" style={{ fontSize: 11.5 }}>{sys.data?.hostname}</span>
         </div>
         <nav className="nav">
@@ -127,6 +140,15 @@ export function Layout({ me }: { me: Me }) {
           </div>
         </header>
         <main className="content" id="content">
+          {cluster.data?.role === "standby" && loc.pathname !== "/system/cluster" && (
+            <div className="callout" role="status" style={{ marginBottom: 16 }}>
+              <span>
+                {t("cluster.standby_banner", { primary: cluster.data.primary ?? "" })}
+                {cluster.data.failover_active ? ` ${t("cluster.standby_banner_active")}` : ""}{" "}
+                {cluster.data.primary_url && <a href={cluster.data.primary_url}>{t("cluster.open_primary")}</a>}
+              </span>
+            </div>
+          )}
           <Suspense fallback={<Skeleton rows={6} />}>
             <Outlet />
           </Suspense>

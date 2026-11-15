@@ -8,6 +8,8 @@ set -Eeuo pipefail
 SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 apt-get install -y -qq --no-install-recommends python3 iproute2 >/dev/null
 fail=0
+# Test mails carry the current date: Rspamd scores an old Date header (DATE_IN_PAST).
+NOW=$(LC_ALL=C date -R)
 check() { local name=$1; shift; if "$@" >/tmp/check.out 2>&1; then echo "PASS $name"; else echo "FAIL $name"; sed 's/^/     /' /tmp/check.out | head -40; fail=1; fi; }
 
 echo "== unit tests"
@@ -94,11 +96,17 @@ d["custom_rules"] = {"newsletter_no_unsubscribe": {"enabled": True, "options": {
                      "newsletter_subject": {"enabled": True, "options": {"tag": "[Nieuwsbrief]"}, "domains": {}},
                      "phishing_display_name": {"enabled": True, "options": {"names": ["Reinder de Directeur"]}, "domains": {}},
                      "external_banner": {"enabled": True, "options": {"language": "nl"}, "domains": {}},
-                     "arc_seal_inbound": {"enabled": True, "options": {}, "domains": {}}}
+                     "arc_seal_inbound": {"enabled": True, "options": {}, "domains": {}},
+                     "link_protection": {"enabled": False, "options": {"skip_links": ["partner.example"]},
+                                         "domains": {"rhis.nl": True}}}
+d["hostname"] = "mailfilter.test"
 # Cloud mail: rhis.nl is a Microsoft 365 tenant that sends out through the Mailfilter.
 d["cloud_tenants"] = [{"provider": "m365", "domain": "rhis.nl", "tenant_id": "8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a"}]
 json.dump(d, open("/tmp/rules.json", "w"))
 PY
+# The key the installer makes for link protection (Rspamd signs, the web app checks).
+python3 -c 'import secrets; print(secrets.token_hex(32))' >/etc/mailfilter/link-protection.key
+chown _rspamd /etc/mailfilter/link-protection.key && chmod 0440 /etc/mailfilter/link-protection.key
 check "apply with custom rules" "$MFC" apply --state /tmp/rules.json --no-reload
 check "rules Lua and settings written" bash -c 'test -f /etc/rspamd/lua.local.d/mailfilter_rules.lua && grep -q "\"score\": 5.0" /etc/rspamd/mailfilter_rules.json'
 check "rspamadm configtest with rules" rspamadm configtest
@@ -118,26 +126,26 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 check "rspamd scanner started" bash -c "[ $up = 1 ] || { cat /tmp/rspamd.out; tail -60 /run/rspamd/test.log; exit 1; }"
-cat >/tmp/nl-bad.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/nl-bad.eml <<'EML'
 From: Winkel <news@shop.example>
 To: info@rhis.nl
 Subject: Grote uitverkoop
 Precedence: bulk
 X-Mailer: MailerLite
 Message-ID: <1@shop.example>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Alles moet weg! Bestel nu op https://shop.example/sale
 EML
-cat >/tmp/nl-good.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/nl-good.eml <<'EML'
 From: Winkel <news@shop.example>
 To: info@rhis.nl
 Subject: Nieuws
 List-Unsubscribe: <https://shop.example/u/1>
 List-Unsubscribe-Post: List-Unsubscribe=One-Click
 Message-ID: <2@shop.example>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Ons nieuws van deze maand.
@@ -149,28 +157,28 @@ check "newsletter without unsubscribe scored" bash -c 'grep -q MF_NEWSLETTER_NO_
 check "newsletter header and subject tag added" bash -c 'grep -q "X-Mailfilter-Newsletter" /tmp/scan-bad.json && grep -q "Nieuwsbrief" /tmp/scan-bad.json || { cat /tmp/scan-bad.json; exit 1; }'
 check "newsletter with unsubscribe not scored" bash -c 'grep -q "\"MF_NEWSLETTER\"" /tmp/scan-good.json && ! grep -q MF_NEWSLETTER_NO_UNSUB /tmp/scan-good.json || { cat /tmp/scan-good.json; exit 1; }'
 echo "== phishing protection and attachment policy in a real Rspamd scan"
-cat >/tmp/ph-lookalike.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/ph-lookalike.eml <<'EML'
 From: Reinder <reinder@rhls.nl>
 To: info@rhis.nl
 Subject: Factuur betalen
 Message-ID: <3@rhls.nl>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Wil je deze factuur vandaag nog betalen? Zie http://185.12.3.4/factuur
 EML
-cat >/tmp/ph-name.eml <<'EML'
+sed "s/__NOW__/$NOW/" >/tmp/ph-name.eml <<'EML'
 From: "Reinder de Directeur" <directeur.rhis@freemail.example>
 To: info@rhis.nl
 Subject: Even snel
 Message-ID: <4@freemail.example>
-Date: Wed, 12 Nov 2026 10:00:00 +0100
+Date: __NOW__
 Content-Type: text/plain; charset=utf-8
 
 Ben je even beschikbaar voor een betaling?
 EML
 attach() { # file name, content type, base64 content
-  printf 'From: Leverancier <factuur@supplier.example>\nTo: info@rhis.nl\nSubject: Factuur\nMessage-ID: <%s@supplier.example>\nDate: Wed, 12 Nov 2026 10:00:00 +0100\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary="b1"\n\n--b1\nContent-Type: text/plain; charset=utf-8\n\nZie bijlage.\n--b1\nContent-Type: %s; name="%s"\nContent-Disposition: attachment; filename="%s"\nContent-Transfer-Encoding: base64\n\n%s\n--b1--\n' "$RANDOM" "$2" "$1" "$1" "$3"
+  printf 'From: Leverancier <factuur@supplier.example>\nTo: info@rhis.nl\nSubject: Factuur\nMessage-ID: <%s@supplier.example>\nDate: '"$NOW"'\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary="b1"\n\n--b1\nContent-Type: text/plain; charset=utf-8\n\nZie bijlage.\n--b1\nContent-Type: %s; name="%s"\nContent-Disposition: attachment; filename="%s"\nContent-Transfer-Encoding: base64\n\n%s\n--b1--\n' "$RANDOM" "$2" "$1" "$1" "$3"
 }
 attach factuur.pdf.exe application/octet-stream "$(printf 'MZ\220\0\3\0\0\0 this is not a real program' | base64 -w0)" >/tmp/att-exe.eml
 attach offerte.docm application/vnd.ms-word.document.macroEnabled.12 "$(printf 'PK\3\4 word/vbaProject.bin' | base64 -w0)" >/tmp/att-macro.eml
@@ -203,11 +211,61 @@ PY
 check "external banner added above the original text" bash -c "$(declare -f banner_ok); banner_ok /tmp/scan-banner.eml"
 check "external banner header added" bash -c "$(declare -f has); has /tmp/scan-banner.json X-Mailfilter-External"
 check "no ARC seal on mail that got a banner" bash -c '! grep -qi "^ARC-Seal:.*rhis" /tmp/scan-banner.eml || { cat /tmp/scan-banner.eml; exit 1; }'
+echo "== link protection: links in incoming mail point to the click check"
+sed "s/__NOW__/$NOW/" >/tmp/lp.eml <<'EML'
+From: Leverancier <factuur@supplier.example>
+To: info@rhis.nl
+Subject: Uw factuur
+Message-ID: <lp@supplier.example>
+Date: __NOW__
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+
+Betaal via https://pay.supplier.example/f?id=1&x=2. Vragen: https://www.rhis.nl/contact
+--b1
+Content-Type: text/html; charset=utf-8
+
+<html><body><p><a href="https://pay.supplier.example/f?id=1&amp;x=2">Betalen</a>
+<a href='https://partner.example/info'>partner</a> <a href="https://www.rhis.nl/contact">contact</a></p></body></html>
+--b1--
+EML
+rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from factuur@supplier.example --rcpt info@rhis.nl /tmp/lp.eml >/tmp/scan-lp.eml 2>&1 || true
+scan2 /tmp/lp.eml factuur@supplier.example >/tmp/scan-lp.json 2>&1 || true
+cat >/tmp/links_ok.py <<'PY'
+import base64, hashlib, hmac, json, quopri, re, sys
+raw = open(sys.argv[1], "rb").read().replace(b"\r\n", b"\n")
+body = quopri.decodestring(raw.split(b"\n\n", 1)[1]).decode("utf-8", "replace")
+key = open("/etc/mailfilter/link-protection.key").read().strip().encode()
+links = re.findall(r"https://mailfilter\.test/l/([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)", body)
+d = lambda s: base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+urls = set()
+for payload, mac in links:
+    assert hmac.compare_digest(hashlib.blake2b(payload.encode(), key=key).digest()[:16], d(mac)), "bad signature"
+    p = json.loads(d(payload))
+    assert p["r"] == "info@rhis.nl" and p["d"] == ["rhis.nl"] and p["m"] == "lp@supplier.example", p
+    urls.add(p["u"])
+print(len(links), urls)
+assert urls == {"https://pay.supplier.example/f?id=1&x=2"}, urls  # text and HTML, &amp; decoded
+assert len(links) == 2
+assert "https://www.rhis.nl/contact" in body and "https://partner.example/info" in body  # own domain and skipped
+assert ">Betalen</a>" in body
+PY
+links_ok() { python3 /tmp/links_ok.py "$1" || { head -c 4000 "$1"; tail -30 /run/rspamd/test.log; exit 1; }; }
+check "links rewritten into signed click links" bash -c "$(declare -f links_ok); links_ok /tmp/scan-lp.eml"
+check "link protection header and symbol" bash -c "$(declare -f has); has /tmp/scan-lp.json X-Mailfilter-Links && has /tmp/scan-lp.json MF_LINK_PROTECT"
+check "no ARC seal on mail with rewritten links" bash -c '! grep -qi "^ARC-Seal:" /tmp/scan-lp.eml || { cat /tmp/scan-lp.eml; exit 1; }'
+rspamc -h 127.0.0.1:11333 --mime --ip 198.51.100.7 --from factuur@supplier.example --rcpt info@voorbeeld.nl /tmp/lp.eml >/tmp/scan-lp2.eml 2>&1 || true
+# (the external banner is on for every domain, so the body is quoted-printable: decode it first)
+untouched() { python3 -c 'import quopri,sys; b=quopri.decodestring(open(sys.argv[1],"rb").read()).decode("utf-8","replace"); sys.exit(not ("https://pay.supplier.example/f?id=1&x=2" in b and "mailfilter.test/l/" not in b))' "$1" || { grep -v "^	" "$1" | head -60; exit 1; }; }
+check "links untouched for a domain without link protection" bash -c "$(declare -f untouched); untouched /tmp/scan-lp2.eml"
 echo "== cloud mail: Microsoft 365 tenant relaying through the Mailfilter"
 check "Microsoft server may relay only for the tenant's domain" bash -c '[[ $(postmap -q 40.107.1.10 cidr:/etc/mailfilter/postfix/cloud_relay.cidr) == mfc_m365 ]] && postconf -h mfc_m365 | grep -q "rhis.nl=OK" && postconf -h smtpd_restriction_classes | grep -q mfc_m365'
 check "postfix check with cloud mail" postfix check
 m365() { # tenant id header, sender, recipient
-  printf 'From: Reinder <reinder@rhis.nl>\nTo: klant@example.org\nSubject: Offerte\nMessage-ID: <%s@rhis.nl>\nDate: Wed, 12 Nov 2026 10:00:00 +0100\nX-MS-Exchange-CrossTenant-Id: %s\nContent-Type: text/plain; charset=utf-8\n\nHierbij de offerte.\n' "$RANDOM" "$1" >/tmp/m365.eml
+  printf 'From: Reinder <reinder@rhis.nl>\nTo: klant@example.org\nSubject: Offerte\nMessage-ID: <%s@rhis.nl>\nDate: '"$NOW"'\nX-MS-Exchange-CrossTenant-Id: %s\nContent-Type: text/plain; charset=utf-8\n\nHierbij de offerte.\n' "$RANDOM" "$1" >/tmp/m365.eml
   rspamc -h 127.0.0.1:11333 -j --ip 40.107.1.10 --from "$2" --rcpt "$3" /tmp/m365.eml
 }
 m365 8c1f2b6e-0d3a-4c55-9e1b-6f0a2d7be42a reinder@rhis.nl klant@example.org >/tmp/scan-m365-ok.json 2>&1 || true

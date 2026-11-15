@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-from . import archive, backup, events, jobs, remote, system
+from . import archive, backup, events, jobs, remote, system, web
 from .util import CtlError, human_size
 
 
@@ -44,7 +44,12 @@ def _job_remote_sync(job: jobs.Job) -> dict:
     return remote.sync(log=job.log, step=job.step)
 
 
-jobs.HANDLERS.update(update=_job_update, backup=_job_backup, restore=_job_restore, remote_sync=_job_remote_sync)
+def _job_web(job: jobs.Job) -> dict:
+    return web.apply(job.params, log=job.log, step=job.step)
+
+
+jobs.HANDLERS.update(update=_job_update, backup=_job_backup, restore=_job_restore, remote_sync=_job_remote_sync,
+                     web=_job_web)
 
 
 def _launch(kind: str, params: dict, wait: bool) -> dict:
@@ -119,6 +124,13 @@ def build_parser() -> argparse.ArgumentParser:
     pu.add_argument("domain")
     pu.add_argument("month", help="YYYY-MM")
 
+    wb = sub.add_parser("web", help="how the web interface is reached").add_subparsers(dest="action", required=True)
+    wb.add_parser("show", help="current mode, port and address")
+    ws = wb.add_parser("set", help="switch: web set mode=proxy port=8080 trusted_proxies='10.0.0.5' url=https://...")
+    ws.add_argument("set", nargs="*", metavar="KEY=VALUE")
+    ws.add_argument("--stdin", action="store_true", help="read the settings as JSON from stdin")
+    ws.add_argument("--wait", action="store_true")
+
     ev = sub.add_parser("events", help="recent system events (for alerts)")
     ev.add_argument("--limit", type=int, default=50)
 
@@ -177,6 +189,22 @@ def dispatch(a) -> object:
         if a.action == "lock":
             return archive.lock()
         return archive.purge(a.domain.lower(), a.month)
+    if a.cmd == "web":
+        if a.action == "show":
+            return web.show()
+        if a.stdin:
+            try:
+                params = json.loads(sys.stdin.read() or "{}")
+            except ValueError:
+                raise CtlError("Settings on stdin are not valid JSON") from None
+        else:
+            params = {}
+            for kv in a.set:
+                if "=" not in kv:
+                    raise CtlError(f"Use KEY=VALUE, not {kv}")
+                k, v = kv.split("=", 1)
+                params[k] = v
+        return _launch("web", web.validate(params), a.wait)
     if a.cmd == "events":
         return {"events": events.recent(max(1, min(a.limit, 500)))}
     if a.cmd == "restore":

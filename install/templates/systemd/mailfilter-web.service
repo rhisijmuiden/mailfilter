@@ -10,7 +10,10 @@ User=mailfilter
 Group=mailfilter
 WorkingDirectory=/var/lib/mailfilter
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/var/lib/mailfilter/venv/bin/uvicorn mailfilter.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header
+# FORWARDED_ALLOW_IPS: Caddy, plus the reverse proxy when there is one (written by install/lib/web.sh)
+Environment=FORWARDED_ALLOW_IPS=127.0.0.1
+EnvironmentFile=-/etc/mailfilter/web.env
+ExecStart=/var/lib/mailfilter/venv/bin/uvicorn mailfilter.main:app --host 127.0.0.1 --port 8000 --proxy-headers --no-server-header
 Restart=on-failure
 RestartSec=3
 PrivateTmp=yes

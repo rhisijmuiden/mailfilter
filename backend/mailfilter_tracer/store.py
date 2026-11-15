@@ -74,7 +74,7 @@ def _upsert(table: str, cols: tuple, keys: tuple) -> str:
 
 class Store:
     def __init__(self, dsn: str):
-        self.conn = psycopg.connect(dsn, autocommit=False)
+        self.conn = psycopg.connect(dsn, autocommit=False, client_encoding="utf8")
 
     def migrate(self) -> None:
         with self.conn.transaction():

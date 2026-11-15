@@ -1,6 +1,27 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-11-15)
+
+### Fixes
+- Installer on servers without a UTF-8 locale (minimal Debian, Proxmox LXC): `mailfilter-admin migrate` stopped with "cannot use a string pattern on a bytes-like object" because PostgreSQL made the database SQL_ASCII. The database is now always created as UTF-8 (an empty SQL_ASCII database from a failed run is recreated) and the app asks PostgreSQL for UTF-8.
+- Installer: no more "unbound-anchor: command not found" on Debian 13 (the DNSSEC root key from dns-root-data is used).
+
+### Web access
+- The installer asks how the web interface is reached (`--web-mode`): directly on the internet (HTTPS with Let's Encrypt, default), behind a firewall or in a DMZ (HTTPS with a self-made or own certificate, no Let's Encrypt request), behind a reverse proxy (plain HTTP only from the proxy, X-Forwarded-* trusted) or plain HTTP (with a clear warning). Optional `--web-from` limits who may open it.
+- New page System › Web access to switch mode from the web interface; `install/web-access.sh` does the same on the server (also to get back in when locked out).
+- Links in mails (quarantine report, alerts) use the address of the web interface.
+
+### Cluster
+- Cluster mode "primary with a backup server" next to "work together": the standby gets every change but is read-only, can be promoted, and takes over the sending host name in Cloudflare when the primary is down, handing it back once it is up.
+- MX records for all live domains can be set from the Cluster page (primary 10, standby 20).
+
+### Modules
+- New page System › Modules: switch optional modules on or off (usage & billing, monthly report, quarantine report, spam reports, DMARC reports, link protection, mail archive, Mailtrap, cloud mail, REST API, cluster, PMG import). A module that is off leaves the menu, its API answers 403 and its background work stops; modules that change the mail flow re-apply the gateway. Synced in a cluster (Mailtrap stays per server).
+
+### Open source and branding
+- Mailfilter is open source under AGPLv3 (was GPLv3) with additional terms (`NOTICE`): the "Powered by RHIS" mark at the bottom right of every page must stay.
+- New page System › Branding: own product name, accent and dark colour, logo, dark-mode logo and browser icon. Used in the web app, login page, quarantine report, monthly report and link protection pages; synced in a cluster. The RHIS house style stays the default.
+- Info window shows the licence with a link to the source code.
 
 ### Documentation
 - New README in English and Dutch with every feature.

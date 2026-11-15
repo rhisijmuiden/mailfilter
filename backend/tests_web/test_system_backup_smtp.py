@@ -198,3 +198,20 @@ def test_remote_backup_settings_sync_and_restore(admin, customer, ctl, tmp_path,
     assert (ctl / "etc/mailfilter/relay_networks.list").read_text() == "203.0.113.25\n"
     names = [e["event"] for e in admin.get("/api/system/events").json()["events"]]
     assert names[0] == "restore.succeeded" and "remote.succeeded" in names
+
+
+def test_web_access(admin, customer, ctl, tmp_path, monkeypatch):
+    (ctl / "etc/mailfilter/mailfilter.env").write_text("MF_HOSTNAME=mf.example.nl\nMF_WEB_MODE=public\n")
+    calls = tmp_path / "web-calls"
+    script = tmp_path / "web-access.sh"
+    script.write_text(f'#!/bin/sh\necho "$@" > {calls}\n')
+    script.chmod(0o755)
+    monkeypatch.setenv("MF_WEB_ACCESS_CMD", str(script))
+    assert customer.get("/api/system/web").status_code == 403
+    assert admin.get("/api/system/web").json()["mode"] == "public"
+    r = admin.put("/api/system/web", json={"mode": "proxy", "trusted_proxies": ["10.0.0.5"], "url": "https://mail.example.nl"})
+    assert r.status_code == 200 and r.json()["state"] == "done", r.text
+    assert calls.read_text().split() == ["--mode", "proxy", "--web-port", "8080", "--web-url", "https://mail.example.nl",
+                                         "--trusted-proxy", "10.0.0.5"]
+    r = admin.put("/api/system/web", json={"mode": "proxy"})
+    assert r.status_code == 400 and "reverse proxy" in r.json()["detail"]

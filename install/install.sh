@@ -16,6 +16,8 @@ TPL=$MF_SRC/install/templates
 source "$MF_SRC/install/lib/common.sh"
 # shellcheck source=lib/webapp.sh
 source "$MF_SRC/install/lib/webapp.sh"
+# shellcheck source=lib/web.sh
+source "$MF_SRC/install/lib/web.sh"
 
 trap 'die "Installer stopped at line $LINENO (see $MF_LOG)"' ERR
 
@@ -31,6 +33,18 @@ Usage: install.sh [options]
   --relay-port PORT       Extra relay port next to 587 and 465, e.g. 2525. Repeatable
   --ssh-from CIDR         Only allow SSH from this address or network. Repeatable.
                           Without it SSH stays open to the internet (CrowdSec still guards it)
+  --web-mode MODE         How the web interface is reached (asked when not given):
+                            public    directly on the internet, HTTPS with Let's Encrypt (default)
+                            internal  behind a firewall or in a DMZ, HTTPS with a self-made
+                                      certificate, no Let's Encrypt request
+                            proxy     behind a reverse proxy that does HTTPS (plain HTTP to it)
+                            http      plain HTTP, only for a closed management network
+  --trusted-proxy CIDR    Reverse proxy address (--web-mode proxy). Repeatable
+  --web-url URL           Address users open, on the reverse proxy (--web-mode proxy)
+  --web-port PORT         HTTP port for --web-mode proxy (default 8080) or http (default 80)
+  --web-from CIDR         Only allow the web interface from here (internal and http). Repeatable
+  --web-cert FILE         Own certificate (PEM, full chain) for --web-mode internal
+  --web-key FILE          Its private key
   --skip-certificate      Do not request a Let's Encrypt certificate (DNS not ready yet)
   --non-interactive       Never ask questions; fail when a required value is missing
   --reconfigure           Re-apply everything with the settings saved by the previous
@@ -40,6 +54,7 @@ EOF
 }
 
 RELAY_NETS=(); RELAY_PORTS=(); SSH_FROM=(); SKIP_CERT=0; NONINTERACTIVE=0; RECONFIGURE=0
+WEB_MODE=""; WEB_PORT=""; WEB_URL=""; TRUSTED_PROXIES=(); WEB_FROM=(); WEB_CERT_IN=""; WEB_KEY_IN=""
 HOSTNAME_FQDN=""; ADMIN_EMAIL=""; FIRST_DOMAIN=""; FIRST_DEST=""
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -50,6 +65,13 @@ while [[ $# -gt 0 ]]; do
     --relay-net) RELAY_NETS+=("$2"); shift 2 ;;
     --relay-port) RELAY_PORTS+=("$2"); shift 2 ;;
     --ssh-from) SSH_FROM+=("$2"); shift 2 ;;
+    --web-mode) WEB_MODE=$2; shift 2 ;;
+    --trusted-proxy) TRUSTED_PROXIES+=("$2"); shift 2 ;;
+    --web-url) WEB_URL=$2; shift 2 ;;
+    --web-port) WEB_PORT=$2; shift 2 ;;
+    --web-from) WEB_FROM+=("$2"); shift 2 ;;
+    --web-cert) WEB_CERT_IN=$2; shift 2 ;;
+    --web-key) WEB_KEY_IN=$2; shift 2 ;;
     --skip-certificate) SKIP_CERT=1; shift ;;
     --non-interactive) NONINTERACTIVE=1; shift ;;
     --reconfigure) RECONFIGURE=1; NONINTERACTIVE=1; shift ;;
@@ -66,6 +88,7 @@ if [[ $RECONFIGURE == 1 ]]; then
   [[ -n $ADMIN_EMAIL ]] || ADMIN_EMAIL=$(saved MF_ADMIN_EMAIL)
   # Relay networks, ports and domains live in gateway.json (mailfilter-config), so they are kept as they are
   [[ ${#SSH_FROM[@]} -gt 0 ]] || read -r -a SSH_FROM <<<"$(saved MF_SSH_FROM)"
+  load_saved_web
 fi
 
 printf '\n%sRHIS Mailfilter%s installer\n' "$C_BOLD" "$C_RESET"
@@ -114,6 +137,12 @@ for n in "${SSH_FROM[@]}"; do is_ipv4 "$n" || is_ipv6 "$n" || die "Not a valid S
 ok "Host name: $HOSTNAME_FQDN"
 ok "Admin: $ADMIN_EMAIL"
 [[ -n $FIRST_DOMAIN ]] && ok "First domain: $FIRST_DOMAIN -> $FIRST_DEST"
+ask_web_mode
+if [[ -n $WEB_CERT_IN || -n $WEB_KEY_IN ]]; then
+  [[ $WEB_MODE == internal ]] || die "--web-cert and --web-key only work with --web-mode internal"
+  [[ -s $WEB_CERT_IN && -s $WEB_KEY_IN ]] || die "Certificate or key file not found: $WEB_CERT_IN $WEB_KEY_IN"
+fi
+ok "Web interface: $WEB_URL ($WEB_MODE)"
 
 cat >"$MF_ETC/mailfilter.env" <<EOF
 # Written by the installer on $(date -I). Read by the Mailfilter services.
@@ -123,6 +152,7 @@ MF_PUBLIC_V4=$PUBLIC_V4
 MF_PUBLIC_V6=$PUBLIC_V6
 MF_SOURCE=$MF_SRC
 MF_SSH_FROM=${SSH_FROM[*]}
+$(web_env_lines)
 EOF
 chmod 0640 "$MF_ETC/mailfilter.env"
 
@@ -139,6 +169,8 @@ ok "$(hostname -f)"
 # ---------------------------------------------------------------------------
 step "Installing packages (this takes a few minutes)"
 export DEBIAN_FRONTEND=noninteractive
+# PostgreSQL takes the encoding of its first cluster from the locale; minimal containers have none.
+[[ $(locale charmap 2>/dev/null) == UTF-8 ]] || export LANG=C.UTF-8 LC_ALL=C.UTF-8
 echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
 echo "postfix postfix/mailname string $HOSTNAME_FQDN" | debconf-set-selections
 run apt-get update
@@ -162,7 +194,10 @@ render "$TPL/unbound/mailfilter.conf" /etc/unbound/unbound.conf.d/mailfilter.con
 # DNSSEC trust anchor; unbound-anchor exits 1 when it (re)wrote the file, which is fine
 install -d -o unbound -g unbound /var/lib/unbound
 [[ -s /var/lib/unbound/root.key ]] || cp /usr/share/dns/root.key /var/lib/unbound/root.key
-unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
+# Debian 13 ships unbound-anchor as a separate package; the copy from dns-root-data is enough without it
+if command -v unbound-anchor >/dev/null; then
+  unbound-anchor -a /var/lib/unbound/root.key >>"$MF_LOG" 2>&1 || true
+fi
 chown unbound:unbound /var/lib/unbound/root.key 2>/dev/null || true
 run unbound-checkconf
 run systemctl enable --now unbound
@@ -199,54 +234,12 @@ ok "Lists and maps in $MF_ETC"
 
 # ---------------------------------------------------------------------------
 step "Firewall (nftables, IPv4 and IPv6)"
-MGMT_V4=(); MGMT_V6=()
-for n in "${SSH_FROM[@]}"; do if is_ipv6 "$n"; then MGMT_V6+=("$n"); else MGMT_V4+=("$n"); fi; done
-join() { local IFS=,; echo "$*"; }
-MGMT_V4_ELEMENTS=""; MGMT_V6_ELEMENTS=""
-[[ ${#MGMT_V4[@]} -gt 0 ]] && MGMT_V4_ELEMENTS="elements = { $(join "${MGMT_V4[@]}") }"
-[[ ${#MGMT_V6[@]} -gt 0 ]] && MGMT_V6_ELEMENTS="elements = { $(join "${MGMT_V6[@]}") }"
-if [[ ${#SSH_FROM[@]} -gt 0 ]]; then
-  SSH_RULES=$'    ip saddr @mgmt_v4 tcp dport 22 accept comment "SSH from management"\n    ip6 saddr @mgmt_v6 tcp dport 22 accept comment "SSH from management"'
-  # Never lock out the session running this installer
-  if [[ -n ${SSH_CLIENT:-} ]]; then
-    CUR=${SSH_CLIENT%% *}
-    if is_ipv6 "$CUR"; then SSH_RULES+=$'\n'"    ip6 saddr $CUR tcp dport 22 accept comment \"Installer session\""
-    else SSH_RULES+=$'\n'"    ip saddr $CUR tcp dport 22 accept comment \"Installer session\""; fi
-  fi
-else
-  SSH_RULES='    tcp dport 22 accept comment "SSH (open, guarded by CrowdSec)"'
-fi
-render "$TPL/nftables/nftables.conf" /etc/nftables.conf 0755
-run nft -c -f /etc/nftables.conf
-run systemctl enable nftables
-run systemctl restart nftables
-ok "Open: 22, 25, 80, 443, 465, 587 (extra relay ports follow below)"
+configure_firewall
+ok "Open: 22, 25, 465, 587 and the web interface (extra relay ports follow below)"
 
 # ---------------------------------------------------------------------------
 step "HTTPS certificate (Let's Encrypt)"
-install -d -m 0755 /var/www/acme
-if [[ $SKIP_CERT == 1 ]]; then
-  warn "Skipped. Run the installer again without --skip-certificate once DNS points here."
-elif [[ -f /etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem ]]; then
-  ok "Certificate already present"
-else
-  RESOLVED=$(dig +short A "$HOSTNAME_FQDN" @127.0.0.1 | tail -1)
-  [[ -n $PUBLIC_V4 && $RESOLVED != "$PUBLIC_V4" ]] && warn "$HOSTNAME_FQDN resolves to '${RESOLVED:-nothing}', this server is $PUBLIC_V4. The certificate request will likely fail."
-  render "$TPL/caddy/Caddyfile.acme" /etc/caddy/Caddyfile
-  run systemctl restart caddy
-  run certbot certonly --webroot -w /var/www/acme -d "$HOSTNAME_FQDN" \
-      --email "$ADMIN_EMAIL" --agree-tos --no-eff-email --non-interactive --key-type ecdsa --reuse-key
-  ok "Certificate issued for $HOSTNAME_FQDN"
-fi
-# DANE: the TLSA record holds the hash of the key, so renewals must keep the same key
-RENEWAL=/etc/letsencrypt/renewal/$HOSTNAME_FQDN.conf
-if [[ -f $RENEWAL ]] && ! grep -q '^reuse_key *= *True' "$RENEWAL"; then
-  sed -i '/^reuse_key/d; /^\[renewalparams\]/a reuse_key = True' "$RENEWAL"
-  ok "Certificate renewals keep the same key (needed for DANE)"
-fi
-install -D -m 0755 "$TPL/certbot/deploy-hook.sh" /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh
-if [[ -d /etc/letsencrypt/live ]]; then /etc/letsencrypt/renewal-hooks/deploy/mailfilter.sh 2>/dev/null || true; fi
-HAVE_CERT=0; [[ -f /etc/letsencrypt/live/$HOSTNAME_FQDN/fullchain.pem ]] && HAVE_CERT=1
+web_certificate
 
 # ---------------------------------------------------------------------------
 step "Mail server (Postfix)"
@@ -332,8 +325,21 @@ else
   # Keeps the role in step with secrets.env, also after restoring a backup onto a new server
   runuser -u postgres -- psql -q -c "ALTER ROLE mailfilter LOGIN PASSWORD '$DB_PASSWORD'"
 fi
-if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='mailfilter'" | grep 1 >/dev/null; then
-  runuser -u postgres -- createdb -O mailfilter mailfilter
+# Always UTF-8, also when the server has no UTF-8 locale (minimal containers, LXC): PostgreSQL
+# would otherwise create the database as SQL_ASCII.
+DB_ENCODING=$(runuser -u postgres -- psql -tAc "SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname='mailfilter'")
+if [[ -n $DB_ENCODING && $DB_ENCODING != UTF8 ]]; then
+  DB_TABLES=$(runuser -u postgres -- psql -d mailfilter -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
+  if [[ ${DB_TABLES:-1} == 0 ]]; then
+    info "Database 'mailfilter' is empty and uses $DB_ENCODING; creating it again as UTF-8"
+    runuser -u postgres -- dropdb mailfilter
+    DB_ENCODING=""
+  else
+    warn "Database 'mailfilter' uses $DB_ENCODING instead of UTF-8. It keeps working; convert it with a backup and restore when convenient."
+  fi
+fi
+if [[ -z $DB_ENCODING ]]; then
+  runuser -u postgres -- createdb -O mailfilter -E UTF8 -T template0 --locale=C.UTF-8 mailfilter
 fi
 ok "Database 'mailfilter' ready"
 
@@ -341,6 +347,13 @@ ok "Database 'mailfilter' ready"
 step "Web app"
 WEB_ADMIN_PASSWORD=""
 install_webapp
+# Link protection: Rspamd signs the click links in incoming mail, the web app checks them.
+LINK_KEY=$MF_ETC/link-protection.key
+if [[ ! -s $LINK_KEY ]]; then
+  install -m 0440 -o _rspamd -g mailfilter /dev/null "$LINK_KEY"
+  gen_secret 64 >"$LINK_KEY"
+fi
+chown _rspamd:mailfilter "$LINK_KEY"; chmod 0440 "$LINK_KEY"
 
 # ---------------------------------------------------------------------------
 step "Mail trace log collector"
@@ -416,12 +429,8 @@ ok "Debian security updates install every night"
 
 # ---------------------------------------------------------------------------
 step "Web interface (Caddy)"
-if [[ $HAVE_CERT == 1 ]]; then
-  render "$TPL/caddy/Caddyfile" /etc/caddy/Caddyfile
-  run caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-  run systemctl enable caddy
-  run systemctl restart caddy
-  ok "https://$HOSTNAME_FQDN"
+if [[ $WEB_MODE != public || $HAVE_CERT == 1 ]]; then
+  configure_web
 else
   warn "No certificate yet, so the web interface is not published. Re-run the installer after DNS is in place."
 fi
@@ -483,7 +492,7 @@ fi
 # Also show it on later runs until it is removed: an earlier run may have stopped before this point.
 [[ -z $WEB_ADMIN_PASSWORD && -s $MF_ETC/initial-admin-password ]] && WEB_ADMIN_PASSWORD=$(<"$MF_ETC/initial-admin-password")
 if [[ -n $WEB_ADMIN_PASSWORD ]]; then
-  printf '\n%sWeb interface login%s  https://%s\n' "$C_BOLD" "$C_RESET" "$HOSTNAME_FQDN"
+  printf '\n%sWeb interface login%s  %s\n' "$C_BOLD" "$C_RESET" "$WEB_URL"
   echo "  User:     $ADMIN_EMAIL"
   echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in, then delete that file)"
 fi

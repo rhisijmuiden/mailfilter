@@ -18,6 +18,7 @@
 | [Relay domains](relay-domains.md) | Outbound-only domains, SMTP accounts, sender lock |
 | [DKIM key rotation](dkim-rotation.md) | How keys are rotated automatically and safely |
 | [Mailtrap](mailtrap.md) | Catching mail from test environments |
+| [Link protection](link-protection.md) | Checking links in incoming mail when they are clicked |
 | [Archive](archive.md) | The tamper-evident mail archive, retention, legal hold, export and verification |
 | [Cluster](cluster.md) | Several Mailfilter servers with one configuration |
 | [REST API](api.md) | API keys, scopes and examples |

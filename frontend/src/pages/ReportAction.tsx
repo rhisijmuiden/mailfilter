@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Ban, Bug, Check, CheckCheck, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Logo } from "../components/Logo";
+import { Logo, ProductName } from "../components/Logo";
 import { ErrorText, Loading, formatDate } from "../components/ui";
 import { setLanguage, type Lang } from "../i18n";
 import { ApiError, api } from "../lib/api";
@@ -81,7 +81,7 @@ export default function ReportAction({ token }: { token: string }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div className="brand" style={{ padding: 0 }}>
             <Logo />
-            <span className="product">{t("app.product")}</span>
+            <span className="product"><ProductName /></span>
           </div>
           <div className="seg" role="group" aria-label={t("common.language")}>
             {(["en", "nl"] as Lang[]).map((l) => (

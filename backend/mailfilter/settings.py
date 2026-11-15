@@ -37,6 +37,9 @@ CONFIG_HELPER_PREFIX = ["sudo", "-n", "/usr/bin/systemd-run", "--quiet", "--pipe
 @dataclass(frozen=True)
 class Settings:
     hostname: str = "localhost"
+    # Address users open the web interface at (install/lib/web.sh): https://<host>, a reverse proxy's, or http://.
+    web_url: str = ""
+    web_mode: str = "public"  # public, internal, proxy or http
     admin_email: str = ""
     public_v4: str = ""
     public_v6: str = ""
@@ -58,6 +61,8 @@ class Settings:
     lists_dir: Path = Path("/var/lib/mailfilter/lists")
     # Mailtrap mailboxes (Maildir per mailbox login), written by the mftrap pipe.
     mailtrap_dir: Path = Path("/var/lib/mailfilter/mailtrap")
+    # Signs the click links of link protection (shared with Rspamd).
+    link_key_file: Path = ETC / "link-protection.key"
     # Mail archive (gzip files per domain), written by the mfarchive pipe. Outside
     # /var/lib/mailfilter on purpose: it is part of every backup.
     archive_dir: Path = Path("/var/lib/mailfilter-archive")
@@ -73,6 +78,8 @@ def get_settings() -> Settings:
     helper = env.get("MF_QUEUE_HELPER")
     return Settings(
         hostname=env.get("MF_HOSTNAME", "localhost"),
+        web_mode=env.get("MF_WEB_MODE") or "public",
+        web_url=(env.get("MF_WEB_URL") or f"https://{env.get('MF_HOSTNAME', 'localhost')}").rstrip("/"),
         admin_email=env.get("MF_ADMIN_EMAIL", ""),
         public_v4=env.get("MF_PUBLIC_V4", ""),
         public_v6=env.get("MF_PUBLIC_V6", ""),
@@ -89,5 +96,6 @@ def get_settings() -> Settings:
         timezone=env.get("MF_TIMEZONE", "Europe/Amsterdam"),
         lists_dir=Path(env.get("MF_LISTS_DIR", "/var/lib/mailfilter/lists")),
         mailtrap_dir=Path(env.get("MF_MAILTRAP_DIR", "/var/lib/mailfilter/mailtrap")),
+        link_key_file=Path(env.get("MF_LINK_KEY_FILE", str(ETC / "link-protection.key"))),
         archive_dir=Path(env.get("MF_ARCHIVE_DIR", "/var/lib/mailfilter-archive")),
     )

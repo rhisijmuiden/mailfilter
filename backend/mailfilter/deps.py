@@ -22,7 +22,8 @@ DB = Annotated[Session, Depends(get_db)]
 
 def client_ip(request: Request) -> str | None:
     """The peer address. Caddy runs on the same host and sets X-Forwarded-For;
-    uvicorn is started with --proxy-headers --forwarded-allow-ips 127.0.0.1."""
+    uvicorn runs with --proxy-headers and trusts Caddy, plus the reverse proxy in
+    proxy mode (FORWARDED_ALLOW_IPS, see install/lib/web.sh)."""
     host = request.client.host if request.client else None
     try:
         return str(ipaddress.ip_address(host)) if host else None

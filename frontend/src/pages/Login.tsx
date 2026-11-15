@@ -6,11 +6,13 @@ import { ErrorText } from "../components/ui";
 import { setLanguage, type Lang } from "../i18n";
 import { CodeInput } from "../components/TwoFactor";
 import { api, ApiError } from "../lib/api";
+import { useBranding } from "../lib/branding";
 import type { Me } from "../lib/auth";
 
 export default function Login() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const brand = useBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [challenge, setChallenge] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export default function Login() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div className="brand" style={{ padding: 0 }}>
             <Logo />
-            <span className="product">{t("app.product")}</span>
+            <span className="product">{brand.name}</span>
           </div>
           <div className="seg" role="group" aria-label={t("common.language")}>
             {(["en", "nl"] as Lang[]).map((l) => (

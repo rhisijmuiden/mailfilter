@@ -34,7 +34,7 @@ const GROUPS: [string, RegExp][] = [
   ["system", /^system\.|^settings\./],
   ["pmg_import", /^pmg_import\./],
   ["dmarc", /^dmarc\./],
-  ["rules", /^custom_rule_/],
+  ["rules", /^custom_rule_|^link_/],
   ["cluster", /^cluster\./],
   ["lists", /^list_/],
   ["mailtrap", /^mailtrap_/],

@@ -309,6 +309,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         with session() as db:
+            from ..modules import enabled
+
+            if not enabled(db, "spam_reports"):
+                print("spam report: dropped, the spam reports module is off")
+                return 0
             fb = handle(db, raw, rcpt_user=args.to, sender=args.sender, client=args.client.strip("[]"),
                         helo=args.helo)
             line = f"spam report: {fb.kind} from {fb.reporter or '-'}: {fb.status} {fb.queue_id or ''} {fb.detail}"

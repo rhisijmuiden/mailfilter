@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
-from . import mailer
+from . import branding, mailer
 from .api.dashboard import category
 from .models import Domain, MonthlyReportUser, MonthlyStats, TraceMessage, TraceRecipient, User
 from .settings import get_settings
@@ -363,8 +363,9 @@ def change(now: int, before: int, m: date, lang: str) -> str:
     return t["vs"].format(sign="+" if pct > 0 else "−", change=abs(pct), month=prev)
 
 
-def render(rep: Report, lang: str = "en", name: str = "") -> tuple[str, str, str]:
-    """Return (subject, plain text, html)."""
+def render(rep: Report, lang: str = "en", name: str = "", brand: dict | None = None) -> tuple[str, str, str]:
+    """Return (subject, plain text, html). ``brand``: see branding.get."""
+    brand = brand or branding.DEFAULTS
     t = TEXT.get(lang, TEXT["en"])
     month = month_name(rep.month, lang)
     tot, overview = rep.total, bool(rep.customers) or not rep.title
@@ -446,8 +447,8 @@ def render(rep: Report, lang: str = "en", name: str = "") -> tuple[str, str, str
         f'<!doctype html><html><body style="margin:0;background:{WOLK};font-family:Archivo,Segoe UI,Arial,sans-serif;color:{NACHT}">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{WOLK}"><tr><td align="center" style="padding:24px 12px">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#FFFFFF;border:1px solid {LINE};border-radius:12px;overflow:hidden">'
-        f'<tr><td style="background:{NACHT};color:#FFFFFF;padding:18px 22px;font-size:18px;font-weight:700">'
-        f'<span style="color:{KORAAL}">●</span> Mailfilter<span style="float:right;font-weight:400;font-size:14px;opacity:.8">{e(month)}</span></td></tr>'
+        f'<tr><td style="background:{brand["primary"]};color:{branding.on_color(brand["primary"])};padding:18px 22px;font-size:18px;font-weight:700">'
+        f'<span style="color:{brand["accent"]}">●</span> {e(brand["name"])}<span style="float:right;font-weight:400;font-size:14px;opacity:.8">{e(month)}</span></td></tr>'
         f'<tr><td style="padding:22px 22px 6px"><div style="font-size:22px;font-weight:700">{e(subject)}</div>'
         f'<p style="font-size:14px;line-height:1.5;color:{MUTED};margin:10px 0 0">{greeting}<br>{e(intro)}</p></td></tr>'
         f'<tr><td style="padding:10px 16px 6px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>{"".join(tile_html)}</tr></table></td></tr>'
@@ -481,13 +482,13 @@ def due(cfg: MonthlyConfig, last_run: str | None, now: datetime) -> bool:
 
 def send_customer(db: Session, user: User, m: date) -> None:
     rep = build(db, m, user.domain_names, user.name or user.email)
-    subject, text, body = render(rep, user.language, user.name)
+    subject, text, body = render(rep, user.language, user.name, brand=branding.get(db))
     mailer.send(db, user.email, subject, text, body)
 
 
 def send_overview(db: Session, user: User, m: date) -> None:
     rep = build_overview(db, m)
-    subject, text, body = render(rep, user.language, user.name)
+    subject, text, body = render(rep, user.language, user.name, brand=branding.get(db))
     mailer.send(db, user.email, subject, text, body)
 
 

@@ -18,6 +18,7 @@
 | [Relaydomeinen](relay-domeinen.md) | Domeinen die alleen versturen, SMTP-accounts, afzenderslot |
 | [DKIM-sleutelrotatie](dkim-rotatie.md) | Hoe sleutels automatisch en veilig worden vervangen |
 | [Mailtrap](mailtrap.md) | Mail uit testomgevingen opvangen |
+| [Linkbescherming](linkbescherming.md) | Links in binnenkomende mail controleren bij het klikken |
 | [Archief](archief.md) | Het onveranderbare mailarchief, bewaartermijn, juridische bewaarplicht, export en controle |
 | [Cluster](cluster.md) | Meerdere Mailfilter-servers met één configuratie |
 | [REST API](api.md) | API-sleutels, rechten en voorbeelden |

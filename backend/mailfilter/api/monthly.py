@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from .. import mailer, monthly
+from .. import branding, mailer, monthly
 from ..audit import audit
 from ..deps import DB, CurrentUser
 from ..models import MonthlyReportUser, MonthlyStats, User
@@ -217,7 +217,7 @@ def send_example(body: ExampleIn, user: CurrentUser, db: DB) -> ExampleOut:
     m = _month(body.month)
     target, domains, title = _target(db, user, body.customer)
     rep = monthly.build_overview(db, m) if target is None else monthly.build(db, m, domains, title)
-    subject, text, html = monthly.render(rep, user.language, user.name)
+    subject, text, html = monthly.render(rep, user.language, user.name, brand=branding.get(db))
     try:
         mailer.send(db, user.email, subject, text, html)
     except mailer.MailError as e:

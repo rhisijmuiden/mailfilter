@@ -75,6 +75,7 @@ export default function Mailtrap({ me }: { me: Me }) {
     onSuccess: (_, enabled) => {
       qc.invalidateQueries({ queryKey: ["mailtrap"] });
       qc.invalidateQueries({ queryKey: ["mailtrap-menu"] });
+      qc.invalidateQueries({ queryKey: ["modules"] });
       toast(t(enabled ? "mailtrap.switched_on" : "mailtrap.switched_off"));
     },
   });

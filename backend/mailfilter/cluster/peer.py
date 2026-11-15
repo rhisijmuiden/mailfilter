@@ -78,7 +78,15 @@ def call(db: Session, node: ClusterNode, op: str, data: dict[str, Any]) -> dict[
 
 def _hello_data(db: Session) -> dict[str, Any]:
     me = state.self_node(db)
-    return {"node": state.node_info(me) if me else None, "revision": state.revision(db), "version": __version__}
+    return {"node": state.node_info(me) if me else None, "revision": state.revision(db), "version": __version__,
+            "info": status_info(db)}
+
+
+def status_info(db: Session) -> dict[str, Any]:
+    """What this node tells the others about itself (shown on their Cluster page)."""
+    from .failover import current_state
+
+    return {"failover": current_state(db)}
 
 
 def _seen(node: ClusterNode, info: dict[str, Any], started: float) -> None:
@@ -86,6 +94,8 @@ def _seen(node: ClusterNode, info: dict[str, Any], started: float) -> None:
     node.version = str(info.get("version", ""))[:40]
     node.revision = info.get("revision")
     node.latency_ms = int((time.monotonic() - started) * 1000)
+    if isinstance(info.get("info"), dict):
+        node.info = info["info"]
 
 
 def _failed(node: ClusterNode, e: ClusterError) -> None:
