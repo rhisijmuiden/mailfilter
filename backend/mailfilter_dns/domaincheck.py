@@ -111,10 +111,12 @@ def check_domain(domain: str, server: ServerConfig, resolver: Resolver,
     for ip in server.addresses:
         info = check_ptr(ip, resolver)
         vals.append(f"{ip} → {', '.join(info.ptr) or '—'}")
-        if not info.ptr_ok or server.hostname not in info.ptr:
-            bad.append(ip)
+        if norm(server.hostname) not in info.ptr:
+            bad.append(f"ptr:{ip}")  # no PTR, or it names another host
+        elif not info.ptr_ok:
+            bad.append(f"ptr_forward:{ip}")  # PTR is right, but the host name has no A/AAAA with this address
     out.items.append(Item("ptr", "ok" if server.addresses and not bad else "bad" if bad else "missing",
-                          " · ".join(vals), [f"ptr:{ip}" for ip in bad]))
+                          " · ".join(vals), bad))
 
     # MTA-STS: TXT record plus the policy file it announces
     t = _txt(resolver, f"_mta-sts.{domain}")

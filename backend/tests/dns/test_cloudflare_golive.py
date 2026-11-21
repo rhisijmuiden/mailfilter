@@ -9,7 +9,7 @@ from mailfilter_dns.dkim import DkimKey
 from mailfilter_dns.domaincheck import check_domain
 from mailfilter_dns.lookup import mx_lookup
 from mailfilter_dns.probe import CertInfo, SmtpProbe, name_matches
-from mailfilter_dns.resolver import StaticResolver
+from mailfilter_dns.resolver import DnsError, StaticResolver
 
 SERVER = ServerConfig("mailfilter.rhis.nl", ["203.0.113.10"], ["2a02:58:1f:10::25"], "_spf.mailfilter.rhis.nl")
 
@@ -317,3 +317,31 @@ def test_name_matches():
     assert name_matches("mailfilter.rhis.nl", ["*.rhis.nl"])
     assert not name_matches("a.b.rhis.nl", ["*.rhis.nl"])
     assert name_matches("MAILFILTER.rhis.nl.", ["mailfilter.rhis.nl"])
+
+
+def test_check_ptr_ipv6_forms_and_separate_families():
+    from mailfilter_dns.lookup import check_ptr
+
+    # Configured in expanded form (as the Contabo panel shows it), AAAA comes back compressed
+    r = StaticResolver({
+        ("2a02:c207:2373:943:0:0:0:1", "PTR"): ["mailfilter.rhis.nl."],
+        ("mailfilter.rhis.nl", "A"): DnsError("A: timeout"),
+        ("mailfilter.rhis.nl", "AAAA"): ["2a02:c207:2373:943::1"],
+    })
+    assert check_ptr("2a02:c207:2373:943:0:0:0:1", r).ptr_ok
+
+
+def test_check_domain_ptr_ok_v6_and_forward_missing():
+    v6 = ServerConfig("mailfilter.rhis.nl", ["203.0.113.10"], ["2a02:c207:2373:943::1"], "_spf.mailfilter.rhis.nl")
+    base = {
+        ("203.0.113.10", "PTR"): ["mailfilter.rhis.nl"],
+        ("2a02:c207:2373:943::1", "PTR"): ["Mailfilter.RHIS.nl."],
+        ("mailfilter.rhis.nl", "A"): ["203.0.113.10"],
+    }
+    ok = StaticResolver({**base, ("mailfilter.rhis.nl", "AAAA"): ["2a02:c207:2373:0943:0000::1"]})
+    res = {i.code: i for i in check_domain("rhis.nl", v6, ok).items}
+    assert res["ptr"].status == "ok" and res["ptr"].problems == []
+
+    # PTR is right but the host name has no AAAA: say so, not "no matching PTR"
+    res = {i.code: i for i in check_domain("rhis.nl", v6, StaticResolver(base)).items}
+    assert res["ptr"].problems == ["ptr_forward:2a02:c207:2373:943::1"]

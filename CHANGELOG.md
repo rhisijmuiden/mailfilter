@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- DNS check "Reverse DNS (PTR) of Mailfilter": IPv6 addresses are now compared as addresses (`::1` equals `0:0:0:0:0:0:0:1`), a failing A lookup no longer hides a good AAAA record, and when the PTR is right but the host name has no matching AAAA/A record the check now says that instead of "No matching PTR record".
+
 ## 1.1.0 (2026-11-15)
 
 ### Fixes
