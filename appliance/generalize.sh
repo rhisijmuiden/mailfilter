@@ -34,7 +34,7 @@ rm -rf "$MF_SRC/frontend/node_modules" /root/.npm /root/.cache /root/.bash_histo
 rm -rf /var/lib/clamav/*.c[lv]d /var/lib/clamav/*.inc 2>/dev/null || true
 find /var/log -type f \( -name '*.gz' -o -name '*.[0-9]' -o -name '*.old' \) -delete
 # Some logs are append-only or owned by a service; a log that cannot be emptied is no problem
-find /var/log -type f -exec sh -c 'for f; do : >"$f" 2>/dev/null || true; done' sh {} +
+find /var/log -type f -exec sh -c 'for f; do truncate -s 0 "$f" 2>/dev/null || true; done' sh {} +
 rm -rf /var/log/journal/*
 apt-get clean
 rm -rf /var/lib/apt/lists/*
