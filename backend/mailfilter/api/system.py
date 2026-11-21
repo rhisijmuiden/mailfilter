@@ -7,6 +7,7 @@ only checks who may do what and records it in the audit log.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path as PathType
 from typing import Annotated, Any, Literal
 
@@ -184,7 +185,16 @@ def setup_server(body: SetupServerIn, request: Request, db: DB, user: AdminUser)
 
 @router.post("/setup/finish")
 def setup_finish(request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
-    out = ctl.call("setup", "finish")
+    # Runs as a job outside this service's sandbox (it changes /etc); it takes a second or two.
+    job = ctl.call("setup", "finish")
+    for _ in range(60):
+        if job.get("state") not in ("queued", "running"):
+            break
+        time.sleep(0.5)
+        job = ctl.call("job", "status", job["id"])
+    if job.get("state") != "done":
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, job.get("message") or "setup finish failed")
+    out = ctl.call("setup", "show")
     audit(db, request, user, "system.setup_finished", "")
     db.commit()
     return out

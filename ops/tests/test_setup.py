@@ -47,5 +47,6 @@ def test_server_runs_installer(server, capsys, monkeypatch):
 
 def test_finish(server, capsys):
     assert cli.main(["--json", "setup", "finish"]) == 0
-    assert json.loads(capsys.readouterr().out)["pending"] is False
+    assert json.loads(capsys.readouterr().out)["state"] == "done"
+    assert setup.show()["pending"] is False
     assert cli.main(["--json", "setup", "finish"]) == 0

@@ -52,8 +52,12 @@ def _job_setup(job: jobs.Job) -> dict:
     return setup.apply(job.params, log=job.log, step=job.step)
 
 
+def _job_setup_finish(job: jobs.Job) -> dict:
+    return setup.finish()
+
+
 jobs.HANDLERS.update(update=_job_update, backup=_job_backup, restore=_job_restore, remote_sync=_job_remote_sync,
-                     web=_job_web, setup=_job_setup)
+                     web=_job_web, setup=_job_setup, setup_finish=_job_setup_finish)
 
 
 def _launch(kind: str, params: dict, wait: bool) -> dict:
@@ -142,7 +146,9 @@ def build_parser() -> argparse.ArgumentParser:
     ss.add_argument("set", nargs="*", metavar="KEY=VALUE")
     ss.add_argument("--stdin", action="store_true", help="read the settings as JSON from stdin")
     ss.add_argument("--wait", action="store_true")
-    su.add_parser("finish", help="close the wizard")
+    # A job, because it changes /etc (the web interface itself runs with a read-only /etc)
+    sf = su.add_parser("finish", help="close the wizard")
+    sf.add_argument("--wait", action="store_true")
     ev = sub.add_parser("events", help="recent system events (for alerts)")
     ev.add_argument("--limit", type=int, default=50)
 
@@ -221,7 +227,7 @@ def dispatch(a) -> object:
         if a.action == "show":
             return setup.show()
         if a.action == "finish":
-            return setup.finish()
+            return _launch("setup_finish", {}, a.wait)
         return _launch("setup", setup.validate(_params(a)), a.wait)
     if a.cmd == "events":
         return {"events": events.recent(max(1, min(a.limit, 500)))}
