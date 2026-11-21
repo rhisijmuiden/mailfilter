@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Proxmox LXC template
+- Ready-made Proxmox CT template (Debian 13, everything installed), built and tested by GitHub Actions on every change and published at a fixed address for Proxmox' *Download from URL* (production: latest release, test: release `ct-test`). See docs/proxmox.md.
+- The first start asks nothing: network and name come from Proxmox, every container gets its own passwords and keys, and the console shows only the web address, user name and password.
+- New setup wizard in the web interface (opens by itself until finished): server name, own e-mail login and password, web access, domains, relay access, e-mail sending and backups.
+
+### Installer
+- Mode `internal` can use its own HTTPS port (`--web-port`, also under System › Web access).
+- Works in LXC containers (no hostnamectl needed, Proxmox does not overwrite resolv.conf), and warns when the archive cannot be locked there.
+- Checks A, AAAA and PTR of the host name at the end, comparing addresses as IPs; the self-test covers every timer.
+- Re-runs and updates skip rebuilding the web app when its source did not change; a busy ClamAV mirror no longer stops the install.
+
 ### Fixes
 - DNS check "Reverse DNS (PTR) of Mailfilter": IPv6 addresses are now compared as addresses (`::1` equals `0:0:0:0:0:0:0:1`), a failing A lookup no longer hides a good AAAA record, and when the PTR is right but the host name has no matching AAAA/A record the check now says that instead of "No matching PTR record".
 

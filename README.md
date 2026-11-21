@@ -43,6 +43,7 @@ Mailfilter sits between the internet and your mail servers. Incoming mail is che
 | | English | Nederlands |
 | --- | --- | --- |
 | **Installation** — from bare server to first mail | [Installation guide](docs/installation.md) | [Installatiehandleiding](docs/nl/installatie.md) |
+| **Proxmox** — ready-made LXC template | [Proxmox LXC template](docs/proxmox.md) | [Proxmox LXC-template](docs/nl/proxmox.md) |
 | **User manual** — for customers and everyday use | [User manual](docs/user-guide.md) | [Gebruikershandleiding](docs/nl/gebruikershandleiding.md) |
 | **Administrator manual** — every setting explained | [Administrator manual](docs/admin-guide.md) | [Beheerdershandleiding](docs/nl/beheerdershandleiding.md) |
 | All documentation | [docs/](docs/README.md) | [docs/nl/](docs/nl/README.md) |

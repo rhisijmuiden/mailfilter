@@ -7,6 +7,7 @@
 | Manual | For whom |
 | --- | --- |
 | [Installation guide](installation.md) | Whoever sets up the server: requirements, installer options, first login, moving a domain over |
+| [Proxmox LXC template](proxmox.md) | Installing on Proxmox: download the CT template, create the container, setup wizard |
 | [User manual](user-guide.md) | Customers and everyday use: mail trace, quarantine, lists, spam reports, Mailtrap, archive, reports |
 | [Administrator manual](admin-guide.md) | Administrators: every screen and setting, how a message is filtered, server reference |
 

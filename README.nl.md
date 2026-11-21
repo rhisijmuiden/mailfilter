@@ -45,6 +45,7 @@ De interface is standaard Engels en volledig in het Nederlands vertaald; iedere 
 | | Nederlands | English |
 | --- | --- | --- |
 | **Installatie**: van kale server tot eerste mail | [Installatiehandleiding](docs/nl/installatie.md) | [Installation guide](docs/installation.md) |
+| **Proxmox**: kant-en-klare LXC-template | [Proxmox LXC-template](docs/nl/proxmox.md) | [Proxmox LXC template](docs/proxmox.md) |
 | **Gebruikershandleiding**: voor klanten en dagelijks gebruik | [Gebruikershandleiding](docs/nl/gebruikershandleiding.md) | [User manual](docs/user-guide.md) |
 | **Beheerdershandleiding**: elke instelling uitgelegd | [Beheerdershandleiding](docs/nl/beheerdershandleiding.md) | [Administrator manual](docs/admin-guide.md) |
 | Alle documentatie | [docs/nl/](docs/nl/README.md) | [docs/](docs/README.md) |
