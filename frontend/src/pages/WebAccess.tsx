@@ -25,6 +25,7 @@ const lines = (s: string) => s.split(/[\s,;]+/).map((x) => x.trim()).filter(Bool
 function newUrl(f: Form, host: string): string {
   if (f.mode === "proxy") return (f.url.trim() || `https://${host}`).replace(/\/$/, "");
   if (f.mode === "http") return `http://${host}${f.port && f.port !== "80" ? `:${f.port}` : ""}`;
+  if (f.mode === "internal") return `https://${host}${f.port && f.port !== "443" ? `:${f.port}` : ""}`;
   return `https://${host}`;
 }
 
@@ -48,21 +49,21 @@ export default function WebAccess() {
   if (q.isLoading || !f) return (<><PageHead title={t("web.title")} sub={t("web.sub")} />{q.error ? <ErrorText error={q.error} /> : <Card><Skeleton rows={4} /></Card>}</>);
   const d = q.data!;
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF({ ...f, [k]: v });
-  const pick = (m: Mode) => setF({ ...f, mode: m, port: m === "proxy" ? (d.mode === "proxy" ? String(d.port) : "8080") : m === "http" ? (d.mode === "http" ? String(d.port) : "80") : "443" });
+  const pick = (m: Mode) => setF({ ...f, mode: m, port: m === "proxy" ? (d.mode === "proxy" ? String(d.port) : "8080") : m === "http" ? (d.mode === "http" ? String(d.port) : "80") : m === "internal" && d.mode === "internal" ? String(d.port) : "443" });
   const target = newUrl(f, d.hostname);
   const body = {
     mode: f.mode,
-    ...(f.mode === "proxy" || f.mode === "http" ? { port: Number(f.port) || undefined } : {}),
+    ...(f.mode === "proxy" || f.mode === "http" || (f.mode === "internal" && f.port !== "443") ? { port: Number(f.port) || undefined } : {}),
     ...(f.mode === "proxy" ? { url: f.url.trim(), trusted_proxies: lines(f.proxies) } : {}),
     ...(f.mode === "internal" || f.mode === "http" ? { web_from: lines(f.from) } : {}),
   };
   const changed = JSON.stringify(body) !== JSON.stringify({
     mode: d.mode,
-    ...(d.mode === "proxy" || d.mode === "http" ? { port: d.port } : {}),
+    ...(d.mode === "proxy" || d.mode === "http" || (d.mode === "internal" && d.port !== 443) ? { port: d.port } : {}),
     ...(d.mode === "proxy" ? { url: d.url, trusted_proxies: d.trusted_proxies } : {}),
     ...(d.mode === "internal" || d.mode === "http" ? { web_from: d.web_from } : {}),
   });
-  const invalid = (f.mode === "proxy" && lines(f.proxies).length === 0) || ((f.mode === "proxy" || f.mode === "http") && !(Number(f.port) >= 1 && Number(f.port) <= 65535));
+  const invalid = (f.mode === "proxy" && lines(f.proxies).length === 0) || ((f.mode === "proxy" || f.mode === "http" || f.mode === "internal") && !(Number(f.port) >= 1 && Number(f.port) <= 65535)) || (f.mode === "internal" && f.port === "80");
 
   return (
     <>
@@ -112,6 +113,11 @@ export default function WebAccess() {
                 </Field>
               </div>
             </>
+          )}
+          {f.mode === "internal" && (
+            <Field label={t("web.port")} hint={t("web.port_hint_internal")}>
+              <input className="input num" inputMode="numeric" value={f.port} onChange={(e) => set("port", e.target.value.replace(/\D/g, ""))} style={{ maxWidth: 140 }} />
+            </Field>
           )}
           {f.mode === "http" && (
             <Field label={t("web.port")}>

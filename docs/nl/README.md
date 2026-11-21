@@ -7,6 +7,7 @@
 | Handleiding | Voor wie |
 | --- | --- |
 | [Installatiehandleiding](installatie.md) | Wie de server inricht: vereisten, opties van de installer, eerste keer inloggen, een domein overzetten |
+| [Proxmox LXC-template](proxmox.md) | Installeren op Proxmox: CT-template downloaden, container aanmaken, installatiewizard |
 | [Gebruikershandleiding](gebruikershandleiding.md) | Klanten en dagelijks gebruik: mailtrace, quarantaine, lijsten, spammeldingen, Mailtrap, archief, rapporten |
 | [Beheerdershandleiding](beheerdershandleiding.md) | Beheerders: elk scherm en elke instelling, hoe een bericht gefilterd wordt, naslag voor de server |
 

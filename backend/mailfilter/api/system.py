@@ -6,15 +6,22 @@ only checks who may do what and records it in the audit log.
 
 from __future__ import annotations
 
+import os
+import time
+from pathlib import Path as PathType
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Path, Query, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy import delete, func, select
 
 from .. import __version__, ctl
 from ..audit import audit
-from ..deps import DB, AdminUser, CurrentUser
+from ..deps import COOKIE, DB, AdminUser, CurrentUser
+from ..models import AuthSession, User
+from ..security import MIN_PASSWORD_LENGTH, hash_password, token_hash
 from ..settings import ETC, get_settings
+
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -29,6 +36,7 @@ class InfoOut(BaseModel):
     commit: str = ""
     commit_date: str = ""
     web_mode: str = "public"  # System > Web access; pages warn when features need public HTTPS
+    setup_pending: bool = False  # first-time setup wizard not finished yet (Proxmox template)
 
 
 def _read(name: str, default: str) -> str:
@@ -51,7 +59,13 @@ def info(_: CurrentUser) -> InfoOut:
         label=version,
         channel={"main": "production", "test": "test"}.get(branch, "custom"),
         web_mode=get_settings().web_mode,
+        setup_pending=_setup_marker().exists(),
     )
+
+
+def _setup_marker() -> PathType:
+    # Read at every call (not the import-time ETC), so tests and a finished wizard show up right away.
+    return PathType(os.environ.get("MF_ETC", str(ETC))) / "setup-wizard-pending"
 
 
 @router.get("/details")
@@ -129,3 +143,58 @@ def set_web_access(body: WebAccessIn, request: Request, db: DB, user: AdminUser)
           trusted_proxies=body.trusted_proxies, web_from=body.web_from, url=body.url)
     db.commit()
     return job
+
+
+# ---- first-time setup wizard (Proxmox template: only admin, password and port were asked) ----
+class SetupServerIn(BaseModel):
+    hostname: str = Field(min_length=4, max_length=253)
+    admin_email: str = Field(max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    # The template's first boot makes the login "admin" with a password shown on the console;
+    # the wizard turns it into the admin's own e-mail address and password.
+    new_password: str | None = Field(default=None, min_length=MIN_PASSWORD_LENGTH, max_length=500)
+
+
+@router.get("/setup")
+def setup_state(_: AdminUser) -> dict[str, Any]:
+    return ctl.call("setup", "show")
+
+
+@router.put("/setup/server")
+def setup_server(body: SetupServerIn, request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
+    """Re-runs the installer with the real server name as a job (Postfix, Caddy, DNS hints).
+
+    The e-mail address also becomes the admin's login, and a new password replaces the
+    one that the console showed."""
+    email = body.admin_email.strip().lower()
+    taken = db.execute(select(User).where(func.lower(User.email) == email, User.id != user.id)).scalar_one_or_none()
+    if taken:
+        raise HTTPException(status.HTTP_409_CONFLICT, "email_exists")
+    job = ctl.call("setup", "server", "--stdin", input=body.model_dump_json(exclude={"new_password"}))
+    if user.email != email:
+        audit(db, request, user, "user_updated", email, previous=user.email, via="setup")
+        user.email = email
+    if body.new_password:
+        user.password_hash = hash_password(body.new_password)
+        keep = token_hash(request.cookies.get(COOKIE, ""))
+        db.execute(delete(AuthSession).where(AuthSession.user_id == user.id, AuthSession.token_hash != keep))
+        audit(db, request, user, "password_changed", email, via="setup")
+    audit(db, request, user, "system.setup_server", body.hostname, job=job.get("id"), admin_email=body.admin_email)
+    db.commit()
+    return job
+
+
+@router.post("/setup/finish")
+def setup_finish(request: Request, db: DB, user: AdminUser) -> dict[str, Any]:
+    # Runs as a job outside this service's sandbox (it changes /etc); it takes a second or two.
+    job = ctl.call("setup", "finish")
+    for _ in range(60):
+        if job.get("state") not in ("queued", "running"):
+            break
+        time.sleep(0.5)
+        job = ctl.call("job", "status", job["id"])
+    if job.get("state") != "done":
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, job.get("message") or "setup finish failed")
+    out = ctl.call("setup", "show")
+    audit(db, request, user, "system.setup_finished", "")
+    db.commit()
+    return out

@@ -4,6 +4,8 @@
 
 Deze handleiding brengt je van een kale Debian 13-server naar een werkende Mailfilter die de mail van je eerste domein filtert.
 
+> **Op Proxmox?** Gebruik dan de kant-en-klare [Proxmox LXC-template](proxmox.md): download hem in Proxmox, maak een container aan, en een wizard in de webinterface doet de rest.
+
 ## 1. Wat je nodig hebt
 
 | | |
@@ -60,7 +62,8 @@ Alles kan ook op de opdrachtregel worden meegegeven, bijvoorbeeld om zonder vrag
 | `--web-mode MODUS` | Hoe de webinterface bereikbaar is: `public`, `internal`, `proxy` of `http` (zie hieronder) |
 | `--trusted-proxy CIDR` | Adres van de reverse proxy (`proxy`). Herhaalbaar |
 | `--web-url URL` | Adres dat gebruikers openen op de reverse proxy (`proxy`), standaard `https://<hostnaam>` |
-| `--web-port POORT` | HTTP-poort voor `proxy` (standaard 8080) of `http` (standaard 80) |
+| `--web-port POORT` | HTTPS-poort voor `internal` (standaard 443; poort 80 stuurt erheen door), HTTP-poort voor `proxy` (standaard 8080) of `http` (standaard 80) |
+| `--admin-login NAAM` | Login van de eerste webbeheerder, als die moet afwijken van `--admin-email` |
 | `--web-from CIDR` | Webinterface alleen bereikbaar vanaf hier (`internal`, `http`). Herhaalbaar |
 | `--web-cert BESTAND`, `--web-key BESTAND` | Eigen certificaat en sleutel (PEM) voor `internal` in plaats van het zelfgemaakte |
 | `--skip-certificate` | Nog geen Let's Encrypt-certificaat aanvragen (DNS nog niet klaar) |

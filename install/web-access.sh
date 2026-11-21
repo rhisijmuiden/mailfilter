@@ -81,3 +81,5 @@ configure_web
 # The web app reads its address and cookie setting at start.
 systemctl restart mailfilter-web >>"$MF_LOG" 2>&1 || warn "mailfilter-web did not restart"
 ok "Open the web interface at $WEB_URL"
+if [[ -f $MF_ETC/appliance ]]; then bash "$MF_SRC/appliance/issue.sh" || true; fi
+

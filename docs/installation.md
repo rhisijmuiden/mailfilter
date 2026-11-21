@@ -4,6 +4,8 @@
 
 This guide takes you from a bare Debian 13 server to a working Mailfilter that filters the mail of your first domain.
 
+> **On Proxmox?** Use the ready-made [Proxmox LXC template](proxmox.md) instead: download it in Proxmox, create a container, and a wizard in the web interface does the rest.
+
 ## 1. What you need
 
 | | |
@@ -34,7 +36,7 @@ The installer asks four things:
 3. **First domain** to filter (optional, you can add domains later in the web interface) and the mail server that receives its clean mail.
 4. **How the web interface is reached** (see below).
 
-It then installs and configures everything, which takes about 10 to 15 minutes. You can follow along on screen; the full log is in `/var/log/mailfilter-install.log`.
+It then installs and configures everything, which takes about 10 to 15 minutes. At the end it checks itself: every service and timer, and the DNS of the host name (A and AAAA records and the PTR of each address, compared as IP addresses). You can follow along on screen; the full log is in `/var/log/mailfilter-install.log`.
 
 ### Options
 
@@ -60,7 +62,8 @@ Everything can be given on the command line, for example to install without ques
 | `--web-mode MODE` | How the web interface is reached: `public`, `internal`, `proxy` or `http` (see below) |
 | `--trusted-proxy CIDR` | Address of the reverse proxy (`proxy`). Repeatable |
 | `--web-url URL` | Address users open on the reverse proxy (`proxy`), default `https://<host name>` |
-| `--web-port PORT` | HTTP port for `proxy` (default 8080) or `http` (default 80) |
+| `--web-port PORT` | HTTPS port for `internal` (default 443; port 80 redirects to it), HTTP port for `proxy` (default 8080) or `http` (default 80) |
+| `--admin-login NAME` | Login of the first web admin, if it should differ from `--admin-email` |
 | `--web-from CIDR` | Only allow the web interface from here (`internal`, `http`). Repeatable |
 | `--web-cert FILE`, `--web-key FILE` | Own certificate and key (PEM) for `internal` instead of the self-made one |
 | `--skip-certificate` | Do not request a Let's Encrypt certificate yet (DNS not ready) |

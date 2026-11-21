@@ -215,3 +215,28 @@ def test_web_access(admin, customer, ctl, tmp_path, monkeypatch):
                                          "--trusted-proxy", "10.0.0.5"]
     r = admin.put("/api/system/web", json={"mode": "proxy"})
     assert r.status_code == 400 and "reverse proxy" in r.json()["detail"]
+
+
+def test_setup_wizard(admin, customer, ctl, tmp_path, monkeypatch):
+    etc = ctl / "etc/mailfilter"
+    (etc / "mailfilter.env").write_text("MF_HOSTNAME=mailfilter.localdomain\nMF_ADMIN_EMAIL=admin@example.nl\nMF_WEB_MODE=internal\n")
+    (etc / "setup-wizard-pending").write_text("")
+    calls = tmp_path / "setup-calls"
+    script = tmp_path / "install.sh"
+    script.write_text(f'#!/bin/sh\necho "$@" > {calls}\n')
+    script.chmod(0o755)
+    monkeypatch.setenv("MF_SETUP_CMD", str(script))
+    assert admin.get("/api/system/info").json()["setup_pending"] is True
+    assert customer.get("/api/system/setup").status_code == 403
+    assert customer.put("/api/system/setup/server", json={"hostname": "mf01.example.nl", "admin_email": "a@example.nl"}).status_code == 403
+    assert admin.get("/api/system/setup").json()["hostname"] == "mailfilter.localdomain"
+    r = admin.put("/api/system/setup/server", json={"hostname": "mf01.example.nl", "admin_email": "it@example.nl"})
+    assert r.status_code == 200 and r.json()["state"] == "done", r.text
+    assert calls.read_text().split() == ["--reconfigure", "--hostname", "mf01.example.nl", "--admin-email", "it@example.nl"]
+    r = admin.put("/api/system/setup/server", json={"hostname": "mailfilter.local", "admin_email": "it@example.nl"})
+    assert r.status_code == 400
+    assert admin.get("/api/auth/me").json()["email"] == "it@example.nl"
+    r = admin.put("/api/system/setup/server", json={"hostname": "mf01.example.nl", "admin_email": "it@example.nl", "new_password": "short"})
+    assert r.status_code == 422
+    assert admin.post("/api/system/setup/finish").json()["pending"] is False
+    assert admin.get("/api/system/info").json()["setup_pending"] is False

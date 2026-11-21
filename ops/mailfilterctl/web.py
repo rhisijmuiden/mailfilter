@@ -66,14 +66,16 @@ def validate(params: dict) -> dict:
     if mode not in MODES:
         raise CtlError(f"Unknown mode: {mode}")
     out: dict = {"mode": mode}
-    if mode in ("proxy", "http"):
+    if mode in ("proxy", "http", "internal"):
         try:
-            port = int(params.get("port") or (8080 if mode == "proxy" else 80))
+            port = int(params.get("port") or {"proxy": 8080, "http": 80}.get(mode, 443))
         except (TypeError, ValueError):
             raise CtlError("Not a valid port") from None
-        if not 1 <= port <= 65535 or port in RESERVED_PORTS:
+        # With HTTPS on its own port, port 80 still only redirects to it.
+        if not 1 <= port <= 65535 or port in RESERVED_PORTS or (mode == "internal" and port == 80):
             raise CtlError(f"Port {port} cannot be used for the web interface")
-        out["port"] = port
+        if mode != "internal" or port != 443:
+            out["port"] = port
     if mode == "proxy":
         proxies = _nets(params.get("trusted_proxies"))
         if not proxies:

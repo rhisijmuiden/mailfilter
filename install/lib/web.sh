@@ -64,8 +64,11 @@ web_defaults() {
     case $WEB_MODE in public|internal) WEB_PORT=443 ;; proxy) WEB_PORT=8080 ;; http) WEB_PORT=80 ;; esac
   fi
   [[ $WEB_PORT =~ ^[0-9]+$ && $WEB_PORT -ge 1 && $WEB_PORT -le 65535 ]] || die "Not a valid web port: $WEB_PORT"
-  if [[ $WEB_MODE == public || $WEB_MODE == internal ]]; then
-    WEB_PORT=443  # HTTPS modes always use 443 (and 80 for the redirect)
+  if [[ $WEB_MODE == public ]]; then
+    WEB_PORT=443  # Let's Encrypt, MTA-STS and BIMI need the standard ports (and 80)
+  elif [[ $WEB_MODE == internal ]]; then
+    # Own HTTPS port allowed (e.g. 8443); 80 stays the redirect to it
+    case $WEB_PORT in 25|80|465|587|993|8000|11332|11333|11334) die "Port $WEB_PORT cannot be the HTTPS port of the web interface" ;; esac
   else
     case $WEB_PORT in 25|465|587|993|8000|11332|11333|11334) die "Port $WEB_PORT is used by Mailfilter itself" ;; esac
   fi
@@ -78,7 +81,8 @@ web_defaults() {
   for n in "${TRUSTED_PROXIES[@]}" "${WEB_FROM[@]}"; do is_ipv4 "$n" || is_ipv6 "$n" || die "Not a valid IP address or network: $n"; done
   # Only behind a reverse proxy can the address differ from the host name.
   case $WEB_MODE in
-    public|internal) WEB_URL="https://$HOSTNAME_FQDN" ;;
+    public) WEB_URL="https://$HOSTNAME_FQDN" ;;
+    internal) WEB_URL="https://$HOSTNAME_FQDN"; [[ $WEB_PORT == 443 ]] || WEB_URL+=":$WEB_PORT" ;;
     http) WEB_URL="http://$HOSTNAME_FQDN"; [[ $WEB_PORT == 80 ]] || WEB_URL+=":$WEB_PORT" ;;
     proxy) [[ -n ${WEB_URL:-} ]] || WEB_URL="https://$HOSTNAME_FQDN" ;;
   esac
@@ -143,7 +147,7 @@ nft_accept() {
 web_firewall_rules() {
   case $WEB_MODE in
     public)   WEB_RULES=$(nft_accept "80, 443" "Web interface, Let's Encrypt and MTA-STS") ;;
-    internal) WEB_RULES=$(nft_accept "80, 443" "Web interface (HTTPS, own certificate)" "${WEB_FROM[@]}") ;;
+    internal) WEB_RULES=$(nft_accept "80, $WEB_PORT" "Web interface (HTTPS, own certificate)" "${WEB_FROM[@]}") ;;
     proxy)    WEB_RULES=$(nft_accept "$WEB_PORT" "Web interface from the reverse proxy" "${TRUSTED_PROXIES[@]}") ;;
     http)     WEB_RULES=$(nft_accept "$WEB_PORT" "Web interface (plain HTTP)" "${WEB_FROM[@]}") ;;
   esac
@@ -253,9 +257,10 @@ EOF
       ;;
     internal)
       CADDY_GLOBAL=$'\tauto_https disable_redirects'
-      names_http="http://$HOSTNAME_FQDN"; names_https="https://$HOSTNAME_FQDN"
-      for ip in ${PUBLIC_V4:-}; do names_http+=", http://$ip"; names_https+=", https://$ip"; done
-      for ip in ${PUBLIC_V6:-}; do names_http+=", http://[$ip]"; names_https+=", https://[$ip]"; done
+      local port=""; [[ ${WEB_PORT:-443} == 443 ]] || port=":$WEB_PORT"
+      names_http="http://$HOSTNAME_FQDN"; names_https="https://$HOSTNAME_FQDN$port"
+      for ip in ${PUBLIC_V4:-}; do names_http+=", http://$ip"; names_https+=", https://$ip$port"; done
+      for ip in ${PUBLIC_V6:-}; do names_http+=", http://[$ip]"; names_https+=", https://[$ip]$port"; done
       if [[ -s $WEB_CERT_FILE && -s $WEB_KEY_FILE ]]; then
         tls=$'\ttls '"$WEB_CERT_FILE $WEB_KEY_FILE"$' {\n\t\tprotocols tls1.2 tls1.3\n\t}'
       else
@@ -264,7 +269,7 @@ EOF
       fi
       WEB_SITES=$(cat <<EOF
 $names_http {
-	redir https://{host}{uri} permanent
+	redir https://{host}$port{uri} permanent
 }
 
 $names_https {

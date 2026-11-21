@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     from .cluster import tracking
     from .db import session
     from .models import User
-    from .security import generate_password, hash_password
+    from .security import MIN_PASSWORD_LENGTH, generate_password, hash_password
 
     tracking.install()  # changes made here (e.g. set-password) reach the other nodes
     p = argparse.ArgumentParser(prog="mailfilter-admin")
@@ -87,8 +87,10 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("email")
     c.add_argument("--name", default="Admin")
     c.add_argument("--language", choices=["en", "nl"], default="en")
+    c.add_argument("--password-stdin", action="store_true", help="read the password from stdin instead of generating one")
     s = sub.add_parser("set-password")
     s.add_argument("email")
+    s.add_argument("--password-stdin", action="store_true", help="read the password from stdin instead of generating one")
     r = sub.add_parser("reset-2fa")
     r.add_argument("email")
     sub.add_parser("has-users")
@@ -247,7 +249,14 @@ def main(argv: list[str] | None = None) -> int:
             db.commit()
             print(f"Two-factor login turned off for {email}")
             return 0
-        password = generate_password()
+        if args.password_stdin:
+            # Used by the Proxmox template's first-boot setup, where the admin chose the password.
+            password = sys.stdin.readline().rstrip("\r\n")
+            if len(password) < MIN_PASSWORD_LENGTH:
+                print(f"The password needs at least {MIN_PASSWORD_LENGTH} characters", file=sys.stderr)
+                return 1
+        else:
+            password = generate_password()
         if args.cmd == "create-admin":
             if user:
                 print(f"User {email} already exists", file=sys.stderr)
@@ -259,7 +268,8 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             user.password_hash = hash_password(password)
         db.commit()
-        print(password)
+        if not args.password_stdin:
+            print(password)
     return 0
 
 
