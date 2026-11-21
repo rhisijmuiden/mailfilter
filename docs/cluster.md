@@ -1,5 +1,7 @@
 # Cluster
 
+[Nederlands](nl/cluster.md) · [All documentation](README.md)
+
 Several Mailfilter servers can keep the same configuration. Each server stays a complete gateway on its own: when one is down, the others keep filtering mail with the configuration they have, and the server that was down catches up when it is back. A single server does not need any of this and works exactly as before.
 
 ## Setting it up

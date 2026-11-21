@@ -1,5 +1,7 @@
 # Linkbescherming
 
+[English](../link-protection.md) · [Alle documentatie](README.md)
+
 Phishingsites zijn vaak onschuldig als een bericht binnenkomt en een uur later
 gevaarlijk. Met linkbescherming controleert Mailfilter een link **op het moment
 dat iemand klikt**, niet alleen bij aflevering.

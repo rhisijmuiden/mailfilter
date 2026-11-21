@@ -2,6 +2,8 @@
 
 [English](../user-guide.md) · [Alle documentatie](README.md)
 
+*De schermafbeeldingen tonen meestal de Engelse interface; die is volledig in het Nederlands beschikbaar via Mijn account › Taal.*
+
 Deze handleiding is voor iedereen die dagelijks met Mailfilter werkt: klanten die hun eigen domeinen beheren, en beheerders die willen weten wat hun klanten zien. Instellingen die alleen beheerders kunnen wijzigen staan in de [beheerdershandleiding](beheerdershandleiding.md).
 
 De schermnamen in deze handleiding zijn die van de Nederlandse interface. Werk je in het Engels, dan vind je de Engelse namen in de [Engelse handleiding](../user-guide.md).
@@ -68,6 +70,8 @@ Met de **thema**-knop rechtsboven kies je licht, donker of hetzelfde als je comp
 
 ## 3. Dashboard
 
+![Dashboard](../screenshots/dashboard-customer.png)
+
 Het dashboard toont mail van de laatste 24 uur of de laatste 30 dagen:
 
 - **Berichten** in en uit, **Afgeleverd**, **Spam tegengehouden**, **Problemen** (vertraagd of niet afgeleverd) en **In quarantaine**, elk vergeleken met de periode ervoor.
@@ -78,6 +82,8 @@ Het dashboard toont mail van de laatste 24 uur of de laatste 30 dagen:
 Beheerders zien ook de mailwachtrij, services die niet draaien en blocklistvermeldingen van de server.
 
 ## 4. Mailtrace
+
+![Mailtrace](../screenshots/trace-detail.png)
 
 **Mailverkeer › Mailtrace** beantwoordt de vraag *is dit bericht aangekomen, en zo niet, waarom niet?*
 
@@ -96,6 +102,8 @@ Het berichtpaneel toont:
 De mailtrace bewaart 90 dagen.
 
 ## 5. Quarantaine
+
+![Quarantaine](../screenshots/quarantine-customer.png)
 
 **Mailverkeer › Quarantaine** houdt mail vast die op spam lijkt of gevaarlijk is. Het getal naast het menu-item toont hoeveel berichten wachten.
 
@@ -119,6 +127,8 @@ De link openen verandert niets; alleen een knop indrukken doet iets. Een link we
 
 ## 7. Toestaan en blokkeren
 
+![Toestaan en blokkeren](../screenshots/lists.png)
+
 **Mailverkeer › Toestaan en blokkeren**: afzenders die altijd doorkomen, of nooit.
 
 1. Kies **Altijd toestaan** of **Altijd blokkeren**.
@@ -129,6 +139,8 @@ De link openen verandert niets; alleen een knop indrukken doet iets. Een link we
 Toegestane afzenders slaan de spamcontrole over, maar virussen en gevaarlijke bijlagen worden nog steeds tegengehouden. Geblokkeerde afzenders worden geweigerd en krijgen een foutmelding. Wijzigingen werken binnen een minuut.
 
 ## 8. Spam en goede mail melden
+
+![Spam en goede mail melden](../screenshots/spam-reports.png)
 
 Kwam er spam door, of werd goede mail als spam gezien? Meld het, en Mailfilter leert ervan. De adressen staan onder **Mailverkeer › Spammeldingen**:
 
@@ -147,6 +159,8 @@ Voor de veiligheid leert Mailfilter alleen van mail die het zelf bij jouw domein
 
 ## 9. DMARC-rapporten
 
+![DMARC-rapporten](../screenshots/dmarc.png)
+
 **Mailverkeer › DMARC-rapporten** toont wie mail verstuurt namens je domeinen en of die mail door DMARC komt. Grote mailproviders sturen dagelijks rapporten naar Mailfilter zodra je DMARC-record daarom vraagt.
 
 - Per domein zie je het huidige beleid en de **weg naar p=reject**: *alleen meekijken*, dan *mail die faalt gaat naar spam* (`quarantine`), dan *mail die faalt wordt geweigerd* (`reject`, volledige bescherming).
@@ -163,6 +177,8 @@ Voor de veiligheid leert Mailfilter alleen van mail die het zelf bij jouw domein
 In het onderdeel **Ontvangers** van een transportdomein zie je hoe Mailfilter controleert of een adres bestaat voordat het mail ervoor aanneemt (door het je mailserver te vragen, via LDAP / Active Directory, of met een vaste lijst). Met **Testen** probeer je een adres. Mail voor adressen die niet bestaan wordt direct geweigerd, dus hij komt nooit in de quarantaine en niemand krijgt valse bounces.
 
 ## 11. Relay-toegang: servers die mail versturen
+
+![Relay-toegang: servers die mail versturen](../screenshots/relay.png)
 
 **Configuratie › Relay-toegang** toont je servers (webservers, applicaties, printers) die via Mailfilter mail naar buiten mogen sturen.
 
@@ -188,6 +204,8 @@ Met **Links controleren bij het klikken** aan worden links in binnenkomende mail
 
 ## 13. Mailtrap
 
+![Mailtrap](../screenshots/mailtrap.png)
+
 **Mailverkeer › Mailtrap** (als je beheerder hem heeft aangezet) vangt alle mail van je **test- en acceptatieomgevingen** op, zodat die **nooit** naar echte mensen wordt verstuurd. De mail komt in een Mailtrap-mailbox waar je hem kunt lezen en controleren.
 
 - Elk bericht heeft labels voor gevonden problemen. Open het om te zien:
@@ -202,6 +220,8 @@ Zie [Mailtrap](mailtrap.md) voor alle details.
 
 ## 14. Archief
 
+![Archief](../screenshots/archive.png)
+
 **Mailverkeer › Archief** (als het voor je domein aanstaat) bewaart een **onveranderbare kopie van alle mail** die je domein verstuurde en ontving, tot 10 jaar.
 
 - **Zoeken** op woorden, adressen of namen van bijlagen; gebruik `"exacte zin"` en `-woord` om iets uit te sluiten. Filter op domein, richting en datum.
@@ -213,10 +233,14 @@ Elke zoekopdracht, weergave, download en export komt in het auditlog. Zie [archi
 
 ## 15. Maandrapport en verbruik
 
+![Maandrapport en verbruik](../screenshots/monthly-report.png)
+
 - **Overzicht › Maandrapport**: hoeveel mail er vorige maand voor je domeinen binnenkwam, en hoeveel spam en virussen Mailfilter tegenhield. Als je beheerder het aanzet krijg je het ook aan het begin van elke maand per e-mail; met **Stuur mij dit rapport elke maand** zet je je eigen exemplaar aan of uit.
 - **Overzicht › Verbruik**: wat je deze maand gebruikte: domeinen, actieve mailboxen, mailverkeer en archiefopslag. Resellers zien dit voor hun eigen klanten, met prijzen; klanten zien de aantallen.
 
 ## 16. API-sleutels
+
+![API-sleutels](../screenshots/api.png)
 
 **Systeem › API** koppelt een hostingpaneel of script aan Mailfilter.
 

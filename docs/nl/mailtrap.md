@@ -1,5 +1,7 @@
 # Mailtrap
 
+[English](../mailtrap.md) · [Alle documentatie](README.md)
+
 Mailtrap vangt mail van testomgevingen op (staging- en acceptatieservers, de
 laptop van een ontwikkelaar), zodat die **nooit wordt doorgestuurd**. De mail komt
 in een Mailtrap-postvak, waar je hem in de webinterface of in een mailprogramma

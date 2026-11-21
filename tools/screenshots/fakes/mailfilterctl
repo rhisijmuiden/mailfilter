@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+import json, sys
+from datetime import datetime, timedelta, timezone
+now = datetime.now(timezone.utc)
+iso = lambda d: (now - d).strftime("%Y-%m-%dT%H:%M:%SZ")
+a = [x for x in sys.argv[1:] if x != "--json"]
+def bk(i, step, typ, days, size):
+    chain = (now - timedelta(days=days - step)).strftime("%Y%m%dT023000Z")
+    return {"id": f"{chain}.{step:03d}", "chain": chain, "step": step, "type": typ, "label": "nightly", "created": iso(timedelta(days=days, hours=-2)),
+            "version": "1.0.0", "branch": "main", "components": ["files", "database", "redis"], "size": size, "size_human": f"{size/1e6:.1f} MB"}
+backups = [bk(0, 0, "full", 6, 412_000_000)] + [bk(0, s, "incremental", 6 - s, 18_000_000 + s * 1_300_000) for s in range(1, 7)]
+backups.reverse()
+out = {}
+if a[:1] == ["info"]:
+    out = {"version": "1.0.0", "label": "1.0.0", "branch": "main", "channel": "production", "commit": "cb8e625ca35433c40a65b3a20b9d30fd05138116", "commit_short": "cb8e625",
+           "commit_date": iso(timedelta(hours=14)), "os": "Debian GNU/Linux 13 (trixie)", "kernel": "6.12.48-1", "python": "3.13.5", "uptime_seconds": 1_209_600,
+           "components": {"postfix": "3.10.1", "rspamd": "3.12.1", "clamav-daemon": "1.4.3", "postgresql": "17.6", "redis-server": "8.0.2", "dovecot-core": "2.4.1", "caddy": "2.6.2", "crowdsec": "1.6.8", "nftables": "1.1.3"},
+           "last_update": {"at": iso(timedelta(hours=13)), "ok": True, "to": {"version": "1.0.0", "branch": "main"}}}
+elif a[:2] == ["update", "check"]:
+    out = {"checked_at": iso(timedelta(minutes=1)), "update_available": True, "behind": 3,
+           "commits": [{"commit": "a1b2c3d", "date": iso(timedelta(hours=3)), "subject": "Settings: switch modules on and off"},
+                       {"commit": "cd449e5", "date": iso(timedelta(hours=5)), "subject": "License: AGPLv3 with Powered by RHIS terms"},
+                       {"commit": "a0e9b4d", "date": iso(timedelta(hours=6)), "subject": "Own branding with a fixed Powered by RHIS"}],
+           "branches": {"main": {"branch": "main", "channel": "production", "version": "1.1.0", "commit_short": "a1b2c3d", "commit_date": iso(timedelta(hours=3)), "installable": True},
+                        "test": {"branch": "test", "channel": "test", "version": "1.1.0", "commit_short": "f00ba47", "commit_date": iso(timedelta(hours=1)), "installable": True}}}
+elif a[:2] == ["job", "list"]:
+    out = {"jobs": [{"id": "j1", "kind": "backup", "state": "done", "created": iso(timedelta(hours=8)), "started": iso(timedelta(hours=8)), "finished": iso(timedelta(hours=8)), "message": "", "steps": [], "result": None}]}
+elif a[:1] == ["events"]:
+    out = {"events": []}
+elif a[:2] == ["backup", "list"]:
+    out = {"config": {"enabled": True, "time": "02:30", "full_every_days": 7, "keep_full": 4, "location": "/var/backups/mailfilter"},
+           "backups": backups, "total_size": sum(b["size"] for b in backups), "disk_free": 61_000_000_000, "disk_total": 80_000_000_000, "last": backups[0]}
+elif a[:2] == ["remote", "show"]:
+    out = {"enabled": True, "protocol": "scp", "host": "backup.example.net", "port": 22, "username": "mailfilter", "path": "/srv/backups/mailfilter01",
+           "verify_tls": True, "encrypt": True, "keep_full": 8, "has_password": False, "has_passphrase": True,
+           "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH6m1Yt0x9cQ4lK2dZ8w5pR7vN3sF1aE0bC2dE4fG6hJ mailfilter01-backup",
+           "host_keys": ["SHA256:3fV9kq2Lw8XnB4yR6tP1sZ0uE7hJ5mC2aD9gK4lN8oQ"],
+           "status": {"at": iso(timedelta(hours=8)), "ok": True, "uploaded": [backups[0]["id"]], "removed": []}}
+elif a[:2] == ["remote", "list"]:
+    out = {"backups": [dict(b, encrypted=True, uploaded=b["created"]) for b in backups]}
+print(json.dumps(out))

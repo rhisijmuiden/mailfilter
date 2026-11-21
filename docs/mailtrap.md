@@ -1,5 +1,7 @@
 # Mailtrap
 
+[Nederlands](nl/mailtrap.md) · [All documentation](README.md)
+
 Mailtrap catches mail from test environments (staging and acceptance servers,
 a developer's laptop) so it is **never sent on**. The mail lands in a Mailtrap
 mailbox where you can read it in the web interface or in a mail program, and

@@ -1,5 +1,7 @@
 # Transport-domeinen en relay-domeinen
 
+[English](../relay-domains.md) · [Alle documentatie](README.md)
+
 Mailfilter kent twee soorten domeinen (Configuratie › Domeinen):
 
 | | Transport-domein | Relay-domein |

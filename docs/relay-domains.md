@@ -1,5 +1,7 @@
 # Transport domains and relay domains
 
+[Nederlands](nl/relay-domeinen.md) · [All documentation](README.md)
+
 Mailfilter knows two kinds of domains (Configuration › Domains):
 
 | | Transport domain | Relay domain |
