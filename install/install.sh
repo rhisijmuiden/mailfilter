@@ -464,6 +464,8 @@ ok "PMG backups can be imported in the web interface (or: $MF_SRC/backend/bin/ma
 # ---------------------------------------------------------------------------
 step "Intrusion protection (CrowdSec)"
 install -D -m 0644 "$TPL/crowdsec/acquis-mailfilter.yaml" /etc/crowdsec/acquis.d/mailfilter.yaml
+# A fresh hub index first: an old one makes downloads fail with "invalid download hash"
+cscli hub update >>"$MF_LOG" 2>&1 || warn "Could not update the CrowdSec hub index"
 for c in crowdsecurity/linux crowdsecurity/sshd crowdsecurity/postfix crowdsecurity/dovecot; do
   cscli collections install "$c" >>"$MF_LOG" 2>&1 || warn "Could not install CrowdSec collection $c"
 done

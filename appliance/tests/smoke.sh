@@ -43,29 +43,33 @@ ex sh -c 'ls /etc/ssh/ssh_host_ed25519_key' >/dev/null || fail "no SSH host key"
 ex test -s /etc/machine-id || fail "no machine-id"
 
 echo "Web interface"
+# Caddy answers on the names it knows: the host name and the container's own addresses
+IP=$(ex sed -n 's/^MF_PUBLIC_V4=//p' /etc/mailfilter/mailfilter.env)
+[[ -n $IP ]] || fail "no IPv4 address in mailfilter.env"
+B="https://$IP:8443"
 J=(-H 'Content-Type: application/json' -H 'X-Requested-With: mailfilter')
 api() { ex curl -sk -b /tmp/c -c /tmp/c "${J[@]}" "$@"; }
-for _ in $(seq 30); do api -f https://127.0.0.1:8443/api/health >/dev/null 2>&1 && break; sleep 2; done
-api -f https://127.0.0.1:8443/api/health >/dev/null || fail "web interface does not answer on 8443"
-api -f -X POST https://127.0.0.1:8443/api/auth/login -d "{\"email\":\"admin\",\"password\":\"$PW\"}" >/dev/null || fail "cannot log in as admin"
-api -f https://127.0.0.1:8443/api/system/info | grep -q '"setup_pending":true' || fail "setup wizard is not pending"
+for _ in $(seq 30); do api -f "$B"/api/health >/dev/null 2>&1 && break; sleep 2; done
+api -f "$B"/api/health >/dev/null || fail "web interface does not answer on 8443"
+api -f -X POST "$B"/api/auth/login -d "{\"email\":\"admin\",\"password\":\"$PW\"}" >/dev/null || fail "cannot log in as admin"
+api -f "$B"/api/system/info | grep -q '"setup_pending":true' || fail "setup wizard is not pending"
 
 echo "Setup wizard: server name, own login and password"
-JOB=$(api -f -X PUT https://127.0.0.1:8443/api/system/setup/server \
+JOB=$(api -f -X PUT "$B"/api/system/setup/server \
   -d '{"hostname":"mf-smoke.example.org","admin_email":"it@example.org","new_password":"smoke-test-password-1"}' | sed -n 's/.*"id": *"\([^"]*\)".*/\1/p')
 [[ -n $JOB ]] || fail "setup server did not start a job"
 for _ in $(seq 120); do
-  state=$(api https://127.0.0.1:8443/api/system/jobs/"$JOB" 2>/dev/null | sed -n 's/.*"state": *"\([a-z]*\)".*/\1/p' || true)
+  state=$(api "$B"/api/system/jobs/"$JOB" 2>/dev/null | sed -n 's/.*"state": *"\([a-z]*\)".*/\1/p' || true)
   [[ $state == "done" || $state == failed ]] && break
   sleep 10
 done
-[[ $state == "done" ]] || { api https://127.0.0.1:8443/api/system/jobs/"$JOB"/log || true; fail "setup server job: ${state:-no answer}"; }
+[[ $state == "done" ]] || { api "$B"/api/system/jobs/"$JOB"/log || true; fail "setup server job: ${state:-no answer}"; }
 ex grep -q '^MF_HOSTNAME=mf-smoke.example.org$' /etc/mailfilter/mailfilter.env || fail "host name not saved"
 ex postconf -h myhostname | grep -qx mf-smoke.example.org || fail "Postfix has the old host name"
-for _ in $(seq 30); do api -f https://127.0.0.1:8443/api/health >/dev/null 2>&1 && break; sleep 2; done
+for _ in $(seq 30); do api -f "$B"/api/health >/dev/null 2>&1 && break; sleep 2; done
 ex rm -f /tmp/c
-api -f -X POST https://127.0.0.1:8443/api/auth/login -d '{"email":"it@example.org","password":"smoke-test-password-1"}' >/dev/null || fail "cannot log in with the new login"
-api -f -X POST https://127.0.0.1:8443/api/system/setup/finish | grep -q '"pending":false' || fail "finish failed"
+api -f -X POST "$B"/api/auth/login -d '{"email":"it@example.org","password":"smoke-test-password-1"}' >/dev/null || fail "cannot log in with the new login"
+api -f -X POST "$B"/api/system/setup/finish | grep -q '"pending":false' || fail "finish failed"
 ex test ! -e /etc/mailfilter/initial-admin-password || fail "initial password still on disk"
 ex grep -q "Password:" /etc/issue && fail "/etc/issue still shows a password"
 
