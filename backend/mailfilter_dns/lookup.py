@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from typing import Callable
@@ -63,18 +64,38 @@ class MxLookup:
         return d
 
 
+def same_ip(a: str, b: str) -> bool:
+    """True when two textual addresses are the same IP (``::1`` == ``0:0:0:0:0:0:0:1``)."""
+    try:
+        return ipaddress.ip_address(a.strip()) == ipaddress.ip_address(b.strip())
+    except ValueError:
+        return a.strip().lower() == b.strip().lower()
+
+
+def forward_addresses(name: str, resolver: Resolver, ip: str) -> list[str]:
+    """A or AAAA records of ``name`` in the family of ``ip``; a failing lookup gives []."""
+    try:
+        version = ipaddress.ip_address(ip.strip()).version
+    except ValueError:
+        version = 6 if ":" in ip else 4
+    lookups = [resolver.aaaa, resolver.a] if version == 6 else [resolver.a, resolver.aaaa]
+    out: list[str] = []
+    for fn in lookups:  # each family on its own: a missing AAAA must not hide a good A
+        try:
+            out += fn(name)
+        except DnsError:
+            continue
+    return out
+
+
 def check_ptr(ip: str, resolver: Resolver) -> AddressInfo:
     info = AddressInfo(ip)
     try:
-        info.ptr = resolver.ptr(ip)
+        info.ptr = resolver.ptr(ip.strip())
     except DnsError:
         return info
     for name in info.ptr:
-        try:
-            back = resolver.a(name) + resolver.aaaa(name)
-        except DnsError:
-            continue
-        if ip in back:
+        if any(same_ip(ip, back) for back in forward_addresses(name, resolver, ip)):
             info.ptr_ok = True
             break
     return info

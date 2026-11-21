@@ -814,6 +814,7 @@
       "mx_mixed": "MX points partly to Mailfilter and partly elsewhere.",
       "mx_elsewhere": "MX does not point to Mailfilter yet.",
       "ptr": "No matching PTR record for {{value}}. Ask your hosting provider to set it to the Mailfilter host name.",
+      "ptr_forward": "The PTR record for {{value}} is fine, but the Mailfilter host name has no A/AAAA record with this address, so receivers cannot confirm it. Add this address to the host name in DNS.",
       "mode_testing": "Policy is in test mode: senders report problems but still deliver without encryption.",
       "mode_none": "Policy mode is \"none\": MTA-STS is switched off.",
       "mx_not_in_policy": "MX {{value}} is not listed in the policy.",

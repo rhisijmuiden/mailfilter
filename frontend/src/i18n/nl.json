@@ -814,6 +814,7 @@
       "mx_mixed": "MX wijst deels naar Mailfilter en deels ergens anders heen.",
       "mx_elsewhere": "MX wijst nog niet naar Mailfilter.",
       "ptr": "Geen passend PTR-record voor {{value}}. Vraag je hostingpartij om het op de hostnaam van Mailfilter te zetten.",
+      "ptr_forward": "Het PTR-record voor {{value}} klopt, maar de hostnaam van Mailfilter heeft geen A/AAAA-record met dit adres, dus ontvangers kunnen het niet bevestigen. Voeg dit adres toe aan de hostnaam in DNS.",
       "mode_testing": "Beleid staat in testmodus: verzenders melden problemen maar leveren nog onversleuteld af.",
       "mode_none": "Beleid staat op \"uit\": MTA-STS is uitgeschakeld.",
       "mx_not_in_policy": "MX {{value}} staat niet in het beleid.",
