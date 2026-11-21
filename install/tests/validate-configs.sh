@@ -124,6 +124,18 @@ for WEB_MODE in public internal proxy http; do
   check "nft -c ($WEB_MODE web access)" nft -c -f "/tmp/nftables.$WEB_MODE.conf"
 done
 check "proxy mode trusts only the proxy" grep -q "trusted_proxies 10.0.0.5 2001:db8:1::/64" /tmp/Caddyfile.proxy
+# Internal mode on its own HTTPS port (Proxmox template, setup wizard)
+WEB_MODE=internal; WEB_PORT=8443; WEB_URL=""; TRUSTED_PROXIES=(); WEB_FROM=()
+web_defaults; web_caddyfile_vars
+render "$TPL/caddy/Caddyfile" /tmp/Caddyfile.internal8443
+check "caddy validate (internal on port 8443)" caddy validate --config /tmp/Caddyfile.internal8443 --adapter caddyfile
+check "internal mode on 8443 listens there" grep -q ':8443 {' /tmp/Caddyfile.internal8443
+check "internal mode on 8443 redirects to it" grep -qF 'redir https://{host}:8443{uri}' /tmp/Caddyfile.internal8443
+echo "$WEB_URL" >/tmp/web-url.internal8443
+check "internal mode on 8443 address" grep -qx "https://$HOSTNAME:8443" /tmp/web-url.internal8443
+web_firewall_rules
+echo "$WEB_RULES" >/tmp/web-rules.internal8443
+check "firewall opens 8443" grep -q "80, 8443" /tmp/web-rules.internal8443
 check "internal mode does not use Let's Encrypt" bash -c '! grep -q letsencrypt /tmp/Caddyfile.internal && grep -q "issuer internal" /tmp/Caddyfile.internal'
 render "$TPL/caddy/Caddyfile.acme" /tmp/Caddyfile.acme
 check "caddy validate (acme)" caddy validate --config /tmp/Caddyfile.acme --adapter caddyfile

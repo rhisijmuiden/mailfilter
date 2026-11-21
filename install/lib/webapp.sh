@@ -17,10 +17,19 @@ install_webapp() {
   chmod 0751 "$MF_ETC"; chmod 0640 "$MF_ETC/mailfilter.env" "$MF_ETC/secrets.env"
   if ! grep -q '^APP_SECRET=' "$MF_ETC/secrets.env"; then echo "APP_SECRET=$(gen_secret 48)" >>"$MF_ETC/secrets.env"; fi
 
-  info "Python packages for the web app"
-  [[ -x $MF_VENV/bin/python ]] || run python3 -m venv "$MF_VENV"
-  run "$MF_VENV/bin/pip" install --quiet --upgrade pip
-  run "$MF_VENV/bin/pip" install --quiet --upgrade "$MF_SRC/backend"
+  # Python packages and the web interface are only built again when their source changed
+  # (fast re-runs, and a quick first boot of the Proxmox template that has them built in).
+  local py_hash fe_hash
+  py_hash=$(tree_hash "$MF_SRC/backend")
+  if [[ -x $MF_VENV/bin/mailfilter-admin && $(cat "$MF_VENV/.mailfilter-build" 2>/dev/null) == "$py_hash" ]]; then
+    ok "Python packages for the web app are up to date"
+  else
+    info "Python packages for the web app"
+    [[ -x $MF_VENV/bin/python ]] || run python3 -m venv "$MF_VENV"
+    run "$MF_VENV/bin/pip" install --quiet --upgrade pip
+    run "$MF_VENV/bin/pip" install --quiet --upgrade "$MF_SRC/backend"
+    printf '%s\n' "$py_hash" >"$MF_VENV/.mailfilter-build"
+  fi
   run "$MF_VENV/bin/mailfilter-admin" migrate
   ok "Database schema up to date"
 
@@ -35,9 +44,15 @@ install_webapp() {
   install -d -o mailfilter -g mailfilter -m 0755 "$MF_VAR/lists"
   run runuser -u mailfilter -- "$MF_VENV/bin/mailfilter-admin" write-lists
 
-  info "Building the web interface"
-  (cd "$MF_SRC/frontend" && run npm ci --no-audit --no-fund --loglevel=error && run npm run build)
-  ok "Web interface built"
+  fe_hash=$(tree_hash "$MF_SRC/frontend")
+  if [[ -s $MF_SRC/frontend/dist/index.html && $(cat "$MF_VAR/frontend-build" 2>/dev/null) == "$fe_hash" ]]; then
+    ok "Web interface is up to date"
+  else
+    info "Building the web interface"
+    (cd "$MF_SRC/frontend" && run npm ci --no-audit --no-fund --loglevel=error && run npm run build)
+    printf '%s\n' "$fe_hash" >"$MF_VAR/frontend-build"
+    ok "Web interface built"
+  fi
 
   # The web app may run only the queue helper as root (quarantine release/block).
   local sudoers=/etc/sudoers.d/mailfilter
@@ -85,13 +100,16 @@ install_webapp() {
   run systemctl daemon-reload
   run systemctl enable --now mailfilter-cluster.timer
 
-  if ! "$MF_VENV/bin/mailfilter-admin" has-users; then
+  if [[ ${IMAGE:-0} == 1 ]]; then
+    info "No admin account in an image: the first boot makes one."
+  elif ! "$MF_VENV/bin/mailfilter-admin" has-users; then
     local pw
-    pw=$("$MF_VENV/bin/mailfilter-admin" create-admin "$ADMIN_EMAIL" --name Admin)
+    pw=$("$MF_VENV/bin/mailfilter-admin" create-admin "${ADMIN_LOGIN:-$ADMIN_EMAIL}" --name Admin)
     install -m 0600 /dev/null "$MF_ETC/initial-admin-password"
     printf '%s\n' "$pw" >"$MF_ETC/initial-admin-password"
+    printf '%s\n' "${ADMIN_LOGIN:-$ADMIN_EMAIL}" >"$MF_ETC/initial-admin-login"
     WEB_ADMIN_PASSWORD=$pw
-    ok "Admin account $ADMIN_EMAIL created"
+    ok "Admin account ${ADMIN_LOGIN:-$ADMIN_EMAIL} created"
   fi
   for _ in 1 2 3 4 5 6 7 8 9 10; do
     if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then ok "Web app running"; return; fi

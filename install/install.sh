@@ -41,10 +41,15 @@ Usage: install.sh [options]
                             http      plain HTTP, only for a closed management network
   --trusted-proxy CIDR    Reverse proxy address (--web-mode proxy). Repeatable
   --web-url URL           Address users open, on the reverse proxy (--web-mode proxy)
-  --web-port PORT         HTTP port for --web-mode proxy (default 8080) or http (default 80)
+  --web-port PORT         Port of the web interface: HTTPS port for --web-mode internal (default 443),
+                          HTTP port for proxy (default 8080) or http (default 80)
   --web-from CIDR         Only allow the web interface from here (internal and http). Repeatable
   --web-cert FILE         Own certificate (PEM, full chain) for --web-mode internal
   --web-key FILE          Its private key
+  --admin-login NAME      Login of the first web admin (default: the --admin-email address)
+  --image                 Prepare a generic image (the Proxmox LXC template): no host name,
+                          admin account, certificate or virus definitions yet. These follow
+                          at the first boot (appliance/firstboot.sh)
   --skip-certificate      Do not request a Let's Encrypt certificate (DNS not ready yet)
   --non-interactive       Never ask questions; fail when a required value is missing
   --reconfigure           Re-apply everything with the settings saved by the previous
@@ -55,11 +60,13 @@ EOF
 
 RELAY_NETS=(); RELAY_PORTS=(); SSH_FROM=(); SKIP_CERT=0; NONINTERACTIVE=0; RECONFIGURE=0
 WEB_MODE=""; WEB_PORT=""; WEB_URL=""; TRUSTED_PROXIES=(); WEB_FROM=(); WEB_CERT_IN=""; WEB_KEY_IN=""
-HOSTNAME_FQDN=""; ADMIN_EMAIL=""; FIRST_DOMAIN=""; FIRST_DEST=""
+HOSTNAME_FQDN=""; ADMIN_EMAIL=""; ADMIN_LOGIN=""; FIRST_DOMAIN=""; FIRST_DEST=""; IMAGE=0
 while [[ $# -gt 0 ]]; do
   case $1 in
     --hostname) HOSTNAME_FQDN=$2; shift 2 ;;
     --admin-email) ADMIN_EMAIL=$2; shift 2 ;;
+    --admin-login) ADMIN_LOGIN=$2; shift 2 ;;
+    --image) IMAGE=1; NONINTERACTIVE=1; SKIP_CERT=1; shift ;;
     --domain) FIRST_DOMAIN=$2; shift 2 ;;
     --destination) FIRST_DEST=$2; shift 2 ;;
     --relay-net) RELAY_NETS+=("$2"); shift 2 ;;
@@ -79,6 +86,13 @@ while [[ $# -gt 0 ]]; do
     *) usage; die "Unknown option: $1" ;;
   esac
 done
+
+if [[ $IMAGE == 1 ]]; then
+  # Placeholders until the first boot; the web interface's setup wizard sets the real values.
+  [[ -n $HOSTNAME_FQDN ]] || HOSTNAME_FQDN=mailfilter.localdomain
+  [[ -n $ADMIN_EMAIL ]] || ADMIN_EMAIL=admin@mailfilter.localdomain
+  [[ -n $WEB_MODE ]] || WEB_MODE=internal
+fi
 
 if [[ $RECONFIGURE == 1 ]]; then
   [[ -f $MF_ETC/mailfilter.env ]] || die "--reconfigure needs a previous install ($MF_ETC/mailfilter.env is missing)"
@@ -102,6 +116,20 @@ install -d -m 0751 "$MF_ETC"; : >>"$MF_LOG"; chmod 0600 "$MF_LOG"
 source /etc/os-release
 [[ ${ID:-} == debian && ${VERSION_ID:-} == 13 ]] || die "This installer needs Debian 13 (trixie). Found: ${PRETTY_NAME:-unknown}."
 ok "Debian 13 ($VERSION_CODENAME)"
+VIRT=$(container_type)
+if [[ $VIRT == lxc ]]; then
+  ok "Running in an LXC container (Proxmox)"
+  # An unprivileged container may not set the immutable flag that locks the mail archive.
+  ATTR_TEST=$(mktemp -d /var/tmp/mf-attr.XXXXXX)
+  if chattr +i "$ATTR_TEST" 2>/dev/null; then
+    chattr -i "$ATTR_TEST"
+  elif [[ $IMAGE == 0 ]]; then
+    warn "This container cannot lock archived mail (chattr +i). This only matters for the Archive module; see docs/proxmox.md."
+  fi
+  rmdir "$ATTR_TEST"
+elif [[ $VIRT != none ]]; then
+  ok "Running in a $VIRT container"
+fi
 for p in 25 465 587 80 443; do
   if ss -Hltn "sport = :$p" | grep . >/dev/null && ! systemctl is-active -q postfix caddy 2>/dev/null; then
     USER_OF_PORT=$(ss -Hltnp "sport = :$p" | awk 'NR==1 {print $NF}')
@@ -158,13 +186,26 @@ chmod 0640 "$MF_ETC/mailfilter.env"
 
 # ---------------------------------------------------------------------------
 step "Setting the host name"
-hostnamectl set-hostname "$HOSTNAME_FQDN"
+if [[ $IMAGE == 1 ]]; then
+  info "Skipped while building an image: the first boot sets it."
+else
+if ! hostnamectl set-hostname "$HOSTNAME_FQDN" >>"$MF_LOG" 2>&1; then
+  # Containers often have no systemd-hostnamed
+  echo "$HOSTNAME_FQDN" >/etc/hostname
+  hostname "$HOSTNAME_FQDN" 2>/dev/null || true
+fi
+# Proxmox writes /etc/hostname at every start of a container; keep the real name once it is set.
+[[ $VIRT == lxc && $HOSTNAME_FQDN != *.localdomain ]] && touch /etc/.pve-ignore.hostname
 SHORT=${HOSTNAME_FQDN%%.*}
 backup_file /etc/hosts
-sed -i "/[[:space:]]$HOSTNAME_FQDN\([[:space:]]\|$\)/d" /etc/hosts
-{ [[ -n $PUBLIC_V4 ]] && echo "$PUBLIC_V4 $HOSTNAME_FQDN $SHORT"; [[ -n $PUBLIC_V6 ]] && echo "$PUBLIC_V6 $HOSTNAME_FQDN $SHORT"; } >>/etc/hosts
+# Rewritten in place (not sed -i): in containers /etc/hosts can be a bind mount.
+HOSTS_TMP=$(mktemp)
+grep -v "[[:space:]]$HOSTNAME_FQDN\([[:space:]]\|$\)" /etc/hosts >"$HOSTS_TMP" || true
+{ [[ -n $PUBLIC_V4 ]] && echo "$PUBLIC_V4 $HOSTNAME_FQDN $SHORT"; [[ -n $PUBLIC_V6 ]] && echo "$PUBLIC_V6 $HOSTNAME_FQDN $SHORT"; } >>"$HOSTS_TMP"
+cat "$HOSTS_TMP" >/etc/hosts; rm -f "$HOSTS_TMP"
 echo "$HOSTNAME_FQDN" >/etc/mailname
-ok "$(hostname -f)"
+ok "$HOSTNAME_FQDN"
+fi
 
 # ---------------------------------------------------------------------------
 step "Installing packages (this takes a few minutes)"
@@ -177,7 +218,7 @@ run apt-get update
 PKGS=(postfix postfix-lmdb postfix-ldap rspamd redis-server clamav-daemon clamav-freshclam dovecot-core dovecot-imapd
       unbound dns-root-data caddy certbot nftables unattended-upgrades postgresql
       python3 python3-venv python3-psycopg python3-dnspython python3-httpx python3-cryptography
-      nodejs npm sudo git zstd gnupg openssh-client curl dnsutils ca-certificates jq crowdsec)
+      nodejs npm sudo git zstd gnupg openssh-client curl dnsutils ca-certificates jq e2fsprogs crowdsec)
 run apt-get install -y --no-install-recommends "${PKGS[@]}"
 # Postfix replaces Debian's default Exim; clean up what is left of it
 if dpkg -l 'exim4*' 2>/dev/null | grep '^[ri]i' >/dev/null; then run apt-get purge -y 'exim4*'; fi
@@ -211,6 +252,8 @@ else
   backup_file /etc/resolv.conf
   printf '# Managed by Mailfilter\nnameserver 127.0.0.1\nnameserver ::1\noptions edns0 trust-ad\n' >/etc/resolv.conf
 fi
+# Proxmox writes resolv.conf at every start of a container; blocklists need the own resolver.
+[[ $VIRT == lxc ]] && touch /etc/.pve-ignore.resolv.conf
 dig +short +time=3 rhis.nl @127.0.0.1 >/dev/null || die "The local resolver does not answer. Check outbound DNS (port 53) from this server."
 ok "unbound answers on 127.0.0.1 and ::1"
 
@@ -276,13 +319,23 @@ ok "Password check for SMTP accounts is ready"
 # ---------------------------------------------------------------------------
 step "Virus scanner (ClamAV)"
 run systemctl enable --now clamav-freshclam
-if [[ ! -s /var/lib/clamav/main.cvd && ! -s /var/lib/clamav/main.cld ]]; then
+if [[ $IMAGE == 1 ]]; then
+  info "Virus definitions are downloaded at the first boot."
+elif [[ ! -s /var/lib/clamav/main.cvd && ! -s /var/lib/clamav/main.cld ]]; then
   info "Downloading virus definitions"
-  systemctl stop clamav-freshclam; run freshclam --quiet; systemctl start clamav-freshclam
+  systemctl stop clamav-freshclam
+  # A busy ClamAV mirror must not stop the whole install: freshclam keeps trying by itself.
+  freshclam --quiet >>"$MF_LOG" 2>&1 || warn "Could not download the virus definitions yet; freshclam keeps trying, ClamAV starts once they are there."
+  systemctl start clamav-freshclam
 fi
 run systemctl enable clamav-daemon
-run systemctl restart clamav-daemon
-ok "ClamAV running"
+if [[ $IMAGE == 1 || ! ( -s /var/lib/clamav/main.cvd || -s /var/lib/clamav/main.cld ) ]]; then
+  systemctl restart clamav-daemon >>"$MF_LOG" 2>&1 || true
+  ok "ClamAV installed"
+else
+  run systemctl restart clamav-daemon
+  ok "ClamAV running"
+fi
 
 # ---------------------------------------------------------------------------
 step "Spam filter (Rspamd)"
@@ -465,9 +518,18 @@ systemctl start --no-block mailfilter-blacklist.service >>"$MF_LOG" 2>&1 || true
 ok "Own IPv4 and IPv6 addresses are checked against the blocklists every 15 minutes"
 
 # ---------------------------------------------------------------------------
+if [[ $IMAGE == 1 ]]; then
+  # The image is generalised by appliance/generalize.sh; services start properly at the first boot.
+  printf '\n%s%sImage prepared.%s Run appliance/generalize.sh next.\n' "$C_BOLD" "$C_OK" "$C_RESET"
+  exit 0
+fi
+
 step "Self-test"
 FAILED=0
-for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec mailfilter-tracer mailfilter-web mailfilter-backup.timer mailfilter-abuse.timer mailfilter-notify.timer mailfilter-cluster.timer; do
+for s in unbound postfix rspamd clamav-daemon redis-server dovecot postgresql nftables crowdsec caddy mailfilter-tracer mailfilter-web \
+         mailfilter-backup.timer mailfilter-abuse.timer mailfilter-notify.timer mailfilter-cluster.timer mailfilter-archive.timer \
+         mailfilter-blacklist.timer mailfilter-dkim-rotate.timer mailfilter-quarantine-report.timer mailfilter-monthly-report.timer; do
+  [[ $s == caddy && $WEB_MODE == public && $HAVE_CERT == 0 ]] && continue
   if systemctl is-active -q "$s"; then ok "$s"; else warn "$s is not running"; FAILED=1; fi
 done
 for p in 25 465 587 "${RELAY_PORTS[@]}"; do
@@ -475,15 +537,40 @@ for p in 25 465 587 "${RELAY_PORTS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
+step "DNS check"
+# The same checks as the DNS toolbox: A and AAAA of the host name, and PTR of each address.
+# Addresses are compared as IPs, so 2001:db8::1 and 2001:0db8:0::1 count as equal.
+DNS_TODO=0
+check_address() {  # check_address TYPE ADDRESS
+  local type=$1 addr=$2 found ptr a match=0
+  if is_private_ip "$addr"; then
+    info "$addr is a private address (behind NAT or in a lab): check the public address in the DNS toolbox."
+    return 0
+  fi
+  found=$(dig +short +time=3 "$type" "$HOSTNAME_FQDN" @127.0.0.1 2>/dev/null | grep -v '\.$' || true)
+  for a in $found; do same_ip "$a" "$addr" && match=1; done
+  if [[ $match == 1 ]]; then ok "$type $HOSTNAME_FQDN -> $addr"
+  else warn "$type record of $HOSTNAME_FQDN does not point to $addr (found: ${found:-nothing})"; DNS_TODO=1; fi
+  ptr=$(dig +short +time=3 -x "$addr" @127.0.0.1 2>/dev/null | head -1 || true)
+  if [[ ${ptr%.} == "$HOSTNAME_FQDN" ]]; then ok "PTR $addr -> $HOSTNAME_FQDN"
+  else warn "PTR of $addr is '${ptr%.}', not $HOSTNAME_FQDN: ask your hosting provider to set it"; DNS_TODO=1; fi
+}
+if [[ $HOSTNAME_FQDN == *.localdomain ]]; then
+  info "Skipped: the host name is not set yet (web interface: setup wizard)."
+else
+  [[ -n $PUBLIC_V4 ]] && check_address A "$PUBLIC_V4"
+  [[ -n $PUBLIC_V6 ]] && check_address AAAA "$PUBLIC_V6"
+fi
+
+# ---------------------------------------------------------------------------
 printf '\n%s%sDone.%s ' "$C_BOLD" "$C_OK" "$C_RESET"
 [[ $FAILED == 0 ]] && echo "Mailfilter is running." || echo "Mailfilter is installed, but check the warnings above."
-cat <<EOF
-
-${C_BOLD}DNS records to add${C_RESET} (see also the DNS toolbox in the web interface)
-  A     $HOSTNAME_FQDN     ${PUBLIC_V4:-<IPv4>}
-EOF
-[[ -n $PUBLIC_V6 ]] && echo "  AAAA  $HOSTNAME_FQDN     $PUBLIC_V6"
-echo "  PTR   ask your hosting provider: ${PUBLIC_V4:-<IPv4>}${PUBLIC_V6:+ and $PUBLIC_V6} -> $HOSTNAME_FQDN"
+if [[ $DNS_TODO == 1 || -n $FIRST_DOMAIN ]]; then
+  printf '\n%sDNS records to add%s (see also the DNS toolbox in the web interface)\n' "$C_BOLD" "$C_RESET"
+  echo "  A     $HOSTNAME_FQDN     ${PUBLIC_V4:-<IPv4>}"
+  [[ -n $PUBLIC_V6 ]] && echo "  AAAA  $HOSTNAME_FQDN     $PUBLIC_V6"
+  echo "  PTR   ask your hosting provider: ${PUBLIC_V4:-<IPv4>}${PUBLIC_V6:+ and $PUBLIC_V6} -> $HOSTNAME_FQDN"
+fi
 if [[ -n $FIRST_DOMAIN ]]; then
   echo "  SPF   add to $FIRST_DOMAIN:   ip4:${PUBLIC_V4:-<IPv4>}${PUBLIC_V6:+ ip6:$PUBLIC_V6}"
   echo "  DKIM  $(tr -s ' \n\t' ' ' <"$MF_ETC/dkim-$FIRST_DOMAIN.$SEL.txt" | sed 's/  */ /g')"
@@ -492,9 +579,12 @@ fi
 # Also show it on later runs until it is removed: an earlier run may have stopped before this point.
 [[ -z $WEB_ADMIN_PASSWORD && -s $MF_ETC/initial-admin-password ]] && WEB_ADMIN_PASSWORD=$(<"$MF_ETC/initial-admin-password")
 if [[ -n $WEB_ADMIN_PASSWORD ]]; then
+  WEB_ADMIN_LOGIN=$(cat "$MF_ETC/initial-admin-login" 2>/dev/null || echo "$ADMIN_EMAIL")
   printf '\n%sWeb interface login%s  %s\n' "$C_BOLD" "$C_RESET" "$WEB_URL"
-  echo "  User:     $ADMIN_EMAIL"
+  echo "  User:     $WEB_ADMIN_LOGIN"
   echo "  Password: $WEB_ADMIN_PASSWORD   (also in $MF_ETC/initial-admin-password; change it after logging in, then delete that file)"
 fi
 echo
 echo "Log of this install: $MF_LOG"
+# Proxmox template: the console shows the address (and the first login until the wizard is done)
+if [[ -f $MF_ETC/appliance ]]; then bash "$MF_SRC/appliance/issue.sh" || true; fi

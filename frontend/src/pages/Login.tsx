@@ -102,7 +102,7 @@ export default function Login() {
             <ErrorText error={m.error} />
             <div className="field">
               <label htmlFor="email">{t("login.email")}</label>
-              <input id="email" className="input" type="email" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input id="email" className="input" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="field">
               <label htmlFor="password">{t("login.password")}</label>

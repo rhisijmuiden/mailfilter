@@ -70,3 +70,23 @@ gen_secret() {
 
 is_ipv4() { [[ $1 =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]]; }
 is_ipv6() { [[ $1 == *:* && $1 =~ ^[0-9a-fA-F:]+(/[0-9]{1,3})?$ ]]; }
+
+# tree_hash DIR: one hash over the names and contents of the files in DIR, leaving out
+# build output. Used to skip rebuilding the web app when nothing changed.
+tree_hash() {
+  (cd "$1" && find . \( -name node_modules -o -name dist -o -name __pycache__ -o -name '*.egg-info' -o -name build \) -prune \
+     -o -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+}
+
+# same_ip A B: true when two addresses are the same (2001:db8::1 equals 2001:0db8:0:0::1).
+same_ip() {
+  python3 -c 'import ipaddress,sys; sys.exit(0 if ipaddress.ip_address(sys.argv[1]) == ipaddress.ip_address(sys.argv[2]) else 1)' "$1" "$2" 2>/dev/null
+}
+
+# is_private_ip ADDR: true for private, loopback and link-local addresses (behind NAT, in a lab).
+is_private_ip() {
+  python3 -c 'import ipaddress,sys; a=ipaddress.ip_address(sys.argv[1]); sys.exit(0 if not a.is_global else 1)' "$1" 2>/dev/null
+}
+
+# container_type: lxc, docker, ... or "none" on a real or virtual machine.
+container_type() { local v; v=$(systemd-detect-virt --container 2>/dev/null) || true; echo "${v:-none}"; }

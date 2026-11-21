@@ -1338,7 +1338,7 @@
     "failed_restore": "Terugzetten mislukt.",
     "done_remote_sync": "Externe kopie is bijgewerkt.",
     "failed_remote_sync": "Externe kopie mislukt.",
-    "steps": {"web_access": "Webinterface omschakelen", 
+    "steps": {"setup_server": "Servernaam instellen", "web_access": "Webinterface omschakelen", 
       "backup_start": "{{type}} {{id}}",
       "backup_files": "Bestanden opslaan (instellingen, DKIM-sleutels, certificaten, quarantaine)",
       "backup_database": "Database opslaan",
@@ -2451,6 +2451,7 @@
     "proxies_hint": "Eén per regel; netwerken zoals 10.0.0.0/24 mogen ook. Alleen deze mogen verbinden, en hun X-Forwarded-For- en X-Forwarded-Proto-headers worden vertrouwd.",
     "port": "Poort",
     "port_hint_proxy": "Waar de proxy zijn verzoeken heen stuurt.",
+    "port_hint_internal": "HTTPS-poort, standaard 443. Poort 80 blijft hiernaar doorsturen.",
     "url": "Adres op de proxy",
     "url_hint": "Wat gebruikers in de browser typen. Wordt gebruikt in links in mails (quarantainerapport, meldingen).",
     "from": "Alleen bereikbaar vanaf (optioneel)",
@@ -2469,5 +2470,6 @@
     "confirm_url": "Open hem daarna op",
     "running": "Bezig met omschakelen… Reageert deze pagina niet meer, open dan {{url}}.",
     "open_new": "Nieuw adres openen"
-  }
+  },
+  "setup": {"title": "Mailfilter instellen", "sub": "Een paar stappen om deze server klaar te maken. Alles kun je later in het menu wijzigen.", "steps": "Instellen", "prev": "Vorige", "next": "Volgende", "skip": "Volgende stap", "banner": "Het instellen is nog niet klaar.", "banner_link": "Verder met instellen", "addresses": "Adressen van deze server:", "proxmox_ip": "Het IP-adres stel je in Proxmox in (container > Network).", "hostname": "Servernaam", "hostname_hint": "De volledige naam die internet ziet, bijvoorbeeld mailfilter01.example.nl. Maak een A-record (en AAAA voor IPv6) naar deze server.", "email": "Je e-mailadres", "email_hint": "Vanaf nu je login, en hier komen meldingen en certificaatberichten.", "password": "Nieuw wachtwoord", "password2": "Herhaal het wachtwoord", "password_hint": "Leeg laten om je huidige wachtwoord te houden.", "password_hint_required": "Vervangt het wachtwoord dat op de console stond. Minimaal 10 tekens.", "pw_mismatch": "De wachtwoorden zijn niet gelijk.", "pw_short": "Gebruik minimaal 10 tekens.", "pw_required": "Kies je eigen wachtwoord.", "apply_server": "Opslaan en toepassen", "running": "Servernaam wordt toegepast. Mailserver, webserver en certificaten worden opnieuw ingesteld; dit duurt een minuut of twee.", "try_again": "Opnieuw proberen", "finish": "Instellen afronden", "after": {"dns": "Controleer de DNS van de server en je domeinen in de DNS-toolbox, en vraag je provider om de PTR-records.", "twofa": "Zet tweestapsaanmelding aan onder Mijn account.", "golive": "Zet een domein over: laat de mailserver via Mailfilter versturen en zet daarna het MX-record hierheen (Live zetten)."}, "s": {"server": {"title": "Server en login", "short": "Naam, je e-mail en wachtwoord", "intro": "Geef deze server zijn echte naam en maak de beheerderslogin van jezelf."}, "web": {"title": "Webtoegang", "short": "Hoe de webinterface bereikbaar is", "intro": "Nu bereikbaar met een zelfgemaakt certificaat. Direct op internet? Kies Let's Encrypt zodra de servernaam hierheen wijst."}, "domains": {"title": "Domeinen", "short": "De domeinen om te filteren", "intro": "Voeg de domeinen toe waarvan Mailfilter de mail filtert, met de mailserver die de schone mail ontvangt."}, "relay": {"title": "Relaytoegang", "short": "Wie mag versturen", "intro": "Voeg de webservers en mailservers toe die via Mailfilter mail mogen versturen."}, "mail": {"title": "E-mail versturen", "short": "Hoe Mailfilter zelf mailt", "intro": "Hoe Mailfilter meldingen en rapporten verstuurt. De standaard werkt voor de meeste situaties; stuur een testbericht."}, "backups": {"title": "Back-ups", "short": "Schema en externe kopie", "intro": "Controleer de nachtelijke back-up en stel een kopie op een andere server in (SCP, FTPS of FTP)."}, "done": {"title": "Klaar", "short": "Wat nog rest", "intro": "{{host}} is ingesteld. Buiten Mailfilter blijft nog een paar dingen over:"}}}
 }

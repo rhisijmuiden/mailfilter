@@ -28,7 +28,9 @@ def test_validate():
     p = web.validate({"mode": "proxy", "trusted_proxies": "10.0.0.5 2001:db8::/64", "url": "https://mail.example.nl/"})
     assert p == {"mode": "proxy", "port": 8080, "trusted_proxies": ["10.0.0.5", "2001:db8::/64"], "url": "https://mail.example.nl"}
     assert web.validate({"mode": "http", "port": "8081", "web_from": ["192.168.1.0/24"]})["web_from"] == ["192.168.1.0/24"]
-    for bad in ({"mode": "ftp"}, {"mode": "proxy"}, {"mode": "proxy", "trusted_proxies": "nope"},
+    assert web.validate({"mode": "internal", "port": "8443"}) == {"mode": "internal", "port": 8443, "web_from": []}
+    assert web.validate({"mode": "internal", "port": 443}) == {"mode": "internal", "web_from": []}
+    for bad in ({"mode": "internal", "port": 80}, {"mode": "ftp"}, {"mode": "proxy"}, {"mode": "proxy", "trusted_proxies": "nope"},
                 {"mode": "http", "port": 25}, {"mode": "proxy", "trusted_proxies": "10.0.0.5", "url": "javascript:x"}):
         with pytest.raises(CtlError):
             web.validate(bad)

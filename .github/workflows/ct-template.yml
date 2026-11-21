@@ -1,0 +1,73 @@
+name: Proxmox template
+# Builds the Proxmox LXC template (CT template), starts it like Proxmox would and
+# checks the first boot and the setup wizard. Pushes to main and test publish it
+# as a release asset at a fixed address, for Proxmox' "Download from URL":
+#   production: https://github.com/<repo>/releases/latest/download/mailfilter-production_amd64.tar.zst
+#   test:       https://github.com/<repo>/releases/download/ct-test/mailfilter-test_amd64.tar.zst
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    paths:
+      - "appliance/**"
+      - "install/**"
+      - "ops/mailfilterctl/setup.py"
+      - ".github/workflows/ct-template.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ct-template-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  template:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Channel
+        id: ch
+        run: |
+          if [[ $GITHUB_EVENT_NAME == pull_request ]]; then b=test; else b=${GITHUB_REF_NAME}; fi
+          [[ $b == main || $b == test ]] || b=test
+          echo "branch=$b" >>"$GITHUB_OUTPUT"
+          echo "channel=$([[ $b == main ]] && echo production || echo test)" >>"$GITHUB_OUTPUT"
+          echo "version=$(head -1 VERSION)" >>"$GITHUB_OUTPUT"
+          # A pull request is built as its own commit on a local branch of that name
+          git checkout -q -B "$b" HEAD
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - name: Build the template
+        run: sudo appliance/build.sh --branch "${{ steps.ch.outputs.branch }}" --out "$PWD/out"
+      - name: First boot and setup wizard
+        run: sudo appliance/tests/smoke.sh "out/mailfilter-${{ steps.ch.outputs.channel }}_amd64.tar.zst"
+      - name: Publish (test channel)
+        if: github.event_name != 'pull_request' && steps.ch.outputs.branch == 'test'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=ct-test
+          notes="Proxmox LXC template of the test channel, version ${{ steps.ch.outputs.version }}, commit ${GITHUB_SHA::7}. Rebuilt on every change to the test branch. In Proxmox: storage > CT Templates > Download from URL."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+            gh release edit "$tag" --prerelease --title "Proxmox template (test channel)" --notes "$notes"
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --title "Proxmox template (test channel)" --notes "$notes"
+          fi
+          gh release upload "$tag" out/mailfilter-test_amd64.tar.zst out/mailfilter-test_amd64.tar.zst.sha256 --clobber
+      - name: Publish (production)
+        if: github.event_name != 'pull_request' && steps.ch.outputs.branch == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=v${{ steps.ch.outputs.version }}
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --latest --title "Mailfilter ${{ steps.ch.outputs.version }}" \
+              --notes "Mailfilter ${{ steps.ch.outputs.version }}. See CHANGELOG.md. The Proxmox LXC template is attached; in Proxmox: storage > CT Templates > Download from URL."
+          fi
+          gh release upload "$tag" out/mailfilter-production_amd64.tar.zst out/mailfilter-production_amd64.tar.zst.sha256 --clobber

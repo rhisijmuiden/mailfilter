@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Info, LogOut, Menu, Monitor, Moon, Search, Sun, UserRound } from "lucide-react";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { setLanguage, type Lang } from "../i18n";
 import { api } from "../lib/api";
 import { useBranding } from "../lib/branding";
@@ -48,6 +48,10 @@ export function Layout({ me }: { me: Me }) {
   // Switched-off modules leave the menu; the Mailtrap also needs a mailbox for non-admins.
   const showModule = (key: ModuleKey) => (key === "mailtrap" ? mailtrapOn && !!mailtrap.data?.visible : !!mods.data && moduleOn(mods.data, key));
   useEffect(() => setNavOpen(false), [loc.pathname]);
+  // First-time setup (Proxmox template): open the wizard once per visit, then keep a reminder.
+  const setupPending = me.role === "admin" && !!sys.data?.setup_pending;
+  const [setupLater, setSetupLater] = useState(false);
+  useEffect(() => { if (setupPending && loc.pathname !== "/") setSetupLater(true); }, [setupPending, loc.pathname]);
 
   const changeLang = async (lang: Lang) => {
     setLanguage(lang);
@@ -140,6 +144,12 @@ export function Layout({ me }: { me: Me }) {
           </div>
         </header>
         <main className="content" id="content">
+          {setupPending && loc.pathname === "/" && !setupLater && <Navigate to="/setup" replace />}
+          {setupPending && loc.pathname !== "/setup" && (
+            <div className="callout warn" role="status" style={{ marginBottom: 16 }}>
+              <span>{t("setup.banner")} <Link to="/setup">{t("setup.banner_link")}</Link></span>
+            </div>
+          )}
           {cluster.data?.role === "standby" && loc.pathname !== "/system/cluster" && (
             <div className="callout" role="status" style={{ marginBottom: 16 }}>
               <span>

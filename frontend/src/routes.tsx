@@ -28,6 +28,7 @@ const Lists = lazy(() => import("./pages/Lists"));
 const Quarantine = lazy(() => import("./pages/Quarantine"));
 const QuarantineReport = lazy(() => import("./pages/QuarantineReport"));
 const RelayAccess = lazy(() => import("./pages/RelayAccess"));
+const Setup = lazy(() => import("./pages/Setup"));
 const SpamReports = lazy(() => import("./pages/SpamReports"));
 const Security = lazy(() => import("./pages/Security"));
 const Throttling = lazy(() => import("./pages/Throttling"));
@@ -70,6 +71,7 @@ export const ROUTES: AppRoute[] = [
   { path: "/system/api", element: (me) => <ApiAccess me={me} />, module: "api" },
   { path: "/system/modules", element: () => <Modules />, adminOnly: true },
   { path: "/system/web", element: () => <WebAccess />, adminOnly: true },
+  { path: "/setup", element: (me) => <Setup me={me} />, adminOnly: true },
   { path: "/system/branding", element: () => <Branding />, adminOnly: true },
   { path: "/system/security", element: (me) => <Security me={me} />, adminOnly: true },
   { path: "/system/import-pmg", element: () => <ImportPmg />, adminOnly: true, module: "pmg_import" },

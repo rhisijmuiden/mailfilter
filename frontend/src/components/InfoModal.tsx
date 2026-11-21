@@ -14,6 +14,7 @@ import { ProductName } from "./Logo";
 export type SystemInfo = {
   version: string; app_version: string; branch: string; hostname: string;
   label?: string; channel?: string; commit?: string; commit_date?: string; web_mode?: "public" | "internal" | "proxy" | "http";
+  setup_pending?: boolean; // first-time setup wizard not finished (Proxmox template)
 };
 
 type Details = {

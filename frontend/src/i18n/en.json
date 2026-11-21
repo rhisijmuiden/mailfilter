@@ -1338,7 +1338,7 @@
     "failed_restore": "Restore failed.",
     "done_remote_sync": "Remote copy is up to date.",
     "failed_remote_sync": "Remote copy failed.",
-    "steps": {"web_access": "Switching the web interface", 
+    "steps": {"setup_server": "Setting the server name", "web_access": "Switching the web interface", 
       "backup_start": "{{type}} {{id}}",
       "backup_files": "Saving files (settings, DKIM keys, certificates, quarantine)",
       "backup_database": "Saving the database",
@@ -2451,6 +2451,7 @@
     "proxies_hint": "One per line; networks such as 10.0.0.0/24 are fine. Only these may connect, and their X-Forwarded-For and X-Forwarded-Proto headers are trusted.",
     "port": "Port",
     "port_hint_proxy": "Where the proxy sends its requests.",
+    "port_hint_internal": "HTTPS port, 443 by default. Port 80 keeps redirecting to it.",
     "url": "Address on the proxy",
     "url_hint": "What users type in the browser. Used in links in mails (quarantine report, alerts).",
     "from": "Only reachable from (optional)",
@@ -2469,5 +2470,6 @@
     "confirm_url": "Afterwards, open it at",
     "running": "Switching… If this page stops answering, open {{url}}.",
     "open_new": "Open the new address"
-  }
+  },
+  "setup": {"title": "Set up Mailfilter", "sub": "A few steps to get this server ready. You can change everything later in the menu.", "steps": "Setup", "prev": "Back", "next": "Next", "skip": "Next step", "banner": "Setup is not finished yet.", "banner_link": "Continue setup", "addresses": "This server's addresses:", "proxmox_ip": "The IP address is set in Proxmox (container > Network).", "hostname": "Server name", "hostname_hint": "The full name the internet sees, for example mailfilter01.example.nl. Add an A record (and AAAA for IPv6) pointing here.", "email": "Your e-mail address", "email_hint": "Your login from now on, and where alerts and certificate notices go.", "password": "New password", "password2": "Repeat the password", "password_hint": "Leave empty to keep your current password.", "password_hint_required": "Replaces the password shown on the console. At least 10 characters.", "pw_mismatch": "The passwords are not the same.", "pw_short": "Use at least 10 characters.", "pw_required": "Choose your own password.", "apply_server": "Save and apply", "running": "Applying the server name. Mail server, web server and certificates are set up again; this takes a minute or two.", "try_again": "Try again", "finish": "Finish setup", "after": {"dns": "Check the DNS of the server and your domains in the DNS toolbox, and ask your provider for the PTR records.", "twofa": "Turn on two-factor login under My account.", "golive": "Move a domain over: let its mail server send through Mailfilter, then point the MX record here (Go live)."}, "s": {"server": {"title": "Server and login", "short": "Name, your e-mail and password", "intro": "Give this server its real name and make the admin login your own."}, "web": {"title": "Web access", "short": "How the web interface is reached", "intro": "Now reached with a self-made certificate. Directly on the internet? Choose Let's Encrypt once the server name points here."}, "domains": {"title": "Domains", "short": "The domains to filter", "intro": "Add the domains whose mail Mailfilter filters, with the mail server that receives the clean mail."}, "relay": {"title": "Relay access", "short": "Who may send out", "intro": "Add the web servers and mail servers that may send mail out through Mailfilter."}, "mail": {"title": "E-mail sending", "short": "How Mailfilter sends its own mail", "intro": "How Mailfilter sends alerts and reports. The default works for most setups; send a test message."}, "backups": {"title": "Backups", "short": "Schedule and remote copy", "intro": "Check the nightly backup and set up a copy on another server (SCP, FTPS or FTP)."}, "done": {"title": "Ready", "short": "What is left", "intro": "{{host}} is set up. A few things are left outside Mailfilter:"}}}
 }

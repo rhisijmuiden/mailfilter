@@ -1,0 +1,18 @@
+# Proxmox LXC template: finishes the install at the first start of a new container
+# (own passwords and keys, admin login, virus definitions). Runs once.
+[Unit]
+Description=Mailfilter first boot setup
+ConditionPathExists=/etc/mailfilter/appliance-firstboot-pending
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/mailfilter/appliance/firstboot.sh
+TimeoutStartSec=0
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
