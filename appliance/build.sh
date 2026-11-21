@@ -56,8 +56,9 @@ git -C "$WORK/mailfilter" config remote.origin.fetch '+refs/heads/*:refs/remotes
 git -C "$WORK/mailfilter" update-ref "refs/remotes/origin/$BRANCH" "$COMMIT"
 git -C "$WORK/mailfilter" branch --quiet --set-upstream-to="origin/$BRANCH" "$BRANCH"
 # Branches other than the template's own stay out of the image.
-git -C "$WORK/mailfilter" for-each-ref --format='%(refname)' refs/remotes/origin | grep -v "refs/remotes/origin/$BRANCH$" | xargs -r -n1 git -C "$WORK/mailfilter" update-ref -d
-git -C "$WORK/mailfilter" for-each-ref --format='%(refname:short)' refs/heads | grep -vx "$BRANCH" | xargs -r git -C "$WORK/mailfilter" branch -q -D
+for ref in $(git -C "$WORK/mailfilter" for-each-ref --format='%(refname)' refs/remotes/origin refs/heads refs/tags); do
+  case $ref in "refs/remotes/origin/$BRANCH"|"refs/heads/$BRANCH") ;; *) git -C "$WORK/mailfilter" update-ref -d "$ref" ;; esac
+done
 
 say "Base system (Debian 13)"
 docker build --pull -q -t "$IMG" -f "$SRC/appliance/Dockerfile" "$WORK"
